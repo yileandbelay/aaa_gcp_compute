@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}Log in · {{ site_name }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:420px;margin:auto">
+  <h1>Log in</h1>
+  <form method="post" class="stack">{{ csrf() }}
+    <label>Email</label><input type="email" name="email" required autofocus>
+    <label>Password</label><input type="password" name="password" required>
+    <label class="check"><input type="checkbox" name="remember" value="1"> Remember me</label>
+    <p><button class="btn">Log in</button></p>
+  </form>
+  <p class="small">New here? <a href="{{ url_for('auth.register', next=request.args.get('next')) }}">Create an account</a></p>
+</div>
+{% endblock %}

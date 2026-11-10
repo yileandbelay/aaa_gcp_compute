@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% from "_macros.html" import progress_bar %}
+{% block content %}
+<p class="small"><a href="{{ url_for('admin.course_edit', course_id=course.id) }}">← {{ course.title }}</a></p>
+<h1>Students in {{ course.title }}</h1>
+<div class="table-wrap"><table><tr><th>Student</th><th>Status</th><th>Enrolled</th><th style="width:30%">Progress</th></tr>
+{% for e, p in rows %}<tr><td>{% if current_user.is_admin %}<a href="{{ url_for('admin.student_detail', user_id=e.user.id) }}">{{ e.user.full_name }}</a>{% else %}{{ e.user.full_name }}{% endif %}<br><span class="small muted">{{ e.user.email }}</span></td>
+<td><span class="badge {{ e.status }}">{{ e.status }}</span></td><td>{{ e.created_at.strftime('%d %b %Y') }}</td><td>{{ progress_bar(p.percent) }} <span class="small">{{ p.percent }}%</span></td></tr>
+{% else %}<tr><td colspan="4" class="muted">No students yet.</td></tr>{% endfor %}</table></div>
+{% endblock %}

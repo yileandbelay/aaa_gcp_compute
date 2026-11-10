@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf, progress_bar %}
+{% block content %}
+<p class="small"><a href="{{ url_for('admin.students') }}">← Students</a></p>
+<h1>{{ user.full_name }}</h1>
+<div class="card">
+  <p>{{ user.email }} · {{ user.phone or 'no phone' }} · {{ user.city or '' }} · joined {{ user.created_at.strftime('%d %b %Y') }}</p>
+  {% if user.id != current_user.id %}
+  <div class="row">
+    <form method="post" class="row">{{ csrf() }}<input type="hidden" name="action" value="role">
+      <select name="role" style="width:auto">{% for r in ['student','instructor','admin'] %}<option {{ 'selected' if user.role == r }}>{{ r }}</option>{% endfor %}</select><button class="btn small secondary">Set role</button></form>
+    <form method="post">{{ csrf() }}<input type="hidden" name="action" value="toggle_active"><button class="btn small {{ 'danger' if user.is_active_account else 'ok' }}">{{ 'Suspend account' if user.is_active_account else 'Reactivate account' }}</button></form>
+  </div>{% endif %}
+</div>
+<div class="card"><h2>Enrollments</h2><table>
+{% for e, p in rows %}<tr><td>{{ e.course.title }}</td><td><span class="badge {{ e.status }}">{{ e.status }}</span></td><td style="width:30%">{{ progress_bar(p.percent) }}</td>
+<td>{% if e.status == 'active' %}<form method="post">{{ csrf() }}<input type="hidden" name="action" value="revoke"><input type="hidden" name="enrollment_id" value="{{ e.id }}"><button class="linkbtn">revoke</button></form>{% endif %}</td></tr>
+{% else %}<tr><td class="muted">None</td></tr>{% endfor %}</table>
+<form method="post" class="row" style="margin-top:12px">{{ csrf() }}<input type="hidden" name="action" value="grant">
+  <select name="course_id" style="width:auto">{% for c in courses %}<option value="{{ c.id }}">{{ c.title }}</option>{% endfor %}</select>
+  <button class="btn small">Grant access (scholarship / offline payment)</button></form>
+</div>
+<div class="card"><h2>Payments</h2>{% include "admin/_payments_table.html" %}</div>
+{% endblock %}

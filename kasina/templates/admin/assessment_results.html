@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="small"><a href="{{ url_for('admin.assessment_form', aid=a.id) }}">← {{ a.title }}</a></p>
+<h1>Results: {{ a.title }}</h1>
+<div class="table-wrap"><table><tr><th>Student</th><th>Submitted</th><th>Score</th><th>Result</th><th></th></tr>
+{% for t in attempts %}<tr><td>{{ t.user.full_name }}</td><td>{{ t.submitted_at.strftime('%d %b %Y %H:%M') }}</td><td>{{ t.score }}%</td>
+<td><span class="badge {{ 'passed' if t.passed else 'failed' }}">{{ 'Passed' if t.passed else 'Failed' }}</span></td><td><a href="{{ url_for('assess.result', attempt_id=t.id) }}">answers</a></td></tr>
+{% else %}<tr><td colspan="5" class="muted">No attempts yet.</td></tr>{% endfor %}</table></div>
+{% endblock %}

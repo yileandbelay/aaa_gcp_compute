@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card"><h1>{{ code }} – {% if code == 403 %}Access denied{% elif code == 404 %}Not found{% elif code == 413 %}File too large{% else %}Bad request{% endif %}</h1>
+<p>{{ error.description }}</p><a class="btn" href="{{ url_for('main.index') }}">Go home</a></div>
+{% endblock %}

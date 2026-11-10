@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Certificate · {{ cert.user.full_name }}{% endblock %}
+{% block content %}
+<div class="cert">
+  <div style="font-size:2.5rem">🎂</div>
+  <p class="muted">KASINA CAKERY ACADEMY</p>
+  <h1>Certificate of Completion</h1>
+  <p>This certifies that</p>
+  <p class="name">{{ cert.user.full_name }}</p>
+  <p>has successfully completed all lessons and assessments of</p>
+  <h2>{{ cert.course.title }}</h2>
+  <p>Issued {{ cert.issued_at.strftime('%d %B %Y') }}</p>
+  <p class="small muted">Certificate ID {{ cert.code }} · verify at {{ url_for('main.certificate', code=cert.code, _external=True) }}</p>
+</div>
+<p class="noprint" style="text-align:center;margin-top:16px"><button class="btn" onclick="window.print()">Print / Save as PDF</button></p>
+{% endblock %}

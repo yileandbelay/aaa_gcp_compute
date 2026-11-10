@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}Register · {{ site_name }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:520px;margin:auto">
+  <h1>Student registration</h1>
+  <form method="post" class="stack">{{ csrf() }}
+    <label>Full name</label><input type="text" name="full_name" value="{{ form.get('full_name','') }}" required>
+    <label>Email</label><input type="email" name="email" value="{{ form.get('email','') }}" required>
+    <label>Phone (for payment & updates)</label><input type="tel" name="phone" value="{{ form.get('phone','') }}" placeholder="+251 9…">
+    <label>City</label><input type="text" name="city" value="{{ form.get('city','') }}">
+    <label>Password (min 8 characters)</label><input type="password" name="password" minlength="8" required>
+    <label>Confirm password</label><input type="password" name="password2" minlength="8" required>
+    <label class="check"><input type="checkbox" name="agree" value="1" required> I agree not to record, download or share course materials.</label>
+    <p><button class="btn">Create account</button></p>
+  </form>
+  <p class="small">Already registered? <a href="{{ url_for('auth.login', next=request.args.get('next')) }}">Log in</a></p>
+</div>
+{% endblock %}
