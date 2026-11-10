@@ -9,4 +9,5 @@ RUN useradd -m kasina && mkdir -p /app/instance && chown -R kasina /app/instance
 USER kasina
 EXPOSE 8000
 # Long timeout so large video uploads/streams are not cut off.
-CMD ["gunicorn", "-w", "3", "--threads", "4", "-t", "300", "-b", "0.0.0.0:8000", "wsgi:app"]
+# Apply database migrations, then start the app.
+CMD ["sh", "-c", "flask --app wsgi db upgrade && exec gunicorn -w 3 --threads 4 -t 300 -b 0.0.0.0:8000 wsgi:app"]

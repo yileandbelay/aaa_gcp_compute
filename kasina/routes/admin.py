@@ -2,16 +2,21 @@
 import csv
 import io
 import os
+import re
 from decimal import Decimal, InvalidOperation
 
-from flask import (Blueprint, Response, abort, current_app, flash, redirect, render_template, request,
-                   url_for)
+from flask import (Blueprint, Response, abort, current_app, flash, jsonify, redirect, render_template,
+                   request, url_for)
 from flask_login import current_user
 from sqlalchemy import func
 
 from ..models import (Announcement, Assessment, Attempt, Certificate, Course, Enrollment, Lesson,
                       Payment, Question, User, db)
+from ..mail import send_email
 from ..utils import admin_required, course_progress, save_upload, slugify, staff_required
+from ..video import VideoError, upload_credentials, vdocipher_enabled, video_status
+
+VDO_ID_RE = re.compile(r"^[A-Za-z0-9]{8,64}$")
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -169,17 +174,41 @@ def lesson_form(course_id=None, lesson_id=None):
         lesson.body = f.get("body", "")
         lesson.duration_min = _int(f.get("duration_min")) or None
         lesson.is_preview = bool(f.get("is_preview"))
+        provider = f.get("video_provider") if f.get("video_provider") in ("local", "vdocipher") else None
+        if provider:
+            lesson.video_provider = provider
+        vdo_id = f.get("vdocipher_id", "").strip()
+        if vdo_id and not VDO_ID_RE.match(vdo_id):
+            abort(400, "That does not look like a VdoCipher video ID (letters and digits only).")
+        lesson.vdocipher_id = vdo_id or None
         upload = request.files.get("video")
         if upload and upload.filename:
             new_name = save_upload(upload, "videos", current_app.config["ALLOWED_VIDEO_EXT"])
             _delete_video(lesson.video_file)
             lesson.video_file = new_name
-        if lesson.kind == "video" and not lesson.video_file:
-            flash("Video lesson saved without a video file - upload one to make it playable.", "info")
+        if lesson.kind == "video" and not lesson.has_video:
+            flash("Video lesson saved without a video - add one to make it playable.", "info")
         db.session.commit()
         flash("Lesson saved.", "success")
         return redirect(url_for("admin.course_edit", course_id=course.id) + "#lessons")
-    return render_template("admin/lesson_form.html", course=course, lesson=lesson)
+    vdo_status = None
+    if lesson and lesson.vdocipher_id and vdocipher_enabled():
+        vdo_status = video_status(lesson.vdocipher_id)
+    return render_template("admin/lesson_form.html", course=course, lesson=lesson,
+                           vdocipher=vdocipher_enabled(), vdo_status=vdo_status)
+
+
+@bp.route("/vdocipher/upload-credentials", methods=["POST"])
+@staff_required
+def vdocipher_credentials():
+    """Give the browser a one-time form to upload a video straight to VdoCipher."""
+    if not vdocipher_enabled():
+        return jsonify(error="VdoCipher is not configured."), 400
+    title = ((request.get_json(silent=True) or {}).get("title") or "Kasina lesson").strip()
+    try:
+        return jsonify(upload_credentials(title))
+    except VideoError as exc:
+        return jsonify(error=str(exc)), 502
 
 
 @bp.route("/lessons/<int:lesson_id>/delete", methods=["POST"])
@@ -377,4 +406,14 @@ def payment_review(payment_id):
         p.status = "rejected"
         flash(f"Payment {p.tx_ref} rejected.", "info")
     db.session.commit()
+    course_link = url_for("main.course_detail", slug=p.course.slug, _external=True)
+    if decision == "approve":
+        send_email(p.user.email, f"You're enrolled: {p.course.title}",
+                   f"Hello {p.user.full_name},\n\nYour payment (ref {p.tx_ref}) was confirmed and "
+                   f"{p.course.title} is now unlocked:\n{course_link}\n\nHappy baking!\nKasina Cakery Academy\n")
+    elif decision == "reject":
+        send_email(p.user.email, f"Payment not confirmed: {p.course.title}",
+                   f"Hello {p.user.full_name},\n\nWe could not confirm your payment (ref {p.tx_ref})."
+                   f"{' Reason: ' + p.note if p.note else ''}\n\nYou can submit a new receipt here:\n{course_link}\n"
+                   "\nKasina Cakery Academy\n")
     return redirect(url_for("admin.payments", status=request.form.get("back_status", "")))

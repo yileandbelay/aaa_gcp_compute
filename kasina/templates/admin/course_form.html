@@ -19,7 +19,7 @@
   <div class="row spread"><h2>Lessons</h2><a class="btn small" href="{{ url_for('admin.lesson_form', course_id=course.id) }}">+ Add lesson</a></div>
   <table>{% for l in course.lessons %}<tr>
     <td>{{ loop.index }}</td><td>{% if l.kind == 'video' %}🎥{% else %}📄{% endif %} <a href="{{ url_for('admin.lesson_form', lesson_id=l.id) }}">{{ l.title }}</a>
-      {% if l.is_preview %}<span class="badge">preview</span>{% endif %}{% if l.kind == 'video' and not l.video_file %}<span class="badge failed">no video</span>{% endif %}</td>
+      {% if l.is_preview %}<span class="badge">preview</span>{% endif %}{% if l.kind == 'video' and not l.has_video %}<span class="badge failed">no video</span>{% endif %}</td>
     <td class="row">
       <form method="post" action="{{ url_for('admin.lesson_move', lesson_id=l.id, direction='up') }}">{{ csrf() }}<button class="linkbtn">▲</button></form>
       <form method="post" action="{{ url_for('admin.lesson_move', lesson_id=l.id, direction='down') }}">{{ csrf() }}<button class="linkbtn">▼</button></form>

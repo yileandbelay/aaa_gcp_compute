@@ -4,6 +4,7 @@ import os
 import click
 from flask import Flask, render_template
 from flask_login import LoginManager
+from flask_migrate import Migrate
 
 from .config import Config
 from .models import User, db
@@ -12,6 +13,7 @@ from .utils import check_csrf, csrf_token, render_markdown
 login_manager = LoginManager()
 login_manager.login_view = "auth.login"
 login_manager.login_message_category = "info"
+migrate = Migrate()
 
 
 @login_manager.user_loader
@@ -36,6 +38,9 @@ def create_app(config_object=Config):
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     db.init_app(app)
+    # render_as_batch lets schema changes work on SQLite too.
+    migrate.init_app(app, db, directory=os.path.join(os.path.dirname(__file__), "migrations"),
+                     render_as_batch=True)
     login_manager.init_app(app)
 
     from .routes import admin, assess, auth, learn, main, pay
@@ -61,8 +66,10 @@ def create_app(config_object=Config):
             code, lambda e, code=code: (render_template("error.html", error=e, code=code), code)
         )
 
-    with app.app_context():
-        db.create_all()
+    if app.testing:
+        with app.app_context():
+            db.create_all()
+    # Otherwise the schema is managed by migrations: run `flask db upgrade`.
 
     register_cli(app)
     return app

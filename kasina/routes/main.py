@@ -57,3 +57,13 @@ def certificate(code):
     """Public, printable certificate; also serves as a verification page."""
     cert = Certificate.query.filter_by(code=code.upper()).first_or_404()
     return render_template("certificate.html", cert=cert)
+
+
+POLICY_PAGES = {"terms": "Terms of use", "privacy": "Privacy policy", "refunds": "Refund policy"}
+
+
+@bp.route("/policies/<page>")
+def policy(page):
+    if page not in POLICY_PAGES:
+        abort(404)
+    return render_template(f"policies/{page}.html", title=POLICY_PAGES[page])
