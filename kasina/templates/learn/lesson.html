@@ -19,7 +19,14 @@
   <article>
     <h1>{{ lesson.title }}</h1>
     {% if lesson.kind == 'video' %}
-      {% if video_url %}
+      {% if drm_player_url %}
+        <div class="video-wrap drm">
+          <iframe src="{{ drm_player_url }}" allow="encrypted-media; fullscreen" allowfullscreen
+                  title="{{ lesson.title }} video" style="border:0;width:100%;aspect-ratio:16/9;display:block"></iframe>
+        </div>
+      {% elif video_error %}
+        <div class="card muted">{{ video_error }}</div>
+      {% elif video_url %}
         <div class="video-wrap protected" oncontextmenu="return false">
           <video controls controlsList="nodownload noremoteplayback" disablePictureInPicture preload="metadata" playsinline src="{{ video_url }}"></video>
           <div class="watermark">{{ current_user.email }}</div>

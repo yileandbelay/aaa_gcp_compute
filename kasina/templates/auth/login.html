@@ -9,6 +9,7 @@
     <label class="check"><input type="checkbox" name="remember" value="1"> Remember me</label>
     <p><button class="btn">Log in</button></p>
   </form>
+  <p class="small"><a href="{{ url_for('auth.forgot_password') }}">Forgot your password?</a></p>
   <p class="small">New here? <a href="{{ url_for('auth.register', next=request.args.get('next')) }}">Create an account</a></p>
 </div>
 {% endblock %}

@@ -94,12 +94,22 @@ class Lesson(db.Model):
     kind = db.Column(db.String(10), nullable=False, default="text")
     body = db.Column(db.Text)  # Markdown notes; shown for both text and video lessons
     video_file = db.Column(db.String(255))  # stored filename inside UPLOAD_DIR/videos
+    # "local" = file in UPLOAD_DIR streamed by us; "vdocipher" = DRM-protected video hosted by VdoCipher
+    video_provider = db.Column(db.String(20), nullable=False, default="local", server_default="local")
+    vdocipher_id = db.Column(db.String(64))
     duration_min = db.Column(db.Integer)
     position = db.Column(db.Integer, default=0)
     is_preview = db.Column(db.Boolean, default=False)  # free sample visible to anyone
     created_at = db.Column(db.DateTime, default=utcnow)
 
     course = db.relationship("Course", back_populates="lessons")
+
+    @property
+    def has_video(self):
+        if self.video_provider == "vdocipher":
+            return bool(self.vdocipher_id)
+        return bool(self.video_file)
+
     comments = db.relationship(
         "Comment", back_populates="lesson", order_by="Comment.created_at", cascade="all, delete-orphan"
     )
@@ -257,3 +267,12 @@ class Announcement(db.Model):
     created_at = db.Column(db.DateTime, default=utcnow)
 
     course = db.relationship("Course", back_populates="announcements")
+
+
+class LoginAttempt(db.Model):
+    """Failed logins, used to throttle password guessing (shared across workers)."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), index=True)
+    ip = db.Column(db.String(64), index=True)
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)

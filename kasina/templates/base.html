@@ -33,7 +33,8 @@
   {% endwith %}
   {% block content %}{% endblock %}
 </main>
-<footer><div class="container">© Kasina Cakery Academy · Learn to bake, decorate and run your cake business.</div></footer>
+<footer><div class="container">© Kasina Cakery Academy · Learn to bake, decorate and run your cake business.
+  <div class="row small" style="margin-top:6px"><a href="{{ url_for('main.policy', page='terms') }}">Terms of use</a><a href="{{ url_for('main.policy', page='privacy') }}">Privacy</a><a href="{{ url_for('main.policy', page='refunds') }}">Refunds</a></div></div></footer>
 {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,4 +1,5 @@
 """Protected lecture viewing: text & video lessons, progress, Q&A."""
+import mimetypes
 import os
 
 from flask import (Blueprint, abort, current_app, flash, redirect, render_template, request,
@@ -7,6 +8,7 @@ from flask_login import current_user, login_required
 
 from ..models import Comment, Lesson, LessonProgress, db
 from ..utils import course_progress, make_video_token, maybe_issue_certificate, verify_video_token
+from ..video import VideoError, playback_otp, player_url, vdocipher_enabled
 
 bp = Blueprint("learn", __name__, url_prefix="/learn")
 
@@ -37,10 +39,19 @@ def lesson(lesson_id):
     idx = lessons.index(lesson)
     prev_l = lessons[idx - 1] if idx > 0 else None
     next_l = lessons[idx + 1] if idx + 1 < len(lessons) else None
-    video_url = None
+    video_url = drm_player_url = video_error = None
     progress = None
     if current_user.is_authenticated:
-        if lesson.kind == "video" and lesson.video_file:
+        if lesson.kind == "video" and lesson.video_provider == "vdocipher" and lesson.vdocipher_id:
+            if vdocipher_enabled():
+                try:
+                    drm_player_url = player_url(playback_otp(lesson.vdocipher_id, current_user))
+                except VideoError as exc:
+                    current_app.logger.error("VdoCipher OTP failed for lesson %s: %s", lesson.id, exc)
+                    video_error = "The video could not be loaded right now. Please refresh in a minute."
+            else:
+                video_error = "Protected video playback is not configured yet."
+        elif lesson.kind == "video" and lesson.video_file:
             token = make_video_token(current_user.id, lesson.id)
             video_url = url_for("learn.video", lesson_id=lesson.id, t=token)
         if current_user.has_access(course):
@@ -48,6 +59,7 @@ def lesson(lesson_id):
     return render_template(
         "learn/lesson.html", lesson=lesson, course=course, lessons=lessons,
         prev_l=prev_l, next_l=next_l, video_url=video_url, progress=progress,
+        drm_player_url=drm_player_url, video_error=video_error,
     )
 
 
@@ -59,6 +71,15 @@ def video(lesson_id):
     lesson = _lesson_or_403(lesson_id)
     if not lesson.video_file or not verify_video_token(request.args.get("t", ""), current_user.id, lesson.id):
         abort(403)
+    if lesson.video_provider != "local":
+        abort(404)
+    if current_app.config["USE_X_ACCEL_REDIRECT"]:
+        # Access is checked above; nginx streams the file from an internal-only location.
+        mime = mimetypes.guess_type(lesson.video_file)[0] or "application/octet-stream"
+        resp = current_app.response_class(mimetype=mime)
+        resp.headers["X-Accel-Redirect"] = f"/_protected_videos/{lesson.video_file}"
+        resp.headers["Cache-Control"] = "private, no-store"
+        return resp
     folder = os.path.join(current_app.config["UPLOAD_DIR"], "videos")
     resp = send_from_directory(folder, lesson.video_file, conditional=True)  # supports Range/seek
     resp.headers["Cache-Control"] = "private, no-store"

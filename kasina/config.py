@@ -50,6 +50,34 @@ class Config:
     # external URLs (payment callbacks, certificates) use the right scheme/host.
     BEHIND_PROXY = _bool("BEHIND_PROXY", False)
 
+    # Video -----------------------------------------------------------------
+    # VdoCipher DRM hosting (recommended for paid content). Leave empty to use
+    # only locally stored videos.
+    VDOCIPHER_API_SECRET = os.environ.get("VDOCIPHER_API_SECRET", "")
+    VDOCIPHER_API_BASE = os.environ.get("VDOCIPHER_API_BASE", "https://dev.vdocipher.com/api")
+    VDOCIPHER_OTP_TTL = int(os.environ.get("VDOCIPHER_OTP_TTL", "300"))
+    # When nginx serves local videos (see deploy/nginx.conf), the app only checks
+    # access and hands the file off with X-Accel-Redirect - far more concurrent viewers.
+    USE_X_ACCEL_REDIRECT = _bool("USE_X_ACCEL_REDIRECT", False)
+
+    # Email (password reset, payment notifications) --------------------------
+    # Without MAIL_SERVER, emails are written to the log instead of sent.
+    MAIL_SERVER = os.environ.get("MAIL_SERVER", "")
+    MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
+    MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "")
+    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
+    MAIL_USE_TLS = _bool("MAIL_USE_TLS", True)
+    MAIL_FROM = os.environ.get("MAIL_FROM", "Kasina Cakery Academy <no-reply@localhost>")
+    PASSWORD_RESET_TTL = int(os.environ.get("PASSWORD_RESET_TTL", "3600"))
+
+    # Login throttling: block after this many failures in the window.
+    LOGIN_MAX_FAILURES = int(os.environ.get("LOGIN_MAX_FAILURES", "5"))
+    LOGIN_WINDOW_MIN = int(os.environ.get("LOGIN_WINDOW_MIN", "15"))
+
+    # Contact details shown on policy pages.
+    CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "info@example.com")
+    CONTACT_PHONE = os.environ.get("CONTACT_PHONE", "+251 9XX XXX XXX")
+
 
 class TestConfig(Config):
     TESTING = True

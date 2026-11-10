@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · {{ site_name }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:760px">
+  <h1>{{ title }}</h1>
+  {# Template text: Kasina Cakery should review it (ideally with a lawyer) before launch. #}
+  {% block policy %}{% endblock %}
+  <h2>Contact</h2>
+  <p>Questions about this policy: {{ config.CONTACT_EMAIL }} · {{ config.CONTACT_PHONE }}</p>
+</div>
+{% endblock %}
