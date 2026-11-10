@@ -1,0 +1,58 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf, progress_bar, price %}
+{% block title %}{{ course.title }} · {{ site_name }}{% endblock %}
+{% block content %}
+{% if not course.is_published %}<div class="flash info">Draft – only staff can see this course.</div>{% endif %}
+<div class="card">
+  <span class="badge">{{ course.level }}</span>
+  <h1>{{ course.title }}</h1>
+  <p class="muted">{{ course.summary }}</p>
+  {% if course.instructor %}<p class="small">Instructor: <b>{{ course.instructor.full_name }}</b></p>{% endif %}
+  {% if progress is not none %}
+    <p><b>Your progress: {{ progress.percent }}%</b></p>{{ progress_bar(progress.percent) }}
+    {% if course.lessons %}<p><a class="btn" href="{{ url_for('learn.lesson', lesson_id=course.lessons[0].id) }}">{% if progress.percent %}Continue learning{% else %}Start course{% endif %}</a></p>{% endif %}
+  {% elif pending_payment %}
+    <div class="flash info">Your payment receipt (ref {{ pending_payment.tx_ref }}) is being reviewed. You will get access once it is approved.</div>
+  {% else %}
+    <p style="font-size:1.4rem;font-weight:700">{{ price(course) }}</p>
+    {% if current_user.is_authenticated %}
+      {% if course.is_free %}
+        <form method="post" action="{{ url_for('pay.checkout', course_id=course.id) }}">{{ csrf() }}<button class="btn">Enroll for free</button></form>
+      {% else %}
+        <a class="btn" href="{{ url_for('pay.checkout', course_id=course.id) }}">Enroll now</a>
+      {% endif %}
+    {% else %}
+      <a class="btn" href="{{ url_for('auth.register', next=request.path) }}">Register to enroll</a>
+      <a href="{{ url_for('auth.login', next=request.path) }}">or log in</a>
+    {% endif %}
+  {% endif %}
+</div>
+
+{% if progress is not none and course.announcements %}
+<div class="card"><h2>📣 Announcements</h2>
+{% for a in course.announcements[:5] %}<div style="margin-bottom:12px"><b>{{ a.title }}</b> <span class="small muted">{{ a.created_at.strftime('%d %b %Y') }}</span><div>{{ a.body|markdown }}</div></div>{% endfor %}
+</div>{% endif %}
+
+<div class="card"><h2>About this course</h2>{{ course.description|markdown }}</div>
+
+<div class="card">
+  <h2>Curriculum</h2>
+  <ol>
+  {% for l in course.lessons %}
+    <li style="margin-bottom:6px">
+      {% if l.kind == 'video' %}🎥{% else %}📄{% endif %}
+      {% if progress is not none or l.is_preview %}<a href="{{ url_for('learn.lesson', lesson_id=l.id) }}">{{ l.title }}</a>{% else %}{{ l.title }} 🔒{% endif %}
+      {% if l.is_preview and progress is none %}<span class="badge">Free preview</span>{% endif %}
+      {% if l.duration_min %}<span class="small muted">· {{ l.duration_min }} min</span>{% endif %}
+      {% if progress and l.id in progress.done_lessons %}<span class="badge passed">✓ done</span>{% endif %}
+    </li>
+  {% else %}<li class="muted">Lessons coming soon.</li>{% endfor %}
+  </ol>
+  {% if course.assessments %}
+  <h3>Assessments</h3>
+  <ul>{% for a in course.assessments %}
+    <li>{% if progress is not none %}<a href="{{ url_for('assess.overview', aid=a.id) }}">{{ a.title }}</a>{% else %}{{ a.title }} 🔒{% endif %}
+      <span class="small muted">· {{ a.questions|length }} questions · pass mark {{ a.pass_mark }}%</span>
+      {% if progress and a.id in progress.passed_assessments %}<span class="badge passed">passed</span>{% endif %}</li>
+  {% endfor %}</ul>{% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% macro csrf() %}<input type="hidden" name="_csrf" value="{{ csrf_token() }}">{% endmacro %}
+{% macro progress_bar(pct) %}<div class="progress" title="{{ pct }}%"><div style="width:{{ pct }}%"></div></div>{% endmacro %}
+{% macro price(course) %}{% if course.is_free %}Free{% else %}{{ course.price|money }} {{ currency }}{% endif %}{% endmacro %}
+{% macro course_card(c) %}
+<div class="card course-card">
+  <div class="cover">🧁</div>
+  <span class="badge">{{ c.level }}</span>
+  <h3><a href="{{ url_for('main.course_detail', slug=c.slug) }}">{{ c.title }}</a></h3>
+  <p class="muted">{{ c.summary }}</p>
+  <p class="small muted">{{ c.lessons|length }} lessons · {{ c.assessments|length }} assessments</p>
+  <div class="price">{{ price(c) }}</div>
+</div>
+{% endmacro %}

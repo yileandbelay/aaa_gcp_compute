@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ site_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="top">
+  <div class="container">
+    <a class="logo" href="{{ url_for('main.index') }}">🎂 Kasina <span>Cakery</span> Academy</a>
+    <nav>
+      <a href="{{ url_for('main.catalog') }}">Courses</a>
+      {% if current_user.is_authenticated %}
+        <a href="{{ url_for('main.dashboard') }}">My learning</a>
+        {% if current_user.is_staff %}<a href="{{ url_for('admin.dashboard') }}">Admin</a>{% endif %}
+        <a href="{{ url_for('auth.profile') }}">{{ current_user.full_name.split(' ')[0] }}</a>
+        <form method="post" action="{{ url_for('auth.logout') }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <button class="linkbtn">Log out</button>
+        </form>
+      {% else %}
+        <a href="{{ url_for('auth.login') }}">Log in</a>
+        <a class="btn small" href="{{ url_for('auth.register') }}">Register</a>
+      {% endif %}
+    </nav>
+  </div>
+</header>
+<main class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+<footer><div class="container">© Kasina Cakery Academy · Learn to bake, decorate and run your cake business.</div></footer>
+{% block scripts %}{% endblock %}
+</body>
+</html>

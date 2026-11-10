@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block content %}
+<p class="small"><a href="{{ url_for('admin.course_edit', course_id=course.id) }}">← {{ course.title }}</a></p>
+<h1>{{ lesson.title if lesson else 'New lesson' }}</h1>
+<div class="card">
+<form method="post" enctype="multipart/form-data" class="stack">{{ csrf() }}
+  <label>Title</label><input type="text" name="title" value="{{ lesson.title if lesson }}" required>
+  <label>Format</label>
+  <select name="kind" id="kind"><option value="text" {{ 'selected' if lesson and lesson.kind == 'text' }}>📄 Text lecture</option><option value="video" {{ 'selected' if lesson and lesson.kind == 'video' }}>🎥 Video lecture</option></select>
+  <div id="videoBox">
+    <label>Video file (mp4/webm/mov){% if lesson and lesson.video_file %} – current file uploaded; choose a new one to replace{% endif %}</label>
+    <input type="file" name="video" accept="video/*">
+    <p class="small muted">Videos are stored privately and streamed only to enrolled students through expiring, per‑student links.</p>
+  </div>
+  <label>Lecture text / notes / recipe (Markdown)</label>
+  <textarea name="body" rows="14" placeholder="## Ingredients&#10;- 250g flour&#10;&#10;## Method&#10;1. Preheat oven to 180°C…">{{ lesson.body if lesson }}</textarea>
+  <label>Duration (minutes)</label><input type="number" name="duration_min" min="0" value="{{ lesson.duration_min if lesson and lesson.duration_min }}">
+  <label class="check"><input type="checkbox" name="is_preview" value="1" {{ 'checked' if lesson and lesson.is_preview }}> Free preview (visible without enrolling)</label>
+  <p><button class="btn">Save lesson</button></p>
+</form>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+var k=document.getElementById('kind'),b=document.getElementById('videoBox');function s(){b.style.display=k.value==='video'?'':'none'}k.onchange=s;s();
+</script>{% endblock %}

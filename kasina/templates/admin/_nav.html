@@ -1,0 +1,8 @@
+<div class="row" style="margin-bottom:18px">
+  <a class="btn secondary small" href="{{ url_for('admin.dashboard') }}">Overview</a>
+  <a class="btn secondary small" href="{{ url_for('admin.courses') }}">Courses</a>
+  {% if current_user.is_admin %}
+  <a class="btn secondary small" href="{{ url_for('admin.students') }}">Students</a>
+  <a class="btn secondary small" href="{{ url_for('admin.payments') }}">Payments</a>
+  {% endif %}
+</div>

@@ -1,0 +1,59 @@
+"""Public pages, course catalog and student dashboard."""
+from flask import Blueprint, abort, render_template
+from flask_login import current_user, login_required
+
+from ..models import Certificate, Course, Enrollment, Payment
+from ..utils import course_progress
+
+bp = Blueprint("main", __name__)
+
+
+@bp.route("/")
+def index():
+    courses = Course.query.filter_by(is_published=True).order_by(Course.created_at.desc()).limit(6).all()
+    return render_template("index.html", courses=courses)
+
+
+@bp.route("/courses")
+def catalog():
+    courses = Course.query.filter_by(is_published=True).order_by(Course.title).all()
+    return render_template("courses/catalog.html", courses=courses)
+
+
+@bp.route("/courses/<slug>")
+def course_detail(slug):
+    course = Course.query.filter_by(slug=slug).first_or_404()
+    if not course.is_published and not (current_user.is_authenticated and current_user.is_staff):
+        abort(404)
+    enrollment = progress = pending_payment = None
+    if current_user.is_authenticated:
+        enrollment = current_user.enrollment_for(course)
+        if current_user.has_access(course):
+            progress = course_progress(current_user, course)
+        pending_payment = Payment.query.filter_by(
+            user_id=current_user.id, course_id=course.id, status="submitted"
+        ).first()
+    return render_template(
+        "courses/detail.html", course=course, enrollment=enrollment,
+        progress=progress, pending_payment=pending_payment,
+    )
+
+
+@bp.route("/dashboard")
+@login_required
+def dashboard():
+    enrollments = (
+        Enrollment.query.filter_by(user_id=current_user.id, status="active")
+        .order_by(Enrollment.activated_at.desc()).all()
+    )
+    rows = [(e.course, course_progress(current_user, e.course)) for e in enrollments]
+    certificates = Certificate.query.filter_by(user_id=current_user.id).all()
+    payments = Payment.query.filter_by(user_id=current_user.id).order_by(Payment.created_at.desc()).all()
+    return render_template("dashboard.html", rows=rows, certificates=certificates, payments=payments)
+
+
+@bp.route("/certificates/<code>")
+def certificate(code):
+    """Public, printable certificate; also serves as a verification page."""
+    cert = Certificate.query.filter_by(code=code.upper()).first_or_404()
+    return render_template("certificate.html", cert=cert)

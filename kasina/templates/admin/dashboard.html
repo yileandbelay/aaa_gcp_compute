@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Admin · {{ site_name }}{% endblock %}
+{% block content %}
+<h1>Admin</h1>{% include "admin/_nav.html" %}
+<div class="stats">
+  <div class="stat"><b>{{ stats.students }}</b>Students</div>
+  <div class="stat"><b>{{ stats.courses }}</b>Courses</div>
+  <div class="stat"><b>{{ stats.active_enrollments }}</b>Active enrollments</div>
+  <div class="stat"><b>{{ stats.revenue|money }}</b>Revenue ({{ currency }})</div>
+  <div class="stat"><b>{{ stats.pending_payments }}</b>Receipts to review</div>
+  <div class="stat"><b>{{ stats.certificates }}</b>Certificates issued</div>
+</div>
+<div class="grid" style="margin-top:20px">
+  <div class="card"><h3>New students</h3><ul>{% for u in recent_students %}<li>{% if current_user.is_admin %}<a href="{{ url_for('admin.student_detail', user_id=u.id) }}">{{ u.full_name }}</a>{% else %}{{ u.full_name }}{% endif %} <span class="small muted">{{ u.created_at.strftime('%d %b') }}</span></li>{% else %}<li class="muted">None yet</li>{% endfor %}</ul></div>
+  <div class="card"><h3>Recent payments</h3><ul>{% for p in recent_payments %}<li>{{ p.user.full_name }} – {{ p.amount|money }} <span class="badge {{ p.status }}">{{ p.status }}</span></li>{% else %}<li class="muted">None yet</li>{% endfor %}</ul></div>
+</div>
+{% endblock %}

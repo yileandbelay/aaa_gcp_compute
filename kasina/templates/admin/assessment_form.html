@@ -1,0 +1,43 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block content %}
+<p class="small"><a href="{{ url_for('admin.course_edit', course_id=course.id) }}#assessments">← {{ course.title }}</a></p>
+<h1>{{ a.title if a else 'New assessment' }}</h1>
+<div class="card">
+<form method="post" class="stack" action="{{ url_for('admin.assessment_form', aid=a.id) if a else url_for('admin.assessment_form', course_id=course.id) }}">{{ csrf() }}
+  <label>Title</label><input type="text" name="title" value="{{ a.title if a }}" required>
+  <label>Instructions (Markdown)</label><textarea name="instructions">{{ a.instructions if a }}</textarea>
+  <div class="row">
+    <div style="flex:1"><label>Pass mark (%)</label><input type="number" name="pass_mark" min="0" max="100" value="{{ a.pass_mark if a else 70 }}"></div>
+    <div style="flex:1"><label>Max attempts (0 = unlimited)</label><input type="number" name="max_attempts" min="0" value="{{ a.max_attempts if a else 3 }}"></div>
+    <div style="flex:1"><label>Time limit (min, 0 = none)</label><input type="number" name="time_limit_min" min="0" value="{{ a.time_limit_min if a else 0 }}"></div>
+  </div>
+  <label class="check"><input type="checkbox" name="is_final" value="1" {{ 'checked' if a and a.is_final }}> Final exam</label>
+  <p><button class="btn">Save assessment</button></p>
+</form>
+</div>
+{% if a %}
+<div class="card" id="questions"><h2>Questions ({{ a.questions|length }})</h2>
+{% for q in a.questions %}
+  <details class="card"><summary><b>{{ loop.index }}.</b> {{ q.text }} <span class="small muted">(answer: {{ q.options[q.correct_index] }})</span></summary>
+    <form method="post" class="stack" action="{{ url_for('admin.question_save', qid=q.id) }}">{{ csrf() }}
+      <label>Question</label><textarea name="text" rows="2" required>{{ q.text }}</textarea>
+      <label>Options (one per line)</label><textarea name="options" rows="4" required>{{ q.options|join('\n') }}</textarea>
+      <label>Correct option number</label><input type="number" name="correct" min="1" value="{{ q.correct_index + 1 }}" required>
+      <label>Explanation (shown after grading)</label><input type="text" name="explanation" value="{{ q.explanation or '' }}">
+      <p class="row"><button class="btn small">Update</button></p>
+    </form>
+    <form method="post" action="{{ url_for('admin.question_delete', qid=q.id) }}">{{ csrf() }}<button class="linkbtn" style="color:var(--err)">delete question</button></form>
+  </details>
+{% endfor %}
+<h3>Add question</h3>
+<form method="post" class="stack" action="{{ url_for('admin.question_save', aid=a.id) }}">{{ csrf() }}
+  <label>Question</label><textarea name="text" rows="2" required></textarea>
+  <label>Options (one per line)</label><textarea name="options" rows="4" required placeholder="Option A&#10;Option B&#10;Option C&#10;Option D"></textarea>
+  <label>Correct option number</label><input type="number" name="correct" min="1" value="1" required>
+  <label>Explanation (optional)</label><input type="text" name="explanation">
+  <p><button class="btn small">Add question</button></p>
+</form>
+</div>
+<form method="post" action="{{ url_for('admin.assessment_delete', aid=a.id) }}" onsubmit="return confirm('Delete this assessment and all attempts?')">{{ csrf() }}<button class="btn danger small">Delete assessment</button></form>
+{% endif %}
+{% endblock %}
