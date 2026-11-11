@@ -1,120 +1,162 @@
-# Kasina Cakery Academy
+# Mek Online Academy
 
-A simple online learning platform for **Kasina Cakery** training: students register, pay for courses, follow protected video and text lectures, take auto-graded assessments and earn verifiable certificates.
+An online learning platform for professional training. Students register, pay for courses, follow video and text lessons, download course materials, take auto-graded assessments and earn verifiable certificates.
 
-Built with Python / Flask + SQLAlchemy. It runs on SQLite out of the box and on PostgreSQL (e.g. Cloud SQL) in production. It's designed to run on a single Google Compute Engine VM.
+It's built with Python / Flask and runs on SQLite by default (PostgreSQL is supported). It's also designed as a **reusable template**: a new academy is a settings file plus, optionally, a theme folder and a JSON file of starter courses. You don't need to change the core code.
 
 ## Features
 
-| Area | What you get |
+| Module | What you get |
 |---|---|
-| **Student registration** | Sign-up with name, email, phone and city; login with "remember me"; password reset by email; profile and password change; admins can suspend accounts |
-| **Protected lectures** | **Video** lectures and **text** lectures (Markdown recipes, tables, notes). Videos can be hosted with **VdoCipher DRM** (encrypted, with each student's name and email burned into the stream) or stored on this server and streamed to enrolled students through **expiring, per-student links**. Right-click/copy is blocked on lecture text. Lessons can be marked as **free previews** |
-| **Progress tracking** | Mark-complete per lesson, progress bars per course, "continue" navigation |
-| **Assessments** | Multiple-choice quizzes and final exams, auto-graded, with a pass mark, attempt limits, an optional timer (enforced on the server) and explanations. Correct answers are revealed only after the student passes or runs out of attempts |
-| **Payments** | **Chapa** online checkout (telebirr, CBE Birr, M-Pesa, cards). Each payment is verified server-side with Chapa's API, so forged webhooks are ignored. Also **manual bank transfer / mobile money**: the student uploads a receipt, an admin approves it and the student gets an email. Free courses, printable payment receipts, and a demo mode for testing |
-| **Certificates** | Issued automatically when all lessons are done and all assessments are passed. Printable, with a public verification URL |
-| **Engagement** | Per-lesson Q&A / discussion and course announcements |
-| **Admin / instructor back-office** | Dashboard (students, revenue, pending receipts), course/lesson/assessment editors, lesson re-ordering, per-course student progress, assessment results, student search + CSV export, manual access grants (scholarships), payment review |
-| **Security** | Hashed passwords, login throttling after repeated failures, CSRF protection on every form, role-based access (student / instructor / admin), sanitized Markdown, upload type checks, safe redirects, security headers |
-| **Policies** | Terms of use, privacy and refund pages (template text to review before launch) |
-| **Operations** | Database migrations, daily backups (optionally to Cloud Storage), nginx streaming of locally stored videos |
+| **Students** | Registration (name, email, phone, city), login, password reset by email, profile; admins can suspend accounts |
+| **Courses** | Categories, levels, training hours, search and category filter, free or paid, free-preview lessons, instructor profiles |
+| **Lessons** | Video and text (Markdown with tables and lists) lessons, downloadable materials (PDF, slides, spreadsheets…), progress tracking |
+| **Video** | Videos stored on your server and streamed through expiring per-student links (nginx serves the file after the app checks access), or **VdoCipher DRM** with a per-student watermark |
+| **Assessments** | Multiple-choice quizzes and exams with pass mark, attempt limit, server-enforced timer, explanations; answers revealed only after passing or using all attempts |
+| **Payments** | **Chapa** (telebirr, CBE Birr, M-Pesa, cards) verified with Chapa's API; **bank transfer / mobile money** with receipt upload and admin approval; emails to the student; printable receipts |
+| **Certificates** | Issued automatically on completion, show training hours, public verification link |
+| **Engagement** | Per-lesson Q&A and course announcements |
+| **Admin** | Dashboard, course/lesson/assessment editors, student progress, assessment results, student search and CSV export, manual access grants, payment review |
+| **Security** | Hashed passwords, login throttling, CSRF protection, role-based access (student / instructor / admin), sanitized Markdown, upload type checks, security headers |
+| **Operations** | One-command server install with HTTPS, database migrations, daily backups, health check at `/healthz`, Docker option, CI tests |
 
-Roles: **student** (default), **instructor** (manages course content), **admin** (also manages students and payments).
-
-## Quick start (local)
+## Try it locally
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
 export FLASK_APP=wsgi.py PAYMENT_DEMO_MODE=true
-flask db upgrade           # create / update the database tables
-flask seed-demo            # sample courses + admin@kasina.local / admin12345
-flask run                  # http://127.0.0.1:5000
+flask db upgrade          # create the database
+flask seed-demo           # sample courses + demo accounts (see below)
+flask run                 # http://127.0.0.1:5000
 ```
 
-Run the tests with `pytest`.
+The demo accounts are:
+- admin: `admin@example.com` / `admin12345`
+- instructor: `instructor@example.com` / `instructor123`
 
-To create a real admin account, run `flask create-admin`.
+Register a new account to see the student side. Run the tests with `pytest`.
 
-Without email settings, password-reset links are printed in the server log instead of being sent.
+## Deploy to a server
 
-If you ran an earlier version locally, delete `instance/kasina.db` once before `flask db upgrade`; that copy was created without migrations.
+You need a VPS (virtual server) running **Ubuntu 22.04+ or Debian 12+**, for example from DigitalOcean, Hetzner, Contabo, Linode or Google Cloud. 2 GB of RAM is enough to start. You also need a domain name whose DNS **A record points to the server's IP address**. Shared web hosting (cPanel) is not suitable.
 
-When you change `models.py`, create a migration with `flask db migrate -m "describe the change"`, review the generated file in `kasina/migrations/versions/`, then run `flask db upgrade`.
-
-## Configuration
-
-Settings come from environment variables. See [`.env.example`](.env.example) for the full list. The important ones:
-
-- `SECRET_KEY`: required in production (it also signs the video links).
-- `DATABASE_URL`: defaults to SQLite in `instance/`, e.g. `postgresql+psycopg2://user:pass@host/db`.
-- `UPLOAD_DIR`: where videos and receipts are stored (keep it on a persistent disk).
-- `CHAPA_SECRET_KEY`: enables Chapa checkout. Get it from the Chapa dashboard and use a test key first.
-- `MANUAL_PAYMENT_ENABLED`, `MANUAL_PAYMENT_INSTRUCTIONS`: bank or telebirr transfer details shown to students.
-- `PAYMENT_DEMO_MODE`: simulates payments. **Never enable this in production.**
-- `BEHIND_PROXY=true` when running behind nginx or a load balancer, and `SESSION_COOKIE_SECURE=true` once you have HTTPS.
-- `VDOCIPHER_API_SECRET`: enables DRM-protected video (see below).
-- `MAIL_SERVER`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`: SMTP account for password resets and payment emails.
-- `CONTACT_EMAIL`, `CONTACT_PHONE`: shown on the policy pages.
-- `USE_X_ACCEL_REDIRECT=true`: nginx streams locally stored videos after the app checks access (set automatically by the GCE script).
-
-## Deploying on Google Compute Engine
+On the server:
 
 ```bash
-gcloud compute instances create kasina-academy \
-  --zone=europe-west1-b --machine-type=e2-small \
-  --image-family=debian-12 --image-project=debian-cloud \
-  --boot-disk-size=50GB --tags=http-server,https-server \
-  --metadata=kasina-repo=https://github.com/yileandbelay/aaa_gcp_compute.git,kasina-branch=main,kasina-domain=academy.example.com \
-  --metadata-from-file=startup-script=deploy/gce-startup.sh
-
-gcloud compute firewall-rules create allow-http --allow=tcp:80,tcp:443 --target-tags=http-server
+sudo apt-get update && sudo apt-get install -y git
+git clone https://github.com/yileandbelay/aaa_gcp_compute.git
+cd aaa_gcp_compute
+sudo bash deploy/install.sh --domain learn.example.com --email you@example.com
 ```
 
-The startup script installs Python and nginx, clones the repo to `/opt/kasina`, writes `/etc/kasina.env` with a random `SECRET_KEY`, and runs gunicorn under systemd behind nginx. After that:
+If the repository is private, the server needs permission to clone it. The simplest way is a GitHub [deploy key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys) with read-only access; clone with the `git@github.com:...` address. The installer reuses that address for updates.
 
-1. SSH in and create an admin:
-   `sudo -u kasina bash -c 'set -a; . /etc/kasina.env; cd /opt/kasina && .venv/bin/flask --app wsgi create-admin'`
-2. Add `CHAPA_SECRET_KEY`, `VDOCIPHER_API_SECRET`, the mail settings, your bank details and contact details to `/etc/kasina.env`, then run `sudo systemctl restart kasina`.
-3. Point your domain at the VM and enable HTTPS (`sudo apt install certbot python3-certbot-nginx && sudo certbot --nginx`). Then set `SESSION_COOKIE_SECURE=true`.
-4. Backups run daily from `/etc/cron.daily/kasina-backup` into `/var/lib/kasina/backups` (kept 14 days). To also copy them off the VM, create a bucket and add `kasina-backup-bucket=gs://your-bucket` to the instance metadata (or `BACKUP_BUCKET=` in `/etc/kasina.env`); the VM's service account needs write access to that bucket. Test a restore before launch.
-5. Review the text of the terms, privacy and refund pages in `kasina/templates/policies/`.
+The installer sets everything up:
+- It installs Python, nginx and certbot.
+- It creates a system user and the app in `/opt/academy`, with data in `/var/lib/academy`.
+- It writes `/etc/academy.env` with a random secret key.
+- It runs the database migrations.
+- It starts the app as a systemd service behind nginx.
+- It gets a free HTTPS certificate from Let's Encrypt.
+- It schedules a daily backup.
 
-To update the server after new code is merged, re-run the startup script (`sudo google_metadata_script_runner startup`). It pulls the code, applies database migrations and restarts the app.
+Then:
 
-There is also a `Dockerfile` if you prefer containers (Cloud Run / GKE). In that case, put uploads on a mounted volume or bucket.
+1. **Configure the academy.** Edit the settings with `sudo nano /etc/academy.env`. At minimum set:
+   - `SITE_NAME`
+   - `CONTACT_EMAIL` and `CONTACT_PHONE`
+   - `MANUAL_PAYMENT_INSTRUCTIONS` with your real account details
+   - `CHAPA_SECRET_KEY` if you use Chapa
+   - the `MAIL_*` settings
 
-## Protected video with VdoCipher
+   Apply the changes with `sudo systemctl restart academy`.
+2. **Create your admin account:**
+   ```bash
+   sudo -u academy bash -c "set -a; . /etc/academy.env; cd /opt/academy && .venv/bin/flask --app wsgi create-admin"
+   ```
+3. **Review the policy pages.** Check the text of `/policies/terms`, `/policies/privacy` and `/policies/refunds`. To change it, override the pages in a theme folder.
+4. **Add content.** Log in and create your courses under **Admin → Courses**.
 
-[VdoCipher](https://www.vdocipher.com) hosts videos encrypted with Widevine and FairPlay DRM. Browsers that support DRM generally show a black frame to screen-recording software, and every playback carries a moving watermark with the student's name and email.
+**Updating** after new code is pushed: `cd ~/aaa_gcp_compute && git pull && sudo bash deploy/install.sh`. The domain and other options are remembered. Your settings and data are kept.
 
-1. Create a VdoCipher account and copy the API secret from the dashboard (Config → API keys).
-2. Set `VDOCIPHER_API_SECRET` and restart the app.
-3. In the lesson editor choose **Protected (VdoCipher DRM)**. Either upload the file there (it goes straight from your browser to VdoCipher) or upload it in the VdoCipher dashboard and paste its video ID.
-4. VdoCipher takes a few minutes to process a new video; the lesson editor shows its status.
+**Logs:** `journalctl -u academy -f`. **Health check:** `https://learn.example.com/healthz`.
 
-The API secret stays on the server. For each viewing the server asks VdoCipher for a five-minute playback code tied to that student, and only enrolled students get one.
+**Other ways to deploy:**
+- **Google Compute Engine:** use `deploy/gce-startup.sh` as the instance startup script. The header of that file explains the metadata keys it reads.
+- **Docker:** `cp .env.example .env`, edit it, then run `docker compose up -d --build`. Put an HTTPS reverse proxy in front of port 8000.
 
-Lessons can also keep using videos stored on this server ("This server" option). Those get expiring per-student links and an on-screen email watermark, but no DRM.
+### Several academies on one server
 
-No website can make video impossible to copy: someone can always film the screen with another device. The watermark makes such leaks traceable to an account.
+Give each its own name, port and domain:
+
+```bash
+sudo bash deploy/install.sh --name mek --port 8000 --domain learn.mek.example --email you@example.com
+sudo bash deploy/install.sh --name acme --port 8001 --domain academy.acme.example --email you@example.com
+```
+
+Each gets its own user, database, uploads, settings file (`/etc/<name>.env`), service and backups.
+
+## Making it your own (reusing the template)
+
+You can set an academy up in three layers, none of which touch the core code.
+
+**1. Settings (`/etc/<name>.env`, or `.env` locally).** Every option is listed with comments in [`.env.example`](.env.example).
+
+| Group | Settings |
+|---|---|
+| Branding | `SITE_NAME`, `SITE_SHORT_NAME`, `SITE_TAGLINE`, `SITE_HEADLINE`, `SITE_INTRO`, `BRAND_COLOR`, `TX_PREFIX`, `CONTACT_EMAIL`, `CONTACT_PHONE` |
+| Modules on/off | `FEATURE_DISCUSSION`, `FEATURE_ANNOUNCEMENTS`, `FEATURE_CERTIFICATES` |
+| Content protection | `PROTECT_LESSON_TEXT` (block copying lesson text), `VIDEO_WATERMARK`, `ALLOW_VIDEO_DOWNLOAD`, `ALLOW_MATERIAL_DOWNLOAD`, `VDOCIPHER_API_SECRET` (DRM) |
+| Payments | `CURRENCY`, `CHAPA_SECRET_KEY`, `MANUAL_PAYMENT_ENABLED`, `MANUAL_PAYMENT_INSTRUCTIONS` |
+| Email | `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` |
+
+**2. Theme folder (`THEME_DIR`).** Point it at a folder like this:
+
+```
+my-theme/
+  templates/         any file here replaces the built-in template with the same path,
+    index.html       e.g. a custom home page
+    policies/terms.html
+  static/
+    theme.css        loaded after the built-in styles (colours, fonts, spacing)
+    logo.png         available at /theme/logo.png
+```
+
+Copy a template from `academy/templates/` into the theme folder and edit the copy. Keep themes in their own folder or repository so updates to the core code don't overwrite them.
+
+**3. Starter courses (`flask seed-demo --file my_courses.json`).** This loads courses, lessons and quizzes from a JSON file in the format of [`academy/sample_data/demo_courses.json`](academy/sample_data/demo_courses.json). Quiz answers are numbered from 1. The command also creates the demo admin account, so on a live site use it only on a test copy, or change that account's password afterwards.
+
+## Protected video with VdoCipher (optional)
+
+[VdoCipher](https://www.vdocipher.com) hosts videos encrypted with Widevine and FairPlay DRM, with a moving watermark of the student's name and email.
+
+1. Set `VDOCIPHER_API_SECRET`. You get it from the VdoCipher dashboard under Config → API keys.
+2. In the lesson editor choose **Protected (VdoCipher DRM)**, then either upload the file there or paste a video ID.
+
+Without it, videos are stored on your server. They are then still only reachable by enrolled students, through links that expire.
+
+No website can make video impossible to copy: someone can always film the screen. Watermarks make leaks traceable.
 
 ## Project layout
 
 ```
-kasina/
-  __init__.py      app factory, CLI commands (create-admin, seed-demo)
-  config.py        environment-based settings
-  models.py        User, Course, Lesson, Enrollment, Payment, Assessment, Question,
-                   Attempt, Certificate, LessonProgress, Comment, Announcement, LoginAttempt
-  migrations/      database migrations (Flask-Migrate / Alembic)
-  payments.py      Chapa integration
-  video.py         VdoCipher DRM integration
-  mail.py          SMTP email
-  utils.py         CSRF, role guards, markdown, signed video tokens, progress
-  routes/          main, auth, learn, assess, pay, admin blueprints
-  templates/       Jinja templates
-deploy/            GCE startup script, systemd unit, nginx config, daily backup script
-tests/             pytest suite
+academy/
+  __init__.py        app factory, theme loading, CLI (create-admin, seed-demo)
+  config.py          every setting, read from environment variables
+  models.py          database tables
+  routes/            one blueprint per area: main, auth, learn, assess, pay, admin
+  payments.py        Chapa integration       video.py   VdoCipher integration
+  mail.py            SMTP email              utils.py   CSRF, access checks, progress
+  seed.py            JSON course loader      sample_data/demo_courses.json
+  migrations/        database migrations (Flask-Migrate / Alembic)
+  templates/ static/ built-in pages and styles (override with a theme folder)
+deploy/
+  install.sh         one-command install / update for Ubuntu & Debian
+  gce-startup.sh     Google Compute Engine wrapper for install.sh
+  academy.service    systemd unit template      nginx.conf   nginx site template
+  backup.sh          daily database + uploads backup
+tests/               pytest suite (run by GitHub Actions on every push)
 ```
+
+When you change `academy/models.py`, create a migration with `flask db migrate -m "what changed"` and review the generated file in `academy/migrations/versions/`. Commit it with your change. `install.sh` applies it on the next update.

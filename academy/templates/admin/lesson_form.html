@@ -1,0 +1,98 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block content %}
+<p class="small"><a href="{{ url_for('admin.course_edit', course_id=course.id) }}">← {{ course.title }}</a></p>
+<h1>{{ lesson.title if lesson else 'New lesson' }}</h1>
+<div class="card">
+<form method="post" enctype="multipart/form-data" class="stack" id="lessonForm">{{ csrf() }}
+  <label for="title">Title</label><input type="text" id="title" name="title" value="{{ lesson.title if lesson }}" required>
+  <label for="kind">Format</label>
+  <select name="kind" id="kind"><option value="text" {{ 'selected' if lesson and lesson.kind == 'text' }}>≡ Text lecture</option><option value="video" {{ 'selected' if lesson and lesson.kind == 'video' }}>▶ Video lecture</option></select>
+
+  <div id="videoBox">
+    {% set provider = lesson.video_provider if lesson else ('vdocipher' if vdocipher else 'local') %}
+    <label>Where is the video hosted?</label>
+    <label class="check"><input type="radio" name="video_provider" value="vdocipher" {{ 'checked' if provider == 'vdocipher' }} {{ 'disabled' if not vdocipher and provider != 'vdocipher' }}>
+      Protected (VdoCipher DRM) – recommended for paid lessons{% if not vdocipher %} <span class="small muted">· set VDOCIPHER_API_SECRET to enable</span>{% endif %}</label>
+    <label class="check"><input type="radio" name="video_provider" value="local" {{ 'checked' if provider == 'local' }}> This server (simple, no DRM)</label>
+
+    <div id="box-vdocipher" class="card" style="margin-top:10px">
+      <label for="vdocipher_id">VdoCipher video ID</label>
+      <input type="text" id="vdocipher_id" name="vdocipher_id" value="{{ lesson.vdocipher_id if lesson and lesson.vdocipher_id }}" placeholder="e.g. 1234567890abcdef1234567890abcdef">
+      {% if vdo_status %}<p class="small">Status at VdoCipher: <b>{{ vdo_status }}</b></p>{% endif %}
+      {% if vdocipher %}
+      <label for="vdoFile">…or upload a video file straight to VdoCipher</label>
+      <input type="file" id="vdoFile" accept="video/*">
+      <p class="row"><button type="button" class="btn small secondary" id="vdoUpload">Upload to VdoCipher</button> <span id="vdoMsg" class="small muted"></span></p>
+      <div class="progress" id="vdoBar" hidden><div style="width:0%"></div></div>
+      {% endif %}
+      <p class="small muted">The file goes directly from your computer to VdoCipher. After upload it is encrypted and processed, which can take a few minutes. Students then see it with DRM and a watermark showing their name and email.</p>
+    </div>
+
+    <div id="box-local" class="card" style="margin-top:10px">
+      <label for="video">Video file (mp4/webm/mov){% if lesson and lesson.video_file %} – a file is already uploaded; choose a new one to replace it{% endif %}</label>
+      <input type="file" id="video" name="video" accept="video/*">
+      <p class="small muted">Stored privately on this server and streamed only to enrolled students through expiring, per‑student links.</p>
+    </div>
+  </div>
+
+  <label for="body">Lecture text / notes / recipe (Markdown)</label>
+  <textarea id="body" name="body" rows="14" placeholder="## Ingredients&#10;- 250g flour&#10;&#10;## Method&#10;1. Preheat oven to 180°C…">{{ lesson.body if lesson }}</textarea>
+  <div class="card" id="materials">
+    <label for="materials-input">Course materials (handouts, slides, templates)</label>
+    {% if lesson and lesson.attachments %}<ul class="materials">{% for att in lesson.attachments %}
+      <li><a href="{{ url_for('learn.material', attachment_id=att.id) }}">{{ att.original_name }}</a>
+        <span class="row small"><span class="muted">{{ att.size_label }}</span>
+        <button type="submit" class="linkbtn" style="color:var(--err)" form="del-att-{{ att.id }}">remove</button></span></li>
+    {% endfor %}</ul>{% endif %}
+    <input type="file" id="materials-input" name="materials" multiple accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.zip,.png,.jpg,.jpeg">
+    <p class="small muted">Enrolled students can download these from the lesson page{% if not config.ALLOW_MATERIAL_DOWNLOAD %} (currently turned off with ALLOW_MATERIAL_DOWNLOAD){% endif %}.</p>
+  </div>
+  <label for="duration_min">Duration (minutes)</label><input type="number" id="duration_min" name="duration_min" min="0" value="{{ lesson.duration_min if lesson and lesson.duration_min }}">
+  <label class="check"><input type="checkbox" name="is_preview" value="1" {{ 'checked' if lesson and lesson.is_preview }}> Free preview (visible without enrolling)</label>
+  <p><button class="btn" id="saveBtn">Save lesson</button></p>
+</form>
+{% if lesson %}{% for att in lesson.attachments %}
+<form id="del-att-{{ att.id }}" method="post" action="{{ url_for('admin.material_delete', attachment_id=att.id) }}">{{ csrf() }}</form>
+{% endfor %}{% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script>
+(function(){
+  var kind=document.getElementById('kind'), box=document.getElementById('videoBox');
+  function radios(){return document.querySelectorAll('input[name=video_provider]');}
+  function provider(){var v='local';radios().forEach(function(r){if(r.checked)v=r.value;});return v;}
+  function sync(){
+    box.style.display = kind.value==='video' ? '' : 'none';
+    document.getElementById('box-vdocipher').style.display = provider()==='vdocipher' ? '' : 'none';
+    document.getElementById('box-local').style.display = provider()==='local' ? '' : 'none';
+  }
+  kind.onchange=sync; radios().forEach(function(r){r.onchange=sync;}); sync();
+
+  var btn=document.getElementById('vdoUpload'); if(!btn) return;
+  var msg=document.getElementById('vdoMsg'), bar=document.getElementById('vdoBar'), save=document.getElementById('saveBtn');
+  btn.onclick=function(){
+    var file=document.getElementById('vdoFile').files[0];
+    if(!file){msg.textContent='Choose a video file first.';return;}
+    btn.disabled=true; save.disabled=true; msg.textContent='Preparing upload…';
+    var title=document.getElementById('title').value||file.name;
+    fetch('{{ url_for("admin.vdocipher_credentials") }}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':'{{ csrf_token() }}'},body:JSON.stringify({title:title})})
+    .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Could not start upload');return d;});})
+    .then(function(d){
+      var p=d.clientPayload, fd=new FormData();
+      ['policy','key','x-amz-signature','x-amz-algorithm','x-amz-date','x-amz-credential'].forEach(function(k){fd.append(k,p[k]);});
+      fd.append('success_action_status','201'); fd.append('success_action_redirect','');
+      fd.append('file',file);
+      var xhr=new XMLHttpRequest(); xhr.open('POST',p.uploadLink); bar.hidden=false;
+      xhr.upload.onprogress=function(e){if(e.lengthComputable){var pc=Math.round(100*e.loaded/e.total);bar.firstElementChild.style.width=pc+'%';msg.textContent='Uploading… '+pc+'%';}};
+      xhr.onload=function(){
+        btn.disabled=false; save.disabled=false;
+        if(xhr.status>=200&&xhr.status<300){document.getElementById('vdocipher_id').value=d.videoId;msg.textContent='Uploaded. Now click "Save lesson". VdoCipher will process the video for a few minutes.';}
+        else{msg.textContent='Upload failed (status '+xhr.status+'). Try again.';}
+      };
+      xhr.onerror=function(){btn.disabled=false;save.disabled=false;msg.textContent='Upload failed: network error. Try again.';};
+      xhr.send(fd);
+    })
+    .catch(function(e){btn.disabled=false;save.disabled=false;msg.textContent=e.message;});
+  };
+})();
+</script>{% endblock %}

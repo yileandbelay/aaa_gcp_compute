@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% from "_macros.html" import progress_bar %}
+{% block title %}My learning · {{ site_name }}{% endblock %}
+{% block content %}
+<h1>Welcome back, {{ current_user.full_name.split(' ')[0] }} </h1>
+<h2>My courses</h2>
+{% if rows %}
+<div class="grid">{% for course, p in rows %}
+  <div class="card">
+    <h3><a href="{{ url_for('main.course_detail', slug=course.slug) }}">{{ course.title }}</a></h3>
+    {{ progress_bar(p.percent) }}<p class="small muted">{{ p.percent }}% complete</p>
+    {% if course.lessons %}<a class="btn small" href="{{ url_for('learn.lesson', lesson_id=course.lessons[0].id) }}">Open</a>{% endif %}
+  </div>{% endfor %}</div>
+{% else %}<p class="muted">You are not enrolled in any course yet. <a href="{{ url_for('main.catalog') }}">Browse courses</a>.</p>{% endif %}
+
+{% if certificates and config.FEATURE_CERTIFICATES %}<h2>Certificates</h2><ul>
+{% for c in certificates %}<li><a href="{{ url_for('main.certificate', code=c.code) }}">{{ c.course.title }}</a> <span class="small muted">· {{ c.issued_at.strftime('%d %b %Y') }} · #{{ c.code }}</span></li>{% endfor %}
+</ul>{% endif %}
+
+{% if payments %}<h2>Payments</h2><div class="table-wrap"><table>
+<tr><th>Date</th><th>Course</th><th>Amount</th><th>Method</th><th>Status</th><th></th></tr>
+{% for p in payments %}<tr><td>{{ p.created_at.strftime('%d %b %Y') }}</td><td>{{ p.course.title }}</td><td>{{ p.amount|money }} {{ p.currency }}</td><td>{{ p.method }}</td><td><span class="badge {{ p.status }}">{{ p.status }}</span></td>
+<td>{% if p.status == 'paid' %}<a href="{{ url_for('pay.invoice', payment_id=p.id) }}">Receipt</a>{% endif %}</td></tr>{% endfor %}
+</table></div>{% endif %}
+{% endblock %}

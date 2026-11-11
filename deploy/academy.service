@@ -1,0 +1,17 @@
+[Unit]
+Description=__NAME__ online academy (gunicorn)
+After=network.target
+
+[Service]
+User=__NAME__
+Group=__NAME__
+WorkingDirectory=/opt/__NAME__
+EnvironmentFile=/etc/__NAME__.env
+ExecStart=/opt/__NAME__/.venv/bin/gunicorn -w 3 --threads 4 -t 300 -b 127.0.0.1:__PORT__ wsgi:app
+Restart=always
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

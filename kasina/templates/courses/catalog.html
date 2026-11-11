@@ -1,7 +1,0 @@
-{% extends "base.html" %}{% from "_macros.html" import course_card %}
-{% block title %}Courses · {{ site_name }}{% endblock %}
-{% block content %}
-<h1>Courses</h1>
-{% if courses %}<div class="grid">{% for c in courses %}{{ course_card(c) }}{% endfor %}</div>
-{% else %}<p class="muted">No courses are published yet. Check back soon!</p>{% endif %}
-{% endblock %}
