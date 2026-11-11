@@ -5,10 +5,10 @@ import re
 
 import pytest
 
-from kasina import create_app
-from kasina.config import Config, TestConfig
-from kasina.models import Course, Lesson, User, db
-from kasina.seed import seed
+from academy import create_app
+from academy.config import Config, TestConfig
+from academy.models import Course, Lesson, User, db
+from academy.seed import seed
 
 
 @pytest.fixture
@@ -30,8 +30,8 @@ def outbox(monkeypatch):
         sent.append({"to": to, "subject": subject, "body": body})
         return True
 
-    import kasina.routes.admin as admin_routes
-    import kasina.routes.auth as auth_routes
+    import academy.routes.admin as admin_routes
+    import academy.routes.auth as auth_routes
 
     monkeypatch.setattr(auth_routes, "send_email", fake_send)
     monkeypatch.setattr(admin_routes, "send_email", fake_send)
@@ -85,7 +85,7 @@ def test_login_throttled_after_repeated_failures(app):
     assert r.status_code == 429  # even the right password is refused for now
     # A password reset clears the block
     with app.app_context():
-        from kasina.routes.auth import make_reset_token
+        from academy.routes.auth import make_reset_token
 
         token = make_reset_token(User.query.filter_by(email="student@example.com").one())
     c.post(f"/reset-password/{token}", data={"password": "newpass456", "password2": "newpass456"})
@@ -120,7 +120,7 @@ def test_vdocipher_playback_uses_per_student_otp_with_watermark(app, monkeypatch
         calls.append({"url": url, "headers": headers, "json": json})
         return FakeResponse(200, {"otp": "OTP123", "playbackInfo": "PB456"})
 
-    monkeypatch.setattr("kasina.video.requests.post", fake_post)
+    monkeypatch.setattr("academy.video.requests.post", fake_post)
     c = app.test_client()
     register(c)
     c.post(f"/pay/course/{cid}/demo")
@@ -135,7 +135,7 @@ def test_vdocipher_playback_uses_per_student_otp_with_watermark(app, monkeypatch
 def test_vdocipher_not_requested_for_students_without_access(app, monkeypatch):
     app.config["VDOCIPHER_API_SECRET"] = "secret-key"
     lid, _ = _vdo_lesson(app)
-    monkeypatch.setattr("kasina.video.requests.post", lambda *a, **k: pytest.fail("OTP requested"))
+    monkeypatch.setattr("academy.video.requests.post", lambda *a, **k: pytest.fail("OTP requested"))
     c = app.test_client()
     register(c)
     assert c.get(f"/learn/lesson/{lid}").status_code == 302
@@ -144,7 +144,7 @@ def test_vdocipher_not_requested_for_students_without_access(app, monkeypatch):
 def test_vdocipher_failure_shows_message(app, monkeypatch):
     app.config["VDOCIPHER_API_SECRET"] = "secret-key"
     lid, cid = _vdo_lesson(app)
-    monkeypatch.setattr("kasina.video.requests.post",
+    monkeypatch.setattr("academy.video.requests.post",
                         lambda *a, **k: FakeResponse(401, {"message": "Invalid API secret"}))
     c = app.test_client()
     register(c)
@@ -156,10 +156,10 @@ def test_admin_gets_upload_credentials_and_saves_video_id(app, monkeypatch):
     app.config["VDOCIPHER_API_SECRET"] = "secret-key"
     payload = {"videoId": "1234567890abcdef", "clientPayload": {"uploadLink": "https://upload.example",
                                                                 "policy": "p", "key": "k"}}
-    monkeypatch.setattr("kasina.video.requests.put", lambda *a, **k: FakeResponse(200, payload))
+    monkeypatch.setattr("academy.video.requests.put", lambda *a, **k: FakeResponse(200, payload))
     admin = app.test_client()
-    login(admin, "admin@kasina.local", "admin12345")
-    r = admin.post("/admin/vdocipher/upload-credentials", json={"title": "Stacking tiers"})
+    login(admin, "admin@example.com", "admin12345")
+    r = admin.post("/admin/vdocipher/upload-credentials", json={"title": "Handling complaints"})
     assert r.status_code == 200 and r.get_json()["videoId"] == "1234567890abcdef"
     # Students cannot get upload credentials
     s = app.test_client()
@@ -169,10 +169,10 @@ def test_admin_gets_upload_credentials_and_saves_video_id(app, monkeypatch):
     with app.app_context():
         cid = Course.query.first().id
     admin.post(f"/admin/courses/{cid}/lessons/new", data={
-        "title": "Stacking tiers", "kind": "video", "video_provider": "vdocipher",
+        "title": "Handling complaints", "kind": "video", "video_provider": "vdocipher",
         "vdocipher_id": "1234567890abcdef"})
     with app.app_context():
-        lesson = Lesson.query.filter_by(title="Stacking tiers").one()
+        lesson = Lesson.query.filter_by(title="Handling complaints").one()
         assert lesson.video_provider == "vdocipher" and lesson.has_video
     r = admin.post(f"/admin/courses/{cid}/lessons/new", data={
         "title": "Bad", "kind": "video", "video_provider": "vdocipher", "vdocipher_id": "../../etc"})
@@ -203,10 +203,10 @@ def test_x_accel_redirect_hands_video_to_nginx(app):
 def test_student_emailed_when_receipt_approved(app, outbox):
     import io
 
-    from kasina.models import Payment
+    from academy.models import Payment
 
     with app.app_context():
-        cid = Course.query.filter_by(slug="cake-baking-fundamentals").one().id
+        cid = Course.query.filter_by(slug="project-management-fundamentals").one().id
     s = app.test_client()
     register(s)
     s.post(f"/pay/course/{cid}/manual", data={"receipt": (io.BytesIO(b"%PDF"), "r.pdf")},
@@ -214,7 +214,7 @@ def test_student_emailed_when_receipt_approved(app, outbox):
     with app.app_context():
         pid = Payment.query.one().id
     admin = app.test_client()
-    login(admin, "admin@kasina.local", "admin12345")
+    login(admin, "admin@example.com", "admin12345")
     admin.post(f"/admin/payments/{pid}/review", data={"decision": "approve"})
     assert outbox[-1]["to"] == "student@example.com" and "enrolled" in outbox[-1]["subject"]
 

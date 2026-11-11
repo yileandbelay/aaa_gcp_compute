@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Daily backup of the Kasina database and uploaded files (videos, receipts).
-# Installed to /etc/cron.daily/kasina-backup by gce-startup.sh. Keeps 14 days
-# locally and, if BACKUP_BUCKET is set (gs://...), copies each backup to Cloud Storage.
+# Daily backup of an academy's database and uploaded files (videos, receipts,
+# materials). install.sh copies this to /etc/cron.daily/<name>-backup.
+# Keeps 14 days locally and, if BACKUP_BUCKET is set (gs://... or s3://...),
+# also copies each backup there with gcloud or aws.
 set -euo pipefail
-set -a; . /etc/kasina.env; set +a
-DEST="${BACKUP_DIR:-/var/lib/kasina/backups}"
+ENV_FILE="${1:-__ENV_FILE__}"
+set -a; . "$ENV_FILE"; set +a
+DEST="${BACKUP_DIR:?BACKUP_DIR is not set in $ENV_FILE}"
 STAMP="$(date -u +%Y%m%d-%H%M)"
 mkdir -p "$DEST"
 
@@ -19,12 +21,10 @@ case "${DATABASE_URL:-}" in
     pg_dump "$(echo "$DATABASE_URL" | sed 's/+psycopg2//')" | gzip > "$DEST/db-$STAMP.sql.gz" ;;
 esac
 
-# Uploads: receipts and locally stored videos (VdoCipher videos live at VdoCipher).
 tar -czf "$DEST/uploads-$STAMP.tar.gz" -C "$(dirname "$UPLOAD_DIR")" "$(basename "$UPLOAD_DIR")"
 
-if [ -n "${BACKUP_BUCKET:-}" ]; then
-  gcloud storage cp "$DEST"/*-"$STAMP".* "$BACKUP_BUCKET/" --quiet
-fi
+case "${BACKUP_BUCKET:-}" in
+  gs://*) gcloud storage cp "$DEST"/*-"$STAMP".* "$BACKUP_BUCKET/" --quiet ;;
+  s3://*) aws s3 cp "$DEST/" "$BACKUP_BUCKET/" --recursive --exclude "*" --include "*-$STAMP.*" ;;
+esac
 find "$DEST" -type f -mtime +14 -delete
-chown -R kasina:kasina "$DEST"
-chmod 700 "$DEST"

@@ -4,10 +4,10 @@ import re
 
 import pytest
 
-from kasina import create_app
-from kasina.config import TestConfig
-from kasina.models import Certificate, Course, Lesson, Payment, User, db
-from kasina.seed import seed
+from academy import create_app
+from academy.config import TestConfig
+from academy.models import Certificate, Course, Lesson, Payment, User, db
+from academy.seed import seed
 
 
 @pytest.fixture
@@ -37,7 +37,7 @@ def login(client, email, password):
     return client.post("/login", data={"email": email, "password": password}, follow_redirects=True)
 
 
-def course(app, slug="cake-baking-fundamentals"):
+def course(app, slug="project-management-fundamentals"):
     with app.app_context():
         return Course.query.filter_by(slug=slug).first().id
 
@@ -45,8 +45,8 @@ def course(app, slug="cake-baking-fundamentals"):
 def test_public_pages(client):
     assert client.get("/").status_code == 200
     r = client.get("/courses")
-    assert b"Cake Baking Fundamentals" in r.data
-    assert client.get("/courses/cake-baking-fundamentals").status_code == 200
+    assert b"Project Management Fundamentals" in r.data
+    assert client.get("/courses/project-management-fundamentals").status_code == 200
 
 
 def test_registration_validation(client):
@@ -61,7 +61,7 @@ def test_registration_validation(client):
 
 def test_paid_lessons_are_protected(app, client):
     with app.app_context():
-        c = Course.query.filter_by(slug="cake-baking-fundamentals").first()
+        c = Course.query.filter_by(slug="project-management-fundamentals").first()
         preview, paid = c.lessons[0], c.lessons[1]
         preview_id, paid_id = preview.id, paid.id
     # Anonymous: preview visible, paid redirects to login
@@ -116,7 +116,7 @@ def test_manual_payment_approval_flow(app, client):
     # Student cannot approve their own payment
     assert client.post(f"/admin/payments/{pid}/review", data={"decision": "approve"}).status_code == 403
     admin = app.test_client()
-    login(admin, "admin@kasina.local", "admin12345")
+    login(admin, "admin@example.com", "admin12345")
     assert admin.get(f"/pay/receipt/{pid}").status_code == 200
     admin.post(f"/admin/payments/{pid}/review", data={"decision": "approve"})
     with app.app_context():
@@ -174,7 +174,7 @@ def test_attempt_limit(app, client):
 
 
 def test_free_course_enrollment(app, client):
-    cid = course(app, "intro-to-buttercream")
+    cid = course(app, "excel-for-the-workplace")
     register(client)
     r = client.post(f"/pay/course/{cid}", follow_redirects=True)
     assert b"You are enrolled" in r.data
@@ -184,7 +184,7 @@ def test_admin_requires_role(app, client):
     register(client)
     assert client.get("/admin/").status_code == 403
     admin = app.test_client()
-    login(admin, "admin@kasina.local", "admin12345")
+    login(admin, "admin@example.com", "admin12345")
     assert admin.get("/admin/").status_code == 200
     assert admin.get("/admin/students").status_code == 200
     assert b"student@example.com" in admin.get("/admin/students.csv").data
@@ -192,26 +192,26 @@ def test_admin_requires_role(app, client):
 
 def test_admin_creates_course_lesson_and_question(app):
     admin = app.test_client()
-    login(admin, "admin@kasina.local", "admin12345")
-    r = admin.post("/admin/courses/new", data={"title": "Wedding Cakes", "price": "3000", "is_published": "1"})
+    login(admin, "admin@example.com", "admin12345")
+    r = admin.post("/admin/courses/new", data={"title": "Customer Service Excellence", "price": "3000", "is_published": "1"})
     cid = int(r.location.rstrip("/").split("/")[-1])
     admin.post(f"/admin/courses/{cid}/lessons/new", data={
-        "title": "Stacking tiers", "kind": "video", "body": "Use dowels.",
-        "video": (io.BytesIO(b"fakevideo"), "tiers.mp4"),
+        "title": "Handling complaints", "kind": "video", "body": "Listen first.",
+        "video": (io.BytesIO(b"fakevideo"), "complaints.mp4"),
     }, content_type="multipart/form-data")
     r = admin.post(f"/admin/courses/{cid}/assessments/new", data={"title": "Quiz 1", "pass_mark": "60"})
     aid = int(r.location.rstrip("/").split("/")[-1])
     admin.post(f"/admin/assessments/{aid}/questions",
-               data={"text": "How many dowels?", "options": "1\n4\n10", "correct": "2"})
+               data={"text": "Step one when a customer complains?", "options": "1\n4\n10", "correct": "2"})
     with app.app_context():
         c = db.session.get(Course, cid)
-        assert c.slug == "wedding-cakes" and c.lessons[0].video_file.endswith(".mp4")
+        assert c.slug == "customer-service-excellence" and c.lessons[0].video_file.endswith(".mp4")
         assert c.assessments[0].questions[0].options == ["1", "4", "10"]
         assert c.assessments[0].questions[0].correct_index == 1
 
 
 def test_markdown_is_sanitized(app):
-    from kasina.utils import render_markdown
+    from academy.utils import render_markdown
 
     with app.app_context():
         html = str(render_markdown("hi <script>alert(1)</script> [x](javascript:alert(1))"))
@@ -229,7 +229,7 @@ def test_csrf_enforced_when_enabled(tmp_path):
 
 
 def test_chapa_flow_verifies_with_provider(app, client, monkeypatch):
-    from kasina.routes import pay as pay_routes
+    from academy.routes import pay as pay_routes
 
     app.config["CHAPA_SECRET_KEY"] = "CHASECK_TEST-x"
     monkeypatch.setattr(pay_routes, "chapa_initialize", lambda *a, **k: "https://checkout.chapa.co/x")

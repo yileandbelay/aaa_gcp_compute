@@ -1,0 +1,17 @@
+# Run with:  cp .env.example .env  (edit it)  &&  docker compose up -d --build
+# Put a reverse proxy with HTTPS (Caddy, nginx, Traefik or your host's) in front of port 8000.
+services:
+  academy:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite:////data/academy.db
+      UPLOAD_DIR: /data/uploads
+      USE_X_ACCEL_REDIRECT: "false"   # no nginx inside this setup
+    volumes:
+      - academy-data:/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+volumes:
+  academy-data:

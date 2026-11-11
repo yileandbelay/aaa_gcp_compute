@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% from "_macros.html" import course_card %}
+{% block title %}Courses · {{ site_name }}{% endblock %}
+{% block content %}
+<h1>Courses</h1>
+<form method="get" class="row" style="margin-bottom:14px">
+  {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
+  <input type="text" id="q" name="q" value="{{ q }}" placeholder="Search courses" style="max-width:320px">
+  <button class="btn small">Search</button>
+</form>
+{% if categories %}
+<div class="chips" style="margin-bottom:20px">
+  <a class="chip {{ 'on' if not category }}" href="{{ url_for('main.catalog', q=q or None) }}">All</a>
+  {% for cat in categories %}<a class="chip {{ 'on' if cat == category }}" href="{{ url_for('main.catalog', category=cat, q=q or None) }}">{{ cat }}</a>{% endfor %}
+</div>{% endif %}
+{% if courses %}<div class="grid">{% for c in courses %}{{ course_card(c) }}{% endfor %}</div>
+{% else %}<p class="muted">No courses match. {% if q or category %}<a href="{{ url_for('main.catalog') }}">Show all courses</a>{% else %}Check back soon!{% endif %}</p>{% endif %}
+{% endblock %}

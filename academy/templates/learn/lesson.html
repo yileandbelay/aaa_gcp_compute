@@ -1,0 +1,85 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf, progress_bar %}
+{% block title %}{{ lesson.title }} · {{ course.title }}{% endblock %}
+{% block content %}
+<p class="small"><a href="{{ url_for('main.course_detail', slug=course.slug) }}">← {{ course.title }}</a></p>
+<div class="layout-lesson">
+  <aside class="sidebar card">
+    {% if progress %}<p class="small"><b>{{ progress.percent }}% complete</b></p>{{ progress_bar(progress.percent) }}<br>{% endif %}
+    <ol>
+    {% for l in lessons %}
+      <li><a href="{{ url_for('learn.lesson', lesson_id=l.id) }}" class="{{ 'current' if l.id == lesson.id }}">
+        <span class="tick">{% if progress and l.id in progress.done_lessons %}✓{% elif l.kind == 'video' %}▶{% else %}≡{% endif %}</span>{{ loop.index }}. {{ l.title }}</a></li>
+    {% endfor %}
+    </ol>
+    {% if progress and course.assessments %}<hr><b class="small">Assessments</b><ol>
+      {% for a in course.assessments %}<li><a href="{{ url_for('assess.overview', aid=a.id) }}"><span class="tick">{% if a.id in progress.passed_assessments %}✓{% else %}✎{% endif %}</span>{{ a.title }}</a></li>{% endfor %}
+    </ol>{% endif %}
+  </aside>
+
+  <article>
+    <h1>{{ lesson.title }}</h1>
+    {% if lesson.kind == 'video' %}
+      {% if drm_player_url %}
+        <div class="video-wrap drm">
+          <iframe src="{{ drm_player_url }}" allow="encrypted-media; fullscreen" allowfullscreen
+                  title="{{ lesson.title }} video" style="border:0;width:100%;aspect-ratio:16/9;display:block"></iframe>
+        </div>
+      {% elif video_error %}
+        <div class="card muted">{{ video_error }}</div>
+      {% elif video_url %}
+        <div class="video-wrap{{ ' protected' if not config.ALLOW_VIDEO_DOWNLOAD }}"{% if not config.ALLOW_VIDEO_DOWNLOAD %} oncontextmenu="return false"{% endif %}>
+          <video controls {% if not config.ALLOW_VIDEO_DOWNLOAD %}controlsList="nodownload noremoteplayback" disablePictureInPicture{% endif %} preload="metadata" playsinline src="{{ video_url }}"></video>
+          {% if config.VIDEO_WATERMARK %}<div class="watermark">{{ current_user.email }}</div>{% endif %}
+        </div>
+      {% elif not current_user.is_authenticated %}
+        <div class="card"><a href="{{ url_for('auth.login', next=request.path) }}">Log in</a> to watch this free preview video.</div>
+      {% else %}
+        <div class="card muted">The video for this lesson has not been uploaded yet.</div>
+      {% endif %}
+    {% endif %}
+
+    {% if lesson.body %}
+    {% if config.PROTECT_LESSON_TEXT %}<div class="card lesson-body protected" oncontextmenu="return false" oncopy="return false">
+    {% else %}<div class="card lesson-body">{% endif %}{{ lesson.body|markdown }}</div>
+    {% endif %}
+
+    {% if lesson.attachments and current_user.is_authenticated and (config.ALLOW_MATERIAL_DOWNLOAD or current_user.is_staff) %}
+    <div class="card" id="materials"><h3>Course materials</h3>
+      <ul class="materials">{% for att in lesson.attachments %}
+        <li><a href="{{ url_for('learn.material', attachment_id=att.id) }}">{{ att.original_name }}</a><span class="small muted">{{ att.size_label }}</span></li>
+      {% endfor %}</ul>
+    </div>{% endif %}
+
+    <div class="row spread">
+      <div>{% if prev_l %}<a class="btn secondary small" href="{{ url_for('learn.lesson', lesson_id=prev_l.id) }}">← Previous</a>{% endif %}</div>
+      {% if progress %}
+      <form method="post" action="{{ url_for('learn.complete', lesson_id=lesson.id) }}">{{ csrf() }}
+        {% if next_l %}<input type="hidden" name="next_lesson" value="{{ next_l.id }}">{% endif %}
+        {% if lesson.id in progress.done_lessons %}
+          {% if next_l %}<button class="btn small">Next lesson →</button>{% else %}<span class="badge passed">✓ Completed</span>{% endif %}
+        {% else %}<button class="btn small">Mark complete{% if next_l %} & continue →{% endif %}</button>{% endif %}
+      </form>
+      {% elif next_l and next_l.is_preview %}<a class="btn small" href="{{ url_for('learn.lesson', lesson_id=next_l.id) }}">Next →</a>{% endif %}
+    </div>
+
+    {% if progress and config.FEATURE_DISCUSSION %}
+    <div class="card" id="discussion" style="margin-top:24px">
+      <h3>Questions & discussion</h3>
+      {% for c in lesson.comments %}
+        <div style="border-bottom:1px solid var(--line);padding:8px 0">
+          <b>{{ c.user.full_name }}</b> {% if c.user.is_staff %}<span class="badge">Instructor</span>{% endif %}
+          <span class="small muted">{{ c.created_at.strftime('%d %b %Y %H:%M') }}</span>
+          <div style="white-space:pre-wrap">{{ c.body }}</div>
+          {% if c.user_id == current_user.id or current_user.is_staff %}
+          <form method="post" action="{{ url_for('learn.delete_comment', comment_id=c.id) }}">{{ csrf() }}<button class="linkbtn small">delete</button></form>{% endif %}
+        </div>
+      {% else %}<p class="muted small">No questions yet. Ask the instructor anything about this lesson.</p>{% endfor %}
+      <form method="post" action="{{ url_for('learn.comment', lesson_id=lesson.id) }}" class="stack">{{ csrf() }}
+        <textarea name="body" placeholder="Ask a question or share your result…" required></textarea>
+        <p><button class="btn small">Post</button></p>
+      </form>
+    </div>
+    {% endif %}
+  </article>
+</div>
+{% endblock %}

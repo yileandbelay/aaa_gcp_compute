@@ -1,4 +1,4 @@
-from kasina import create_app
+from academy import create_app
 
 app = create_app()
 

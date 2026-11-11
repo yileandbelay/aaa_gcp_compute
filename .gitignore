@@ -128,7 +128,7 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Kasina platform runtime data
+# Academy runtime data
 instance/
 *.db
 .env

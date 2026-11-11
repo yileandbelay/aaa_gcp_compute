@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf, price %}
+{% block title %}Enroll · {{ course.title }}{% endblock %}
+{% block content %}
+<h1>Enroll in {{ course.title }}</h1>
+<p style="font-size:1.4rem">Course fee: <b>{{ price(course) }}</b></p>
+<div class="grid">
+  {% if chapa %}
+  <div class="card"><h3>Pay online</h3>
+    <p class="muted">telebirr, CBE Birr, M‑Pesa, Amole, Visa/Mastercard via Chapa. Instant access.</p>
+    <form method="post" action="{{ url_for('pay.chapa_start', course_id=course.id) }}">{{ csrf() }}<button class="btn">Pay {{ price(course) }}</button></form>
+  </div>{% endif %}
+  {% if manual %}
+  <div class="card"><h3>Bank transfer / mobile money</h3>
+    <p>{{ instructions }}</p>
+    <form method="post" enctype="multipart/form-data" action="{{ url_for('pay.manual_submit', course_id=course.id) }}" class="stack">{{ csrf() }}
+      <label>Transaction reference</label><input type="text" name="reference" placeholder="e.g. FT23…">
+      <label>Receipt (photo or PDF)</label><input type="file" name="receipt" accept=".png,.jpg,.jpeg,.pdf" required>
+      <p><button class="btn secondary">Submit receipt</button></p>
+    </form>
+    <p class="small muted">Access is granted after an administrator verifies your receipt (usually within 24 hours).</p>
+  </div>{% endif %}
+  {% if demo %}
+  <div class="card"><h3>Demo payment</h3><p class="muted">Test mode only – unlocks the course without real money.</p>
+    <form method="post" action="{{ url_for('pay.demo_pay', course_id=course.id) }}">{{ csrf() }}<button class="btn ok">Simulate payment</button></form>
+  </div>{% endif %}
+  {% if not (chapa or manual or demo) %}<div class="card">Online enrollment is not available right now – please contact us.</div>{% endif %}
+</div>
+{% endblock %}
