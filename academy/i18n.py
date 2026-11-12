@@ -162,12 +162,14 @@ def _python_strings(folder):
 def dynamic_strings():
     """Strings that are translated by a variable (``_(level)``) rather than a literal."""
     from .config import Config
+    from .models import Payment
     from .routes.main import LENGTHS, SORTS
 
     fixed = {"Beginner", "Intermediate", "Advanced", "Business",
              "Paid", "Submitted", "Initiated", "Failed", "Rejected",
              "Manual", "Chapa", "Demo", "Student", "Instructor", "Admin"}
     fixed |= {label for _key, label in LENGTHS} | {label for _key, label in SORTS}
+    fixed |= {label for _key, label in Payment.CHANNELS}
     fixed |= {Config.SITE_NAME, Config.SITE_TAGLINE, Config.SITE_HEADLINE, Config.SITE_INTRO, Config.MANUAL_PAYMENT_INSTRUCTIONS}
     return fixed
 

@@ -177,15 +177,15 @@ def card_buttons(html):
     return re.findall(r'<div class="actions">(.*?)</div>', html, re.S)
 
 
-def test_guests_see_enroll_on_every_card_and_are_sent_to_create_an_account(app):
+def test_guests_see_enroll_on_every_card_and_are_sent_to_student_login(app):
     pm, xl = ids(app)
     for url in ("/", "/courses"):
         page = app.test_client().get(url).data.decode()
         buttons = card_buttons(page)
         assert len(buttons) == page.count('class="card course-card"') >= 2, url
         assert all(">Enroll<" in b for b in buttons)
-        assert f'href="/register?next=/pay/course/{pm}"' in page            # paid: back to payment
-        assert 'href="/register?next=/courses/excel-for-the-workplace"' in page  # free: back to the course
+        assert f'href="/login?area=student&amp;next=/pay/course/{pm}"' in page   # paid: back to payment
+        assert 'href="/login?area=student&amp;next=/courses/excel-for-the-workplace"' in page  # free: back to the course
 
 
 def test_signed_in_students_enroll_from_the_card(app):
@@ -232,7 +232,7 @@ def test_enroll_forms_work_for_guests_end_to_end(app):
 def test_course_page_asks_guests_to_sign_up_with_the_same_enroll_button(app):
     page = app.test_client().get("/courses/project-management-fundamentals").data.decode()
     pm, _ = ids(app)
-    assert page.count(f'href="/register?next=/pay/course/{pm}"') == 2       # side card and the phone bar
+    assert page.count(f'href="/login?area=student&amp;next=/pay/course/{pm}"') == 2  # side card and the phone bar
     assert "Enroll now" in page and "Register to enroll" not in page
     assert "You will be asked to log in or create a free account." in page
     free = app.test_client().get("/courses/excel-for-the-workplace").data.decode()

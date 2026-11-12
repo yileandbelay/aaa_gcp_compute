@@ -1,7 +1,11 @@
 {% extends "base.html" %}
+{% from "admin/_record_payment.html" import record_form with context %}
 {% block content %}
 <h1>Payments</h1>{% include "admin/_nav.html" %}
+<p class="row"><a class="btn small" href="#record-payment">Record a payment</a> <a class="btn small secondary" href="{{ url_for('admin.payment_details') }}">Payment details shown to students</a> <a class="btn small secondary" href="{{ url_for('admin.payments_csv') }}">Download all (CSV)</a></p>
+{% if sample_details %}<div class="flash error">Students are being shown <b>sample</b> bank and Telebirr numbers. <a href="{{ url_for('admin.payment_details') }}">Enter your real payment details</a> before accepting real payments.</div>{% endif %}
 <p class="row">Filter:
 {% for s in ['', 'submitted', 'paid', 'initiated', 'failed', 'rejected'] %}<a class="badge {{ s }}" href="{{ url_for('admin.payments', status=s) }}">{{ s or 'all' }}{% if s == status %} ●{% endif %}</a>{% endfor %}</p>
 {% include "admin/_payments_table.html" %}
+{{ record_form(next_url=url_for('admin.payments')) }}
 {% endblock %}

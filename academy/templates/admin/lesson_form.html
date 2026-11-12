@@ -67,7 +67,7 @@
   <div class="row">
     <div style="flex:1;min-width:160px"><label for="duration_min">Duration (minutes)</label><input type="number" id="duration_min" name="duration_min" min="0" value="{{ lesson.duration_min if lesson and lesson.duration_min }}"></div>
   </div>
-  <label class="check"><input type="checkbox" name="is_preview" value="1" {{ 'checked' if lesson and lesson.is_preview }}> Free preview (visible without enrolling)</label>
+  <label class="check"><input type="checkbox" name="is_preview" value="1" {{ 'checked' if lesson and lesson.is_preview }}> <b>Public</b>: anyone can watch this lesson without enrolling (good for an introduction). Leave it unticked to lock it for enrolled students only.</label>
   <div class="row">
     <button class="btn" id="saveBtn" name="action" value="save">Save lesson</button>
     <button class="btn secondary" id="saveAddBtn" name="action" value="save_add">Save and add another</button>

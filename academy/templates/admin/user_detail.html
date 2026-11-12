@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% from "_macros.html" import csrf, progress_bar %}
+{% extends "base.html" %}{% from "_macros.html" import csrf, progress_bar %}{% from "admin/_record_payment.html" import record_form with context %}
 {% block title %}{{ user.full_name }} · Admin{% endblock %}
 {% block content %}
 <p class="small"><a href="{{ url_for('admin.staff') if user.is_staff else url_for('admin.students') }}">← {{ 'Staff' if user.is_staff else 'Students' }}</a></p>
@@ -31,7 +31,7 @@
 {% endif %}
 {% if user.can_study %}
 <div class="card"><h2>Courses</h2><table>
-{% for e, p in rows %}<tr><td><a href="{{ url_for('admin.course_students', course_id=e.course.id) }}">{{ e.course.title }}</a></td><td><span class="badge {{ e.status }}">{{ e.status }}</span></td><td class="small">{{ e.source_label }}{% if e.source == 'assigned' and e.assigned_by %} by {{ e.assigned_by.full_name }}{% endif %}</td><td style="width:26%">{{ progress_bar(p.percent) }}</td>
+{% for e, p in rows %}<tr><td><a href="{{ url_for('admin.course_students', course_id=e.course.id) }}">{{ e.course.title }}</a></td><td><span class="badge {{ e.status }}">{{ e.status }}</span></td><td class="small">{{ e.source_label }}{% if e.source == 'assigned' and e.assigned_by %} by {{ e.assigned_by.full_name }}{% endif %}{% if paid.get(e.course_id) %}<br><span class="muted">paid {{ paid[e.course_id]|money }} {{ currency }}</span>{% endif %}</td><td style="width:26%">{{ progress_bar(p.percent) }}</td>
 <td>{% if e.status == 'active' %}<form method="post">{{ csrf() }}<input type="hidden" name="action" value="revoke"><input type="hidden" name="enrollment_id" value="{{ e.id }}"><button class="linkbtn">remove access</button></form>{% endif %}</td></tr>
 {% else %}<tr><td class="muted">Not enrolled in any course.</td></tr>{% endfor %}</table>
 {% if courses %}
@@ -44,5 +44,6 @@
 {% endif %}
 </div>
 <div class="card"><h2>Payments</h2>{% include "admin/_payments_table.html" %}</div>
+{{ record_form(user=user, course_choices=all_courses, next_url=url_for('admin.user_detail', user_id=user.id)) }}
 {% endif %}
 {% endblock %}

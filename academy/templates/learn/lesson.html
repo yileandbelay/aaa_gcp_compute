@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% from "_macros.html" import csrf, progress_bar %}
+{% extends "base.html" %}{% from "_macros.html" import csrf, icon, progress_bar %}
 {% block title %}{{ lesson.title }} · {{ course.title }}{% endblock %}
 {% block content %}
 <p class="small"><a href="{{ url_for('main.course_detail', slug=course.slug) }}">← {{ course.title }}</a></p>
@@ -8,8 +8,12 @@
     {% if progress %}<p class="small"><b>{{ _('%(n)s%% complete', n=progress.percent) }}</b></p>{{ progress_bar(progress.percent) }}<br>{% endif %}
     <ol>
     {% for l in lessons %}
+      {% if progress is not none or l.is_preview %}
       <li><a href="{{ url_for('learn.lesson', lesson_id=l.id) }}" class="{{ 'current' if l.id == lesson.id }}">
         <span class="tick">{% if progress and l.id in progress.done_lessons %}✓{% elif l.kind == 'video' %}▶{% elif l.kind == 'link' %}↗{% else %}≡{% endif %}</span>{{ loop.index }}. {{ l.title }}</a></li>
+      {% else %}
+      <li class="muted locked-lesson"><span class="tick">{{ icon('lock') }}</span>{{ loop.index }}. {{ l.title }} <span class="small">({{ _('locked') }})</span></li>
+      {% endif %}
     {% endfor %}
     </ol>
     {% if progress and course.assessments %}<hr><b class="small">{{ _('Assessments') }}</b><ol>
@@ -20,22 +24,26 @@
 
   <article>
     <h1>{{ lesson.title }}</h1>
+    {% if lesson.is_preview and progress is none %}
+    <div class="preview-note">
+      <p><b>{{ _('This is a free preview lesson.') }}</b> {{ _('Enroll to unlock the rest of the course.') }}</p>
+      <a class="btn small" href="{{ url_for('auth.login', next=url_for('main.course_detail', slug=course.slug)) if not current_user.is_authenticated else url_for('main.course_detail', slug=course.slug) }}">{{ _('Enroll') }}</a>
+    </div>
+    {% endif %}
     {% if lesson.kind == 'video' %}
       {% if embed_url %}
         <div class="video-wrap drm">
           <iframe src="{{ embed_url }}" allow="encrypted-media; accelerometer; gyroscope; picture-in-picture; fullscreen" allowfullscreen
                   title="{{ _('%(title)s video', title=lesson.title) }}" style="border:0;width:100%;aspect-ratio:16/9;display:block"></iframe>
-          {% if config.VIDEO_WATERMARK and embed_provider.overlay_watermark and not embed_provider.burned_watermark %}<div class="watermark">{{ current_user.email }}</div>{% endif %}
+          {% if config.VIDEO_WATERMARK and current_user.is_authenticated and embed_provider.overlay_watermark and not embed_provider.burned_watermark %}<div class="watermark">{{ current_user.email }}</div>{% endif %}
         </div>
       {% elif video_error %}
         <div class="card muted">{{ video_error }}</div>
       {% elif video_url %}
         <div class="video-wrap{{ ' protected' if not config.ALLOW_VIDEO_DOWNLOAD }}"{% if not config.ALLOW_VIDEO_DOWNLOAD %} oncontextmenu="return false"{% endif %}>
           <video controls {% if not config.ALLOW_VIDEO_DOWNLOAD %}controlsList="nodownload noremoteplayback" disablePictureInPicture{% endif %} preload="metadata" playsinline src="{{ video_url }}"></video>
-          {% if config.VIDEO_WATERMARK %}<div class="watermark">{{ current_user.email }}</div>{% endif %}
+          {% if config.VIDEO_WATERMARK and current_user.is_authenticated %}<div class="watermark">{{ current_user.email }}</div>{% endif %}
         </div>
-      {% elif not current_user.is_authenticated %}
-        <div class="card">{{ _('%(link)s to watch this free preview video.', link=('<a href="%s">%s</a>'|format(url_for('auth.login', next=request.path), _('Log in')))|safe) }}</div>
       {% else %}
         <div class="card muted">{{ _('The video for this lesson has not been uploaded yet.') }}</div>
       {% endif %}

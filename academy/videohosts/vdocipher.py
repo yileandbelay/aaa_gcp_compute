@@ -44,7 +44,9 @@ class VdoCipher(VideoProvider):
         }])
 
     def embed_url(self, ref, user):
-        body = {"ttl": self.config["VDOCIPHER_OTP_TTL"], "annotate": self.watermark_for(user)}
+        body = {"ttl": self.config["VDOCIPHER_OTP_TTL"]}
+        if getattr(user, "is_authenticated", False):  # public lessons may be watched without an account
+            body["annotate"] = self.watermark_for(user)
         try:
             r = requests.post(self._api(f"/videos/{ref}/otp"), headers=self._headers(), json=body, timeout=15)
             data = r.json()

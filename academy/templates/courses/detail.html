@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% from "_macros.html" import csrf, progress_bar, price, hours, stars %}
+{% extends "base.html" %}{% from "_macros.html" import csrf, icon, progress_bar, price, hours, stars %}
 {% block title %}{{ course.title }} · {{ site_name }}{% endblock %}
 {% block description %}{{ (course.summary or _(config.SITE_INTRO))|striptags|trim }}{% endblock %}
 {% block body_class %}{% if progress is none and not pending_payment and course.is_published %}has-mobile-cta{% endif %}{% endblock %}
@@ -7,7 +7,7 @@
 {% set show_reviews = config.FEATURE_REVIEWS and rating is defined %}
 {% set videos = course.lessons|selectattr('kind', 'equalto', 'video')|list|length %}
 {# The enrol button, used in the side card and in the sticky bar on phones #}
-{% macro enroll_button() %}{% if current_user.is_authenticated %}{% if course.is_free %}<form method="post" action="{{ url_for('pay.checkout', course_id=course.id) }}">{{ csrf() }}<button class="btn block">{{ _('Enroll for free') }}</button></form>{% else %}<a class="btn block" href="{{ url_for('pay.checkout', course_id=course.id) }}">{{ _('Enroll now') }}</a>{% endif %}{% else %}<a class="btn block" href="{{ url_for('auth.register', next=(request.path if course.is_free else url_for('pay.checkout', course_id=course.id))) }}">{{ _('Enroll for free') if course.is_free else _('Enroll now') }}</a>{% endif %}{% endmacro %}
+{% macro enroll_button() %}{% if current_user.is_authenticated %}{% if course.is_free %}<form method="post" action="{{ url_for('pay.checkout', course_id=course.id) }}">{{ csrf() }}<button class="btn block">{{ _('Enroll for free') }}</button></form>{% else %}<a class="btn block" href="{{ url_for('pay.checkout', course_id=course.id) }}">{{ _('Enroll now') }}</a>{% endif %}{% else %}<a class="btn block" href="{{ url_for('auth.login', area='student', next=(request.path if course.is_free else url_for('pay.checkout', course_id=course.id))) }}">{{ _('Enroll for free') if course.is_free else _('Enroll now') }}</a>{% endif %}{% endmacro %}
 
 <section class="course-hero">
   <div class="meta"><span class="badge">{{ _(course.level) }}</span>{% if course.category %}<a href="{{ url_for('main.catalog', category=course.category) }}">{{ course.category }}</a>{% endif %}{% if course.length_hours %}<span>{{ _('%(hours)s of training', hours=hours(course)) }}</span>{% endif %}<span>{{ _n('%(n)s lesson', '%(n)s lessons', course.lessons|length) }}</span></div>
@@ -59,7 +59,7 @@
   {% for l in course.lessons %}
     <li>
       <span class="kind" aria-hidden="true">{% if l.kind == 'video' %}▶{% elif l.kind == 'link' %}↗{% else %}≡{% endif %}</span>
-      <span class="grow">{% if progress is not none or l.is_preview %}<a href="{{ url_for('learn.lesson', lesson_id=l.id) }}">{{ l.title }}</a>{% else %}{{ l.title }} <span class="small muted">({{ _('locked') }})</span>{% endif %}
+      <span class="grow">{% if progress is not none or l.is_preview %}<a href="{{ url_for('learn.lesson', lesson_id=l.id) }}">{{ l.title }}</a>{% else %}{{ l.title }} <span class="small muted locked">{{ icon('lock') }} {{ _('locked') }}</span>{% endif %}
         {% if l.is_preview and progress is none %}<span class="badge">{{ _('Free preview') }}</span>{% endif %}
         {% if l.attachments %}<span class="small muted"> · {{ _n('%(n)s file or link', '%(n)s files or links', l.attachments|length) }}</span>{% endif %}
         {% if progress and l.id in progress.done_lessons %}<span class="badge passed">✓ {{ _('done') }}</span>{% endif %}</span>

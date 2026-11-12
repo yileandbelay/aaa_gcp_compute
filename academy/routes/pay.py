@@ -8,6 +8,7 @@ from flask_login import current_user, login_required
 from ..i18n import gettext as _
 from ..models import Course, Enrollment, Payment, db
 from ..payments import PaymentError, chapa_enabled, chapa_initialize, chapa_verify
+from ..settings import payment_instructions
 from ..utils import save_upload
 
 bp = Blueprint("pay", __name__, url_prefix="/pay")
@@ -28,26 +29,37 @@ def _ensure_enrollment(course):
     return enr
 
 
+def _already_has_access(course):
+    """Staff and enrolled students do not pay. Used to stop payments being created by mistake."""
+    if current_user.has_access(course):
+        flash(_("You already have access to this course."), "info")
+        return redirect(url_for("main.course_detail", slug=course.slug))
+    return None
+
+
 @bp.route("/course/<int:course_id>", methods=["GET", "POST"])
 @login_required
 def checkout(course_id):
     course = _published_course(course_id)
-    if current_user.has_access(course):
+    # Staff see every course, so they cannot enroll; they may look at this page to see what students see.
+    preview = current_user.is_staff and not course.is_free and request.method == "GET"
+    if current_user.has_access(course) and not preview:
         return redirect(url_for("main.course_detail", slug=course.slug))
     if course.is_free and request.method == "GET":
         return redirect(url_for("main.course_detail", slug=course.slug))
-    enr = _ensure_enrollment(course)
-    if course.is_free:
-        enr.activate(source="free")
+    if not preview:
+        enr = _ensure_enrollment(course)
+        if course.is_free:
+            enr.activate(source="free")
+            db.session.commit()
+            flash(_("You are enrolled in %(course)s. Enjoy!", course=course.title), "success")
+            return redirect(url_for("main.course_detail", slug=course.slug))
         db.session.commit()
-        flash(_("You are enrolled in %(course)s. Enjoy!", course=course.title), "success")
-        return redirect(url_for("main.course_detail", slug=course.slug))
-    db.session.commit()
+    instructions, _sample = payment_instructions()
     return render_template(
-        "pay/checkout.html", course=course, chapa=chapa_enabled(),
+        "pay/checkout.html", course=course, chapa=chapa_enabled(), preview=preview,
         manual=current_app.config["MANUAL_PAYMENT_ENABLED"],
-        demo=current_app.config["PAYMENT_DEMO_MODE"],
-        instructions=current_app.config["MANUAL_PAYMENT_INSTRUCTIONS"],
+        demo=current_app.config["PAYMENT_DEMO_MODE"], instructions=instructions,
     )
 
 
@@ -64,6 +76,8 @@ def chapa_start(course_id):
     course = _published_course(course_id)
     if not chapa_enabled():
         abort(404)
+    if (blocked := _already_has_access(course)):
+        return blocked
     payment = _new_payment(course, "chapa")
     db.session.commit()
     try:
@@ -124,6 +138,8 @@ def manual_submit(course_id):
     course = _published_course(course_id)
     if not current_app.config["MANUAL_PAYMENT_ENABLED"]:
         abort(404)
+    if (blocked := _already_has_access(course)):
+        return blocked
     receipt = request.files.get("receipt")
     reference = request.form.get("reference", "").strip()
     if not receipt or not receipt.filename:
@@ -145,6 +161,8 @@ def demo_pay(course_id):
     if not current_app.config["PAYMENT_DEMO_MODE"]:
         abort(404)
     course = _published_course(course_id)
+    if (blocked := _already_has_access(course)):
+        return blocked
     payment = _new_payment(course, "demo")
     payment.mark_paid(provider_ref="DEMO")
     db.session.commit()
@@ -156,7 +174,7 @@ def demo_pay(course_id):
 @login_required
 def receipt_file(payment_id):
     p = db.get_or_404(Payment, payment_id)
-    if not p.receipt_file or (p.user_id != current_user.id and not current_user.is_staff):
+    if not p.receipt_file or (p.user_id != current_user.id and not current_user.is_admin):
         abort(404)
     return send_from_directory(os.path.join(current_app.config["UPLOAD_DIR"], "receipts"), p.receipt_file)
 
@@ -165,6 +183,6 @@ def receipt_file(payment_id):
 @login_required
 def invoice(payment_id):
     p = db.get_or_404(Payment, payment_id)
-    if p.user_id != current_user.id and not current_user.is_staff:
+    if p.user_id != current_user.id and not current_user.is_admin:
         abort(403)
     return render_template("pay/invoice.html", p=p)

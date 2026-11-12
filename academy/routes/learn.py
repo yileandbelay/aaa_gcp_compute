@@ -42,23 +42,23 @@ def lesson(lesson_id):
     next_l = lessons[idx + 1] if idx + 1 < len(lessons) else None
     video_url = embed_url = embed_provider = video_error = None
     progress = None
-    if current_user.is_authenticated:
-        host = videohosts.get(lesson.video_provider)
-        if lesson.kind == "video" and host and lesson.video_ref:
-            if host.enabled():
-                try:
-                    embed_url = host.embed_url(lesson.video_ref, current_user)
-                    embed_provider = host
-                except videohosts.VideoError as exc:
-                    current_app.logger.error("%s playback failed for lesson %s: %s", host.label, lesson.id, exc)
-                    video_error = _("The video could not be loaded right now. Please refresh in a minute.")
-            else:
-                video_error = _("Video playback is not configured yet.")
-        elif lesson.kind == "video" and lesson.video_file:
-            token = make_video_token(current_user.id, lesson.id)
-            video_url = url_for("learn.video", lesson_id=lesson.id, t=token)
-        if current_user.has_access(course):
-            progress = course_progress(current_user, course)
+    # Access was checked above: this is a public lesson or the viewer is enrolled, so anyone here may watch.
+    host = videohosts.get(lesson.video_provider)
+    if lesson.kind == "video" and host and lesson.video_ref:
+        if host.enabled():
+            try:
+                embed_url = host.embed_url(lesson.video_ref, current_user)
+                embed_provider = host
+            except videohosts.VideoError as exc:
+                current_app.logger.error("%s playback failed for lesson %s: %s", host.label, lesson.id, exc)
+                video_error = _("The video could not be loaded right now. Please refresh in a minute.")
+        else:
+            video_error = _("Video playback is not configured yet.")
+    elif lesson.kind == "video" and lesson.video_file:
+        token = make_video_token(current_user.id if current_user.is_authenticated else 0, lesson.id)
+        video_url = url_for("learn.video", lesson_id=lesson.id, t=token)
+    if current_user.is_authenticated and current_user.has_access(course):
+        progress = course_progress(current_user, course)
     return render_template(
         "learn/lesson.html", lesson=lesson, course=course, lessons=lessons,
         prev_l=prev_l, next_l=next_l, video_url=video_url, progress=progress,
@@ -67,12 +67,13 @@ def lesson(lesson_id):
 
 
 @bp.route("/lesson/<int:lesson_id>/video")
-@login_required
 def video(lesson_id):
-    """Stream a lecture video. Requires a short-lived token bound to this user
-    AND an access check, so copied links do not work for others or for long."""
+    """Stream a lecture video. Requires a short-lived token bound to this viewer
+    AND an access check, so copied links do not work for others or for long.
+    Public lessons may be watched without an account (token for "user 0")."""
     lesson = _lesson_or_403(lesson_id)
-    if not lesson.video_file or not verify_video_token(request.args.get("t", ""), current_user.id, lesson.id):
+    viewer = current_user.id if current_user.is_authenticated else 0
+    if not lesson.video_file or not verify_video_token(request.args.get("t", ""), viewer, lesson.id):
         abort(403)
     if lesson.video_provider != "local":
         abort(404)

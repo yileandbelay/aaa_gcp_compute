@@ -9,7 +9,7 @@
     <tr><th>{{ _('Student') }}</th><td>{{ p.user.full_name }} ({{ p.user.email }})</td></tr>
     <tr><th>{{ _('Course') }}</th><td>{{ p.course.title }}</td></tr>
     <tr><th>{{ _('Amount') }}</th><td>{{ p.amount|money }} {{ p.currency }}</td></tr>
-    <tr><th>{{ _('Method') }}</th><td>{{ _(p.method|capitalize) }}{% if p.provider_ref %} · {{ p.provider_ref }}{% endif %}</td></tr>
+    <tr><th>{{ _('Method') }}</th><td>{{ _(p.channel_label) if p.channel else _(p.method|capitalize) }}{% if p.provider_ref %} · {{ p.provider_ref }}{% endif %}</td></tr>
     <tr><th>{{ _('Status') }}</th><td><span class="badge {{ p.status }}">{{ _(p.status|capitalize) }}</span></td></tr>
     <tr><th>{{ _('Date') }}</th><td>{{ _('%(date)s UTC', date=(p.paid_at or p.created_at)|localdate('%d %b %Y %H:%M')) }}</td></tr>
   </table>

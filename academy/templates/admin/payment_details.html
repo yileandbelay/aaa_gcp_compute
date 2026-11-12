@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}Payment details · Admin{% endblock %}
+{% block content %}
+<p class="small"><a href="{{ url_for('admin.payments') }}">← Payments</a></p>
+<h1>Payment details</h1>{% include "admin/_nav.html" %}
+{% if sample %}<div class="flash error"><b>Students are being shown sample account numbers.</b> Replace them below with your real bank account and Telebirr number before accepting real payments, otherwise students could send money to the wrong place.</div>{% endif %}
+<div class="card">
+  <p class="muted">This text appears on the enroll page of every paid course, above the receipt upload. Write where students should send the fee: bank name and account number, Telebirr number, the account name, and anything else they should know.</p>
+  <form method="post" class="stack">{{ csrf() }}
+    <label for="instructions">What students see (English, or every language if you only fill this one)</label>
+    <textarea id="instructions" name="instructions" rows="7" maxlength="2000" placeholder="Pay the course fee to...&#10;Commercial Bank of Ethiopia: account ...&#10;Telebirr: ...&#10;Account name: ...">{{ instructions }}</textarea>
+    <label for="instructions_am">Amharic version <span class="small muted">(optional: students using Amharic see this instead)</span></label>
+    <textarea id="instructions_am" name="instructions_am" rows="7" maxlength="2000">{{ instructions_am }}</textarea>
+    <p class="small muted">Leave both empty to show the sample text again. Line breaks are kept.</p>
+    <p><button class="btn">Save payment details</button></p>
+  </form>
+</div>
+<div class="card"><h2>What students see now</h2><div class="pay-instructions">{{ shown }}</div></div>
+{% endblock %}

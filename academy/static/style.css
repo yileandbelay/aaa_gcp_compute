@@ -134,7 +134,7 @@ main.container { padding-block: var(--s5) var(--s7); min-height: 60vh; }
 
 /* Forms */
 input[type=text], input[type=search], input[type=email], input[type=password], input[type=number], input[type=tel],
-input[type=url], input[type=file], select, textarea {
+input[type=url], input[type=file], input[type=date], select, textarea {
   width: 100%; min-height: 44px; padding: 10px 14px; font: inherit; color: var(--ink); background: var(--surface);
   border: 1px solid var(--line-input); border-radius: var(--radius-sm); transition: border-color .15s, box-shadow .15s;
 }
@@ -416,7 +416,9 @@ body.has-tabbar.has-mobile-cta { padding-bottom: 140px; }
 .sidebar[open] > summary::after { transform: rotate(180deg); }
 .sidebar .sidebar-body { padding: 0 var(--s4) var(--s4); }
 .sidebar ol { padding-left: 0; list-style: none; margin: 0; }
-.sidebar li a { display: flex; gap: var(--s2); padding: 9px 10px; border-radius: var(--radius-sm); text-decoration: none; color: var(--ink); line-height: 1.4; }
+.sidebar li a, .sidebar li.locked-lesson { display: flex; gap: var(--s2); padding: 9px 10px; border-radius: var(--radius-sm); text-decoration: none; color: var(--ink); line-height: 1.4; }
+.sidebar li.locked-lesson { color: var(--muted); }
+.sidebar .locked-lesson .tick { color: var(--muted); }
 .sidebar li a:hover { background: var(--brand-soft); }
 .sidebar li a.current { background: var(--brand-soft); font-weight: 700; box-shadow: inset 3px 0 0 var(--brand); }
 .sidebar .tick { width: 18px; flex: none; color: var(--brand); text-align: center; }
@@ -514,3 +516,11 @@ body.has-tabbar.has-mobile-cta { padding-bottom: 140px; }
 .auth-card h1 { font-size: 1.5rem; margin-bottom: var(--s1); }
 .auth-card .lead { color: var(--muted); margin-bottom: var(--s4); }
 .auth-switch { text-align: center; margin: var(--s5) 0 0; color: var(--muted); font-size: .95rem; }
+
+/* Public (free preview) lessons and locked lessons */
+.preview-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s3); padding: var(--s3) var(--s4); margin-bottom: var(--s4); background: var(--brand-soft); border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.preview-note p { margin: 0; }
+.locked { white-space: nowrap; }
+.locked .i, .locked-lesson .i { width: 1em; height: 1em; vertical-align: -.12em; }
+
+.pay-instructions { white-space: pre-line; padding: var(--s3) var(--s4); background: var(--brand-soft); border-radius: var(--radius-sm); }
