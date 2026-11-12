@@ -2,7 +2,6 @@
 import csv
 import io
 import os
-import re
 from decimal import Decimal, InvalidOperation
 
 from flask import (Blueprint, Response, abort, current_app, flash, jsonify, redirect, render_template,
@@ -15,9 +14,8 @@ from ..models import (Announcement, Assessment, Attachment, Attempt, Certificate
                       Lesson, Payment, Question, User, db)
 from ..mail import send_email
 from ..utils import admin_required, course_progress, save_upload, slugify, staff_required
-from ..video import VideoError, upload_credentials, vdocipher_enabled, video_status
+from .. import videohosts
 
-VDO_ID_RE = re.compile(r"^[A-Za-z0-9]{8,64}$")
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -195,13 +193,14 @@ def lesson_form(course_id=None, lesson_id=None):
         lesson.body = f.get("body", "")
         lesson.duration_min = _int(f.get("duration_min")) or None
         lesson.is_preview = bool(f.get("is_preview"))
-        provider = f.get("video_provider") if f.get("video_provider") in ("local", "vdocipher") else None
-        if provider:
+        provider = f.get("video_provider")
+        if provider == "local" or videohosts.get(provider):
             lesson.video_provider = provider
-        vdo_id = f.get("vdocipher_id", "").strip()
-        if vdo_id and not VDO_ID_RE.match(vdo_id):
-            abort(400, "That does not look like a VdoCipher video ID (letters and digits only).")
-        lesson.vdocipher_id = vdo_id or None
+        host = videohosts.get(lesson.video_provider)
+        ref = f.get("video_ref", "").strip()
+        if host and ref and not host.valid_ref(ref):
+            abort(400, f"That does not look like a {host.label} video ID.")
+        lesson.video_ref = (ref or None) if host else lesson.video_ref
         for f_upload in request.files.getlist("materials"):
             if f_upload and f_upload.filename:
                 stored = save_upload(f_upload, "materials", current_app.config["ALLOWED_MATERIAL_EXT"])
@@ -219,11 +218,18 @@ def lesson_form(course_id=None, lesson_id=None):
         db.session.commit()
         flash("Lesson saved.", "success")
         return redirect(url_for("admin.course_edit", course_id=course.id) + "#lessons")
-    vdo_status = None
-    if lesson and lesson.vdocipher_id and vdocipher_enabled():
-        vdo_status = video_status(lesson.vdocipher_id)
-    return render_template("admin/lesson_form.html", course=course, lesson=lesson,
-                           vdocipher=vdocipher_enabled(), vdo_status=vdo_status)
+    host_status = None
+    current_host = videohosts.get(lesson.video_provider) if lesson else None
+    if current_host and current_host.enabled() and lesson.video_ref:
+        host_status = current_host.status(lesson.video_ref)
+    hosts = videohosts.enabled_providers()
+    # Lessons already using a provider that is no longer configured keep it selectable.
+    if current_host and current_host not in hosts:
+        hosts.append(current_host)
+    return render_template("admin/lesson_form.html", course=course, lesson=lesson, hosts=hosts,
+                           enabled_keys=[h.key for h in videohosts.enabled_providers()],
+                           host_status=host_status,
+                           dict_help={h.key: h.help for h in hosts})
 
 
 @bp.route("/materials/<int:attachment_id>/delete", methods=["POST"])
@@ -238,16 +244,18 @@ def material_delete(attachment_id):
     return redirect(url_for("admin.lesson_form", lesson_id=lesson_id) + "#materials")
 
 
-@bp.route("/vdocipher/upload-credentials", methods=["POST"])
+@bp.route("/video/<provider>/upload", methods=["POST"])
 @staff_required
-def vdocipher_credentials():
-    """Give the browser a one-time form to upload a video straight to VdoCipher."""
-    if not vdocipher_enabled():
-        return jsonify(error="VdoCipher is not configured."), 400
+def video_upload_info(provider):
+    """Create an empty video at the host and return what the browser needs to upload to it."""
+    host = videohosts.get(provider)
+    if not host or not host.enabled():
+        return jsonify(error="That video host is not configured."), 400
     title = ((request.get_json(silent=True) or {}).get("title") or "Lesson video").strip()
     try:
-        return jsonify(upload_credentials(title))
-    except VideoError as exc:
+        return jsonify(host.upload_info(title))
+    except videohosts.VideoError as exc:
+        current_app.logger.error("%s upload setup failed: %s", host.label, exc)
         return jsonify(error=str(exc)), 502
 
 

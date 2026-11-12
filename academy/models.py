@@ -105,9 +105,10 @@ class Lesson(db.Model):
     kind = db.Column(db.String(10), nullable=False, default="text")
     body = db.Column(db.Text)  # Markdown notes; shown for both text and video lessons
     video_file = db.Column(db.String(255))  # stored filename inside UPLOAD_DIR/videos
-    # "local" = file in UPLOAD_DIR streamed by us; "vdocipher" = DRM-protected video hosted by VdoCipher
+    # "local" = file in UPLOAD_DIR streamed by us; otherwise the key of a hosted provider
+    # (see videohosts/), with video_ref holding that provider's video ID.
     video_provider = db.Column(db.String(20), nullable=False, default="local", server_default="local")
-    vdocipher_id = db.Column(db.String(64))
+    video_ref = db.Column(db.String(64))
     duration_min = db.Column(db.Integer)
     position = db.Column(db.Integer, default=0)
     is_preview = db.Column(db.Boolean, default=False)  # free sample visible to anyone
@@ -117,9 +118,9 @@ class Lesson(db.Model):
 
     @property
     def has_video(self):
-        if self.video_provider == "vdocipher":
-            return bool(self.vdocipher_id)
-        return bool(self.video_file)
+        if self.video_provider == "local":
+            return bool(self.video_file)
+        return bool(self.video_ref)
 
     comments = db.relationship(
         "Comment", back_populates="lesson", order_by="Comment.created_at", cascade="all, delete-orphan"

@@ -106,7 +106,7 @@ def _vdo_lesson(app):
     with app.app_context():
         lesson = Lesson.query.filter_by(kind="video").first()
         lesson.video_provider = "vdocipher"
-        lesson.vdocipher_id = "abcdef1234567890abcdef1234567890"
+        lesson.video_ref = "abcdef1234567890abcdef1234567890"
         db.session.commit()
         return lesson.id, lesson.course_id
 
@@ -120,7 +120,7 @@ def test_vdocipher_playback_uses_per_student_otp_with_watermark(app, monkeypatch
         calls.append({"url": url, "headers": headers, "json": json})
         return FakeResponse(200, {"otp": "OTP123", "playbackInfo": "PB456"})
 
-    monkeypatch.setattr("academy.video.requests.post", fake_post)
+    monkeypatch.setattr("academy.videohosts.vdocipher.requests.post", fake_post)
     c = app.test_client()
     register(c)
     c.post(f"/pay/course/{cid}/demo")
@@ -135,7 +135,7 @@ def test_vdocipher_playback_uses_per_student_otp_with_watermark(app, monkeypatch
 def test_vdocipher_not_requested_for_students_without_access(app, monkeypatch):
     app.config["VDOCIPHER_API_SECRET"] = "secret-key"
     lid, _ = _vdo_lesson(app)
-    monkeypatch.setattr("academy.video.requests.post", lambda *a, **k: pytest.fail("OTP requested"))
+    monkeypatch.setattr("academy.videohosts.vdocipher.requests.post", lambda *a, **k: pytest.fail("OTP requested"))
     c = app.test_client()
     register(c)
     assert c.get(f"/learn/lesson/{lid}").status_code == 302
@@ -144,7 +144,7 @@ def test_vdocipher_not_requested_for_students_without_access(app, monkeypatch):
 def test_vdocipher_failure_shows_message(app, monkeypatch):
     app.config["VDOCIPHER_API_SECRET"] = "secret-key"
     lid, cid = _vdo_lesson(app)
-    monkeypatch.setattr("academy.video.requests.post",
+    monkeypatch.setattr("academy.videohosts.vdocipher.requests.post",
                         lambda *a, **k: FakeResponse(401, {"message": "Invalid API secret"}))
     c = app.test_client()
     register(c)
@@ -156,26 +156,26 @@ def test_admin_gets_upload_credentials_and_saves_video_id(app, monkeypatch):
     app.config["VDOCIPHER_API_SECRET"] = "secret-key"
     payload = {"videoId": "1234567890abcdef", "clientPayload": {"uploadLink": "https://upload.example",
                                                                 "policy": "p", "key": "k"}}
-    monkeypatch.setattr("academy.video.requests.put", lambda *a, **k: FakeResponse(200, payload))
+    monkeypatch.setattr("academy.videohosts.vdocipher.requests.put", lambda *a, **k: FakeResponse(200, payload))
     admin = app.test_client()
     login(admin, "admin@example.com", "admin12345")
-    r = admin.post("/admin/vdocipher/upload-credentials", json={"title": "Handling complaints"})
-    assert r.status_code == 200 and r.get_json()["videoId"] == "1234567890abcdef"
+    r = admin.post("/admin/video/vdocipher/upload", json={"title": "Handling complaints"})
+    assert r.status_code == 200 and r.get_json()["video_ref"] == "1234567890abcdef"
     # Students cannot get upload credentials
     s = app.test_client()
     register(s)
-    assert s.post("/admin/vdocipher/upload-credentials", json={}).status_code == 403
+    assert s.post("/admin/video/vdocipher/upload", json={}).status_code == 403
 
     with app.app_context():
         cid = Course.query.first().id
     admin.post(f"/admin/courses/{cid}/lessons/new", data={
         "title": "Handling complaints", "kind": "video", "video_provider": "vdocipher",
-        "vdocipher_id": "1234567890abcdef"})
+        "video_ref": "1234567890abcdef"})
     with app.app_context():
         lesson = Lesson.query.filter_by(title="Handling complaints").one()
         assert lesson.video_provider == "vdocipher" and lesson.has_video
     r = admin.post(f"/admin/courses/{cid}/lessons/new", data={
-        "title": "Bad", "kind": "video", "video_provider": "vdocipher", "vdocipher_id": "../../etc"})
+        "title": "Bad", "kind": "video", "video_provider": "vdocipher", "video_ref": "../../etc"})
     assert r.status_code == 400
 
 

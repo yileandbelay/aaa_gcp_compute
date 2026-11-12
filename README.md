@@ -11,7 +11,7 @@ It's built with Python / Flask and runs on SQLite by default (PostgreSQL is supp
 | **Students** | Registration (name, email, phone, city), login, password reset by email, profile; admins can suspend accounts |
 | **Courses** | Categories, levels, training hours, search and category filter, free or paid, free-preview lessons, instructor profiles |
 | **Lessons** | Video and text (Markdown with tables and lists) lessons, downloadable materials (PDF, slides, spreadsheets…), progress tracking |
-| **Video** | Videos stored on your server and streamed through expiring per-student links (nginx serves the file after the app checks access), or **VdoCipher DRM** with a per-student watermark |
+| **Video** | Upload from the lesson editor straight to a video host, and play it in the lesson with a per-student signed link: **Bunny Stream** or **VdoCipher** (DRM). Hosts are pluggable. Videos can also be stored on your own server (expiring per-student links, served by nginx) |
 | **Assessments** | Multiple-choice quizzes and exams with pass mark, attempt limit, server-enforced timer, explanations; answers revealed only after passing or using all attempts |
 | **Payments** | **Chapa** (telebirr, CBE Birr, M-Pesa, cards) verified with Chapa's API; **bank transfer / mobile money** with receipt upload and admin approval; emails to the student; printable receipts |
 | **Certificates** | Issued automatically on completion, show training hours, public verification link |
@@ -107,7 +107,8 @@ You can set an academy up in three layers, none of which touch the core code.
 |---|---|
 | Branding | `SITE_NAME`, `SITE_SHORT_NAME`, `SITE_TAGLINE`, `SITE_HEADLINE`, `SITE_INTRO`, `BRAND_COLOR`, `TX_PREFIX`, `CONTACT_EMAIL`, `CONTACT_PHONE` |
 | Modules on/off | `FEATURE_DISCUSSION`, `FEATURE_ANNOUNCEMENTS`, `FEATURE_CERTIFICATES` |
-| Content protection | `PROTECT_LESSON_TEXT` (block copying lesson text), `VIDEO_WATERMARK`, `ALLOW_VIDEO_DOWNLOAD`, `ALLOW_MATERIAL_DOWNLOAD`, `VDOCIPHER_API_SECRET` (DRM) |
+| Content protection | `PROTECT_LESSON_TEXT` (block copying lesson text), `VIDEO_WATERMARK`, `ALLOW_VIDEO_DOWNLOAD`, `ALLOW_MATERIAL_DOWNLOAD` |
+| Video hosting | `BUNNY_LIBRARY_ID`, `BUNNY_API_KEY`, `BUNNY_TOKEN_KEY`, `VDOCIPHER_API_SECRET` |
 | Payments | `CURRENCY`, `CHAPA_SECRET_KEY`, `MANUAL_PAYMENT_ENABLED`, `MANUAL_PAYMENT_INSTRUCTIONS` |
 | Email | `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` |
 
@@ -127,16 +128,24 @@ Copy a template from `academy/templates/` into the theme folder and edit the cop
 
 **3. Starter courses (`flask seed-demo --file my_courses.json`).** This loads courses, lessons and quizzes from a JSON file in the format of [`academy/sample_data/demo_courses.json`](academy/sample_data/demo_courses.json). Quiz answers are numbered from 1. The command also creates the demo admin account, so on a live site use it only on a test copy, or change that account's password afterwards.
 
-## Protected video with VdoCipher (optional)
+## Video hosting
 
-[VdoCipher](https://www.vdocipher.com) hosts videos encrypted with Widevine and FairPlay DRM, with a moving watermark of the student's name and email.
+Hosting video on a video service keeps the heavy traffic off your server, so a small, cheap server is enough. Set up one or both services; each lesson picks its host in the lesson editor.
 
-1. Set `VDOCIPHER_API_SECRET`. You get it from the VdoCipher dashboard under Config → API keys.
-2. In the lesson editor choose **Protected (VdoCipher DRM)**, then either upload the file there or paste a video ID.
+**Bunny Stream** ([bunny.net/stream](https://bunny.net/stream/)):
+1. Create a Video Library. On its **API** page copy the **Library ID** and the library's **API key**.
+2. On its **Security** page turn on **Embed view token authentication** and copy its token key. (Also restrict allowed domains to your own site if the library offers that.)
+3. Set `BUNNY_LIBRARY_ID`, `BUNNY_API_KEY` and `BUNNY_TOKEN_KEY` in `/etc/academy.env` and restart the app.
 
-Without it, videos are stored on your server. They are then still only reachable by enrolled students, through links that expire.
+**VdoCipher** ([vdocipher.com](https://www.vdocipher.com)): DRM-encrypted video with the student's name and email burned in. Set `VDOCIPHER_API_SECRET` (dashboard → Config → API keys).
 
-No website can make video impossible to copy: someone can always film the screen. Watermarks make leaks traceable.
+In the lesson editor choose the host, then upload the file there (it goes straight from your browser to the host; the page loads the open-source `tus-js-client` from the jsDelivr CDN for Bunny's resumable uploads) or paste the video ID of a video you uploaded in the host's own dashboard. After saving, students watch it in the host's player with a short-lived signed link, and only enrolled students are given one. Bunny cannot burn a watermark into the video, so the student's email is shown over the player (`VIDEO_WATERMARK`, on by default).
+
+Videos on your own server remain an option, but they use your server's disk and bandwidth.
+
+To add another host (Vimeo, Mux, Cloudflare Stream…), copy `academy/videohosts/bunny.py`, implement the same few methods, and register it in `academy/videohosts/__init__.py`.
+
+No website can make video impossible to copy: someone can always film the screen. Signed links and watermarks stop casual sharing and make leaks traceable.
 
 ## Project layout
 
@@ -146,7 +155,7 @@ academy/
   config.py          every setting, read from environment variables
   models.py          database tables
   routes/            one blueprint per area: main, auth, learn, assess, pay, admin
-  payments.py        Chapa integration       video.py   VdoCipher integration
+  payments.py        Chapa integration       videohosts/  Bunny Stream and VdoCipher providers
   mail.py            SMTP email              utils.py   CSRF, access checks, progress
   seed.py            JSON course loader      sample_data/demo_courses.json
   migrations/        database migrations (Flask-Migrate / Alembic)

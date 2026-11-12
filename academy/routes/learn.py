@@ -8,7 +8,7 @@ from flask_login import current_user, login_required
 
 from ..models import Attachment, Comment, Lesson, LessonProgress, db
 from ..utils import course_progress, make_video_token, maybe_issue_certificate, verify_video_token
-from ..video import VideoError, playback_otp, player_url, vdocipher_enabled
+from .. import videohosts
 
 bp = Blueprint("learn", __name__, url_prefix="/learn")
 
@@ -39,18 +39,20 @@ def lesson(lesson_id):
     idx = lessons.index(lesson)
     prev_l = lessons[idx - 1] if idx > 0 else None
     next_l = lessons[idx + 1] if idx + 1 < len(lessons) else None
-    video_url = drm_player_url = video_error = None
+    video_url = embed_url = embed_provider = video_error = None
     progress = None
     if current_user.is_authenticated:
-        if lesson.kind == "video" and lesson.video_provider == "vdocipher" and lesson.vdocipher_id:
-            if vdocipher_enabled():
+        host = videohosts.get(lesson.video_provider)
+        if lesson.kind == "video" and host and lesson.video_ref:
+            if host.enabled():
                 try:
-                    drm_player_url = player_url(playback_otp(lesson.vdocipher_id, current_user))
-                except VideoError as exc:
-                    current_app.logger.error("VdoCipher OTP failed for lesson %s: %s", lesson.id, exc)
+                    embed_url = host.embed_url(lesson.video_ref, current_user)
+                    embed_provider = host
+                except videohosts.VideoError as exc:
+                    current_app.logger.error("%s playback failed for lesson %s: %s", host.label, lesson.id, exc)
                     video_error = "The video could not be loaded right now. Please refresh in a minute."
             else:
-                video_error = "Protected video playback is not configured yet."
+                video_error = "Video playback is not configured yet."
         elif lesson.kind == "video" and lesson.video_file:
             token = make_video_token(current_user.id, lesson.id)
             video_url = url_for("learn.video", lesson_id=lesson.id, t=token)
@@ -59,7 +61,7 @@ def lesson(lesson_id):
     return render_template(
         "learn/lesson.html", lesson=lesson, course=course, lessons=lessons,
         prev_l=prev_l, next_l=next_l, video_url=video_url, progress=progress,
-        drm_player_url=drm_player_url, video_error=video_error,
+        embed_url=embed_url, embed_provider=embed_provider, video_error=video_error,
     )
 
 

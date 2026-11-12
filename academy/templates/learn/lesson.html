@@ -19,10 +19,11 @@
   <article>
     <h1>{{ lesson.title }}</h1>
     {% if lesson.kind == 'video' %}
-      {% if drm_player_url %}
+      {% if embed_url %}
         <div class="video-wrap drm">
-          <iframe src="{{ drm_player_url }}" allow="encrypted-media; fullscreen" allowfullscreen
+          <iframe src="{{ embed_url }}" allow="encrypted-media; accelerometer; gyroscope; picture-in-picture; fullscreen" allowfullscreen
                   title="{{ lesson.title }} video" style="border:0;width:100%;aspect-ratio:16/9;display:block"></iframe>
+          {% if config.VIDEO_WATERMARK and not embed_provider.burned_watermark %}<div class="watermark">{{ current_user.email }}</div>{% endif %}
         </div>
       {% elif video_error %}
         <div class="card muted">{{ video_error }}</div>
