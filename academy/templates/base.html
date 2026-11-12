@@ -101,6 +101,8 @@
       <div>
         <h4>{{ _('Support') }}</h4>
         <a href="{{ url_for('main.contact') }}">{{ _('Contact us') }}</a>
+        {% if real_contact(config.CONTACT_EMAIL) %}<a href="mailto:{{ config.CONTACT_EMAIL }}">{{ config.CONTACT_EMAIL }}</a>{% endif %}
+        {% if real_contact(config.CONTACT_PHONE) %}<a href="tel:{{ config.CONTACT_PHONE|tel_href }}">{{ config.CONTACT_PHONE }}</a>{% endif %}
         <a href="{{ url_for('main.policy', page='terms') }}">{{ _('Terms of use') }}</a>
         <a href="{{ url_for('main.policy', page='privacy') }}">{{ _('Privacy') }}</a>
         <a href="{{ url_for('main.policy', page='refunds') }}">{{ _('Refunds') }}</a>

@@ -185,3 +185,14 @@ def topic_icon(name):
         if any((f" {w.strip()} " in text) if w.endswith(" ") or len(w) <= 4 else (w in text) for w in words):
             return icon_name
     return "book"
+
+
+def real_contact(value):
+    """True for a contact detail an admin really entered, not empty and not a shipped placeholder."""
+    text = (value or "").strip().lower()
+    return bool(text) and "xxx" not in text and "example.com" not in text and "example.org" not in text
+
+
+def tel_href(phone):
+    """A tel: link target: digits and a leading plus only."""
+    return "".join(ch for ch in (phone or "") if ch.isdigit() or ch == "+")

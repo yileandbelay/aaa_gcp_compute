@@ -10,7 +10,7 @@ from flask_migrate import Migrate
 
 from .config import Config
 from .models import Payment, User, db
-from .utils import check_csrf, csrf_token, render_markdown, topic_icon
+from .utils import check_csrf, csrf_token, real_contact, render_markdown, tel_href, topic_icon
 
 login_manager = LoginManager()
 login_manager.login_view = "auth.login"
@@ -69,6 +69,8 @@ def create_app(config_object=Config):
 
     i18n.init_app(app)
     app.jinja_env.globals["topic_icon"] = topic_icon
+    app.jinja_env.globals["real_contact"] = real_contact
+    app.jinja_env.filters["tel_href"] = tel_href
     app.jinja_env.globals["payment_channels"] = Payment.CHANNELS
     app.jinja_env.globals["today"] = lambda: date.today().isoformat()
     app.jinja_env.globals["current_year"] = lambda: datetime.now(timezone.utc).year

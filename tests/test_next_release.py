@@ -182,3 +182,29 @@ def test_card_cover_shows_the_matching_topic_icon_and_keeps_the_text(app):
     assert "#i-briefcase" in biz and "Business" in biz and 'aria-hidden="true"' in biz
     assert "#i-book" in cover_of(app, "odd-course") and "Cooking" in cover_of(app, "odd-course")
     assert "#i-book" in cover_of(app, "no-topic")
+
+
+# --- NX-6: footer contact ---------------------------------------------------------------------
+
+def footer(app):
+    return app.test_client().get("/").data.decode().split('<footer class="site-footer">')[1]
+
+
+def test_footer_shows_real_email_and_phone_as_links(app):
+    app.config.update(CONTACT_EMAIL="hello@mek-academy.com", CONTACT_PHONE="+251 911 22 33 44")
+    page = footer(app)
+    assert 'href="mailto:hello@mek-academy.com"' in page and 'href="tel:+251911223344"' in page
+    assert ">+251 911 22 33 44<" in page
+
+
+@pytest.mark.parametrize("email,phone", [("", ""), (None, None), ("info@example.com", "+251 9XX XXX XXX")])
+def test_footer_hides_unset_and_placeholder_contact_details(app, email, phone):
+    app.config.update(CONTACT_EMAIL=email, CONTACT_PHONE=phone)
+    page = footer(app)
+    assert "mailto:" not in page and "tel:" not in page
+
+
+def test_footer_shows_only_the_detail_that_is_set(app):
+    app.config.update(CONTACT_EMAIL="hello@mek-academy.com", CONTACT_PHONE="+251 9XX XXX XXX")
+    page = footer(app)
+    assert "mailto:hello@mek-academy.com" in page and "tel:" not in page
