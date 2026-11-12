@@ -66,8 +66,8 @@
       <a href="{{ url_for('main.catalog') }}" {% if ep == 'main.catalog' %}aria-current="page"{% endif %}>{{ _('Courses') }}</a>
       <a href="{{ url_for('main.contact') }}" {% if ep == 'main.contact' %}aria-current="page"{% endif %}>{{ _('Contact') }}</a>
       {% if current_user.is_authenticated %}
-        <a href="{{ url_for('main.dashboard') }}" {% if ep == 'main.dashboard' %}aria-current="page"{% endif %}>{{ _('My learning') }}</a>
-        {% if current_user.is_staff %}<a href="{{ url_for('admin.dashboard') }}">{{ _('Admin') }}</a>{% endif %}
+        {% if current_user.can_study %}<a href="{{ url_for('main.dashboard') }}" {% if ep == 'main.dashboard' %}aria-current="page"{% endif %}>{{ _('My learning') }}</a>{% endif %}
+        {% if current_user.is_staff %}<a href="{{ url_for('admin.dashboard') }}" {% if ep.startswith('admin.') %}aria-current="page"{% endif %}>{{ _('Admin') if current_user.is_admin else _('Teaching') }}</a>{% endif %}
         <a href="{{ url_for('auth.profile') }}" {% if ep == 'auth.profile' %}aria-current="page"{% endif %}>{{ current_user.full_name.split(' ')[0] }}</a>
         <form method="post" action="{{ url_for('auth.logout') }}">
           <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
@@ -112,7 +112,7 @@
 <nav class="tabbar" aria-label="{{ _('Main navigation') }}">
   <a href="{{ url_for('main.index') }}" {% if ep == 'main.index' %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-home"/></svg>{{ _('Home') }}</a>
   <a href="{{ url_for('main.catalog') }}" {% if ep == 'main.catalog' %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-search"/></svg>{{ _('Courses') }}</a>
-  {% if current_user.is_staff %}<a href="{{ url_for('admin.dashboard') }}" {% if ep.startswith('admin.') %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-grid"/></svg>{{ _('Admin') }}</a>
+  {% if current_user.is_staff %}<a href="{{ url_for('admin.dashboard') }}" {% if ep.startswith('admin.') %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-grid"/></svg>{{ _('Admin') if current_user.is_admin else _('Teaching') }}</a>
   {% else %}<a href="{{ url_for('main.dashboard') }}" {% if ep == 'main.dashboard' %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-book"/></svg>{{ _('My learning') }}</a>{% endif %}
   <a href="{{ url_for('auth.profile') }}" {% if ep == 'auth.profile' %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-user"/></svg>{{ _('Profile') }}</a>
 </nav>

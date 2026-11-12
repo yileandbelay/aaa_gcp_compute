@@ -114,3 +114,75 @@ def test_teacher_is_separate_from_admin_everywhere_that_matters(app):
     assert c.get("/admin/courses").status_code == 200
     for path in ("/admin/payments", "/admin/students", "/admin/staff", "/admin/messages"):
         assert c.get(path).status_code == 403, path
+
+
+# --- Login: separate student and teacher / admin doors ----------------------------------------
+
+def test_login_page_offers_student_and_teacher_admin_tabs(app):
+    c = app.test_client()
+    page = c.get("/login").data.decode()
+    assert "Student" in page and "Teacher / Admin" in page and 'name="area" value="student"' in page
+    staff = c.get("/login?area=staff").data.decode()
+    assert "Teacher and admin sign in" in staff and 'name="area" value="staff"' in staff
+    assert "Create an account" not in staff.split("auth-switch")[1]  # staff are added by the admin, not self-registered
+
+
+def test_staff_login_lands_on_the_admin_area(app):
+    c = app.test_client()
+    r = login(c, "admin@example.com", "admin12345", area="staff")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/admin/")
+    r = login(app.test_client(), "instructor@example.com", "instructor123", area="staff")
+    assert r.headers["Location"].endswith("/admin/")
+
+
+def test_student_login_lands_on_my_learning(app):
+    make_user(app, "stu@example.com")
+    r = login(app.test_client(), "stu@example.com", "secret123", area="student")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/dashboard")
+
+
+def test_a_student_cannot_use_the_staff_door_and_a_staff_only_account_cannot_use_the_student_door(app):
+    make_user(app, "stu@example.com")
+    c = app.test_client()
+    r = login(c, "stu@example.com", "secret123", area="staff")
+    assert r.status_code == 200 and b"does not have teacher or admin access" in r.data
+    assert c.get("/admin/").status_code in (302, 401, 403)
+    c2 = app.test_client()
+    r = login(c2, "admin@example.com", "admin12345", area="student")
+    assert r.status_code == 200 and b"for teachers and admins" in r.data
+    assert c2.get("/dashboard").status_code == 302  # still not signed in
+
+
+def test_an_account_with_both_roles_can_use_either_door(app):
+    uid = make_user(app, "both@example.com", "instructor", is_student=True)
+    for area, ending in (("staff", "/admin/"), ("student", "/dashboard")):
+        r = login(app.test_client(), "both@example.com", "secret123", area=area)
+        assert r.headers["Location"].endswith(ending), area
+
+
+def test_login_without_an_area_still_works_for_each_kind_of_account(app):
+    assert login(app.test_client(), "admin@example.com", "admin12345").headers["Location"].endswith("/admin/")
+    make_user(app, "stu@example.com")
+    assert login(app.test_client(), "stu@example.com", "secret123").headers["Location"].endswith("/dashboard")
+
+
+def test_navigation_shows_only_what_the_roles_allow(app):
+    teacher = app.test_client()
+    login(teacher, "instructor@example.com", "instructor123", area="staff")
+    nav = teacher.get("/").data.decode().split('<nav class="site-nav"')[1].split("</nav>")[0]
+    assert "Teaching" in nav and "My learning" not in nav and ">Admin<" not in nav
+    admin = admin_client(app)
+    nav = admin.get("/").data.decode().split('<nav class="site-nav"')[1].split("</nav>")[0]
+    assert ">Admin<" in nav and "My learning" not in nav
+    uid = make_user(app, "dual@example.com", "instructor", is_student=True)
+    both = app.test_client()
+    login(both, "dual@example.com", "secret123", area="staff")
+    nav = both.get("/").data.decode().split('<nav class="site-nav"')[1].split("</nav>")[0]
+    assert "Teaching" in nav and "My learning" in nav
+
+
+def test_staff_login_page_in_amharic(app):
+    c = app.test_client()
+    c.set_cookie("lang", "am")
+    page = c.get("/login?area=staff").data.decode()
+    assert "የመምህር እና የአስተዳዳሪ መግቢያ" in page and "Teacher and admin sign in" not in page

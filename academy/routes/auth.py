@@ -74,32 +74,53 @@ def _too_many_failures(email):
     return by_email >= cfg["LOGIN_MAX_FAILURES"] or by_ip >= cfg["LOGIN_MAX_FAILURES"] * 4
 
 
+def _area():
+    """Which door the visitor used: "student" (default) or "staff" (teachers and admins)."""
+    return "staff" if request.values.get("area") == "staff" else "student"
+
+
+def _area_error(user, area):
+    """Why this account may not enter the chosen area, or None. Accounts with both roles use either."""
+    if area == "staff" and not user.is_staff:
+        return _("This account does not have teacher or admin access. Use the Student tab.")
+    if area == "student" and not user.can_study:
+        return _("This account is for teachers and admins. Use the Teacher / Admin tab.")
+    return None
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("main.dashboard"))
+        return redirect(url_for("admin.dashboard") if _area() == "staff" and current_user.is_staff
+                        else url_for("main.dashboard"))
+    area = _area()
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         if _too_many_failures(email):
             flash(_("Too many failed attempts. Wait %(n)s minutes or reset your password.",
                     n=current_app.config["LOGIN_WINDOW_MIN"]), "error")
-            return render_template("auth/login.html"), 429
+            return render_template("auth/login.html", area=area), 429
         user = User.query.filter_by(email=email).first()
         if user and user.check_password(request.form.get("password", "")):
+            if "area" not in request.values:  # older clients: staff-only accounts go to the staff side
+                area = "student" if user.can_study else "staff"
             if not user.is_active_account:
                 flash(_("This account has been suspended. Please contact us."), "error")
+            elif _area_error(user, area):
+                flash(_area_error(user, area), "error")
             else:
                 LoginAttempt.query.filter_by(email=email).delete()
                 db.session.commit()
                 login_user(user, remember=bool(request.form.get("remember")))
-                return redirect(_safe_next(request.args.get("next")) or url_for("main.dashboard"))
+                fallback = url_for("admin.dashboard") if area == "staff" else url_for("main.dashboard")
+                return redirect(_safe_next(request.args.get("next")) or fallback)
         else:
             db.session.add(LoginAttempt(email=email[:255], ip=_client_ip()))
             # Keep the table small: drop entries older than a day.
             LoginAttempt.query.filter(LoginAttempt.created_at < utcnow() - timedelta(days=1)).delete()
             db.session.commit()
             flash(_("Incorrect email or password."), "error")
-    return render_template("auth/login.html")
+    return render_template("auth/login.html", area=area)
 
 
 # --- Password reset -------------------------------------------------------------
