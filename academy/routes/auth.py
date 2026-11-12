@@ -8,6 +8,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from ..enrollment import apply_invitations
 from ..mail import send_email
+from ..i18n import gettext as _
 from ..models import LoginAttempt, User, db, utcnow
 
 bp = Blueprint("auth", __name__)
@@ -32,17 +33,17 @@ def register():
         pw, pw2 = form.get("password", ""), form.get("password2", "")
         errors = []
         if len(name) < 2:
-            errors.append("Please enter your full name.")
+            errors.append(_("Please enter your full name."))
         if not EMAIL_RE.match(email):
-            errors.append("Please enter a valid email address.")
+            errors.append(_("Please enter a valid email address."))
         elif User.query.filter_by(email=email).first():
-            errors.append("An account with that email already exists.")
+            errors.append(_("An account with that email already exists."))
         if len(pw) < 8:
-            errors.append("Password must be at least 8 characters.")
+            errors.append(_("Password must be at least 8 characters."))
         if pw != pw2:
-            errors.append("Passwords do not match.")
+            errors.append(_("Passwords do not match."))
         if not form.get("agree"):
-            errors.append("You must accept the terms to register.")
+            errors.append(_("You must accept the terms to register."))
         if errors:
             for e in errors:
                 flash(e, "error")
@@ -52,9 +53,9 @@ def register():
         db.session.add(user)
         db.session.commit()
         login_user(user)
-        flash(f"Welcome to {current_app.config['SITE_NAME']}, {name}!", "success")
+        flash(_("Welcome to %(site)s, %(name)s!", site=current_app.config["SITE_NAME"], name=name), "success")
         for course in apply_invitations(user):
-            flash(f"You have been enrolled in {course.title}.", "success")
+            flash(_("You have been enrolled in %(course)s.", course=course.title), "success")
         return redirect(_safe_next(request.args.get("next")) or url_for("main.catalog"))
     return render_template("auth/register.html", form=form)
 
@@ -80,13 +81,13 @@ def login():
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         if _too_many_failures(email):
-            flash(f"Too many failed attempts. Wait {current_app.config['LOGIN_WINDOW_MIN']} minutes "
-                  "or reset your password.", "error")
+            flash(_("Too many failed attempts. Wait %(n)s minutes or reset your password.",
+                    n=current_app.config["LOGIN_WINDOW_MIN"]), "error")
             return render_template("auth/login.html"), 429
         user = User.query.filter_by(email=email).first()
         if user and user.check_password(request.form.get("password", "")):
             if not user.is_active_account:
-                flash("This account has been suspended. Please contact us.", "error")
+                flash(_("This account has been suspended. Please contact us."), "error")
             else:
                 LoginAttempt.query.filter_by(email=email).delete()
                 db.session.commit()
@@ -97,7 +98,7 @@ def login():
             # Keep the table small: drop entries older than a day.
             LoginAttempt.query.filter(LoginAttempt.created_at < utcnow() - timedelta(days=1)).delete()
             db.session.commit()
-            flash("Incorrect email or password.", "error")
+            flash(_("Incorrect email or password."), "error")
     return render_template("auth/login.html")
 
 
@@ -146,7 +147,7 @@ def forgot_password():
                 f"{link}\n\nIf you did not ask for this, you can ignore this email.\n",
             )
         # Same message either way so the form cannot be used to discover accounts.
-        flash("If an account exists for that email, we have sent a reset link.", "info")
+        flash(_("If an account exists for that email, we have sent a reset link."), "info")
         return redirect(url_for("auth.login"))
     return render_template("auth/forgot.html")
 
@@ -155,17 +156,17 @@ def forgot_password():
 def reset_password(token):
     user = user_from_reset_token(token)
     if not user:
-        flash("This reset link is invalid or has expired. Please request a new one.", "error")
+        flash(_("This reset link is invalid or has expired. Please request a new one."), "error")
         return redirect(url_for("auth.forgot_password"))
     if request.method == "POST":
         pw, pw2 = request.form.get("password", ""), request.form.get("password2", "")
         if len(pw) < 8 or pw != pw2:
-            flash("Passwords must match and be at least 8 characters.", "error")
+            flash(_("Passwords must match and be at least 8 characters."), "error")
             return render_template("auth/reset.html"), 400
         user.set_password(pw)
         LoginAttempt.query.filter_by(email=user.email).delete()
         db.session.commit()
-        flash("Your password has been changed. You can log in now.", "success")
+        flash(_("Your password has been changed. You can log in now."), "success")
         return redirect(url_for("auth.login"))
     return render_template("auth/reset.html")
 
@@ -174,7 +175,7 @@ def reset_password(token):
 @login_required
 def logout():
     logout_user()
-    flash("You have been logged out.", "info")
+    flash(_("You have been logged out."), "info")
     return redirect(url_for("main.index"))
 
 
@@ -191,13 +192,13 @@ def profile():
         new_pw = request.form.get("new_password", "")
         if new_pw:
             if not current_user.check_password(request.form.get("current_password", "")):
-                flash("Current password is incorrect.", "error")
+                flash(_("Current password is incorrect."), "error")
                 return redirect(url_for("auth.profile"))
             if len(new_pw) < 8:
-                flash("New password must be at least 8 characters.", "error")
+                flash(_("New password must be at least 8 characters."), "error")
                 return redirect(url_for("auth.profile"))
             current_user.set_password(new_pw)
         db.session.commit()
-        flash("Profile updated.", "success")
+        flash(_("Profile updated."), "success")
         return redirect(url_for("auth.profile"))
     return render_template("auth/profile.html")

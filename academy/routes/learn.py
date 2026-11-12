@@ -6,6 +6,7 @@ from flask import (Blueprint, abort, current_app, flash, redirect, render_templa
                    send_from_directory, url_for)
 from flask_login import current_user, login_required
 
+from ..i18n import gettext as _
 from ..models import Attachment, Comment, Lesson, LessonProgress, db
 from ..utils import course_progress, make_video_token, maybe_issue_certificate, verify_video_token
 from .. import videohosts
@@ -31,7 +32,7 @@ def lesson(lesson_id):
         if not current_user.is_authenticated:
             return current_app.login_manager.unauthorized()
         if not current_user.has_access(lesson.course):
-            flash("Enroll in this course to unlock this lesson.", "info")
+            flash(_("Enroll in this course to unlock this lesson."), "info")
             return redirect(url_for("main.course_detail", slug=lesson.course.slug))
 
     course = lesson.course
@@ -50,9 +51,9 @@ def lesson(lesson_id):
                     embed_provider = host
                 except videohosts.VideoError as exc:
                     current_app.logger.error("%s playback failed for lesson %s: %s", host.label, lesson.id, exc)
-                    video_error = "The video could not be loaded right now. Please refresh in a minute."
+                    video_error = _("The video could not be loaded right now. Please refresh in a minute.")
             else:
-                video_error = "Video playback is not configured yet."
+                video_error = _("Video playback is not configured yet.")
         elif lesson.kind == "video" and lesson.video_file:
             token = make_video_token(current_user.id, lesson.id)
             video_url = url_for("learn.video", lesson_id=lesson.id, t=token)
@@ -100,7 +101,7 @@ def complete(lesson_id):
         db.session.commit()
     cert = maybe_issue_certificate(current_user, lesson.course)
     if cert and request.form.get("announce_cert", "1") == "1":
-        flash("Congratulations! You completed the course - your certificate is ready.", "success")
+        flash(_("Congratulations! You completed the course - your certificate is ready."), "success")
     nxt = request.form.get("next_lesson")
     if nxt and nxt.isdigit():
         return redirect(url_for("learn.lesson", lesson_id=int(nxt)))

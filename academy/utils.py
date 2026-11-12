@@ -12,6 +12,7 @@ from flask_login import current_user
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from markupsafe import Markup
 
+from .i18n import gettext as _
 from .models import Assessment, Attempt, Certificate, LessonProgress, db
 
 
@@ -31,7 +32,7 @@ def check_csrf():
             return  # server-to-server; verified against the Chapa API instead
         sent = request.form.get("_csrf") or request.headers.get("X-CSRF-Token")
         if not sent or not secrets.compare_digest(sent, session.get("_csrf", "")):
-            abort(400, "Invalid or missing CSRF token. Reload the page and try again.")
+            abort(400, _("Invalid or missing CSRF token. Reload the page and try again."))
 
 
 # --- Access control ---------------------------------------------------------

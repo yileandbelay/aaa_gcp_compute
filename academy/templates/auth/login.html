@@ -1,15 +1,15 @@
 {% extends "base.html" %}{% from "_macros.html" import csrf %}
-{% block title %}Log in · {{ site_name }}{% endblock %}
+{% block title %}{{ _('Log in') }} · {{ site_name }}{% endblock %}
 {% block content %}
 <div class="card" style="max-width:420px;margin:auto">
-  <h1>Log in</h1>
+  <h1>{{ _('Log in') }}</h1>
   <form method="post" class="stack">{{ csrf() }}
-    <label>Email</label><input type="email" name="email" required autofocus>
-    <label>Password</label><input type="password" name="password" required>
-    <label class="check"><input type="checkbox" name="remember" value="1"> Remember me</label>
-    <p><button class="btn">Log in</button></p>
+    <label for="email">{{ _('Email') }}</label><input type="email" id="email" name="email" required autofocus>
+    <label for="password">{{ _('Password') }}</label><input type="password" id="password" name="password" required>
+    <label class="check"><input type="checkbox" name="remember" value="1"> {{ _('Remember me') }}</label>
+    <p><button class="btn">{{ _('Log in') }}</button></p>
   </form>
-  <p class="small"><a href="{{ url_for('auth.forgot_password') }}">Forgot your password?</a></p>
-  <p class="small">New here? <a href="{{ url_for('auth.register', next=request.args.get('next')) }}">Create an account</a></p>
+  <p class="small"><a href="{{ url_for('auth.forgot_password') }}">{{ _('Forgot your password?') }}</a></p>
+  <p class="small">{{ _('New here?') }} <a href="{{ url_for('auth.register', next=request.args.get('next')) }}">{{ _('Create an account') }}</a></p>
 </div>
 {% endblock %}

@@ -4,14 +4,14 @@
 <p class="small"><a href="{{ url_for('main.course_detail', slug=course.slug) }}">← {{ course.title }}</a></p>
 <div class="layout-lesson">
   <aside class="sidebar card">
-    {% if progress %}<p class="small"><b>{{ progress.percent }}% complete</b></p>{{ progress_bar(progress.percent) }}<br>{% endif %}
+    {% if progress %}<p class="small"><b>{{ _('%(n)s%% complete', n=progress.percent) }}</b></p>{{ progress_bar(progress.percent) }}<br>{% endif %}
     <ol>
     {% for l in lessons %}
       <li><a href="{{ url_for('learn.lesson', lesson_id=l.id) }}" class="{{ 'current' if l.id == lesson.id }}">
         <span class="tick">{% if progress and l.id in progress.done_lessons %}✓{% elif l.kind == 'video' %}▶{% elif l.kind == 'link' %}↗{% else %}≡{% endif %}</span>{{ loop.index }}. {{ l.title }}</a></li>
     {% endfor %}
     </ol>
-    {% if progress and course.assessments %}<hr><b class="small">Assessments</b><ol>
+    {% if progress and course.assessments %}<hr><b class="small">{{ _('Assessments') }}</b><ol>
       {% for a in course.assessments %}<li><a href="{{ url_for('assess.overview', aid=a.id) }}"><span class="tick">{% if a.id in progress.passed_assessments %}✓{% else %}✎{% endif %}</span>{{ a.title }}</a></li>{% endfor %}
     </ol>{% endif %}
   </aside>
@@ -22,7 +22,7 @@
       {% if embed_url %}
         <div class="video-wrap drm">
           <iframe src="{{ embed_url }}" allow="encrypted-media; accelerometer; gyroscope; picture-in-picture; fullscreen" allowfullscreen
-                  title="{{ lesson.title }} video" style="border:0;width:100%;aspect-ratio:16/9;display:block"></iframe>
+                  title="{{ _('%(title)s video', title=lesson.title) }}" style="border:0;width:100%;aspect-ratio:16/9;display:block"></iframe>
           {% if config.VIDEO_WATERMARK and embed_provider.overlay_watermark and not embed_provider.burned_watermark %}<div class="watermark">{{ current_user.email }}</div>{% endif %}
         </div>
       {% elif video_error %}
@@ -33,9 +33,9 @@
           {% if config.VIDEO_WATERMARK %}<div class="watermark">{{ current_user.email }}</div>{% endif %}
         </div>
       {% elif not current_user.is_authenticated %}
-        <div class="card"><a href="{{ url_for('auth.login', next=request.path) }}">Log in</a> to watch this free preview video.</div>
+        <div class="card">{{ _('%(link)s to watch this free preview video.', link=('<a href="%s">%s</a>'|format(url_for('auth.login', next=request.path), _('Log in')))|safe) }}</div>
       {% else %}
-        <div class="card muted">The video for this lesson has not been uploaded yet.</div>
+        <div class="card muted">{{ _('The video for this lesson has not been uploaded yet.') }}</div>
       {% endif %}
     {% endif %}
 
@@ -47,41 +47,41 @@
     {% set can_files = current_user.is_authenticated and (config.ALLOW_MATERIAL_DOWNLOAD or current_user.is_staff) %}
     {% set shown = lesson.attachments|selectattr('is_link')|list + (lesson.attachments|rejectattr('is_link')|list if can_files else []) %}
     {% if shown and current_user.is_authenticated %}
-    <div class="card" id="materials"><h3>{{ 'Open the resource' if lesson.kind == 'link' else 'Files and links' }}</h3>
+    <div class="card" id="materials"><h3>{{ _('Open the resource') if lesson.kind == 'link' else _('Files and links') }}</h3>
       <ul class="materials">{% for att in shown %}
         {% if att.is_link %}<li><a {% if lesson.kind == 'link' %}class="btn small"{% endif %} href="{{ att.url }}" target="_blank" rel="noopener noreferrer">{{ att.original_name }} ↗</a><span class="small muted">{{ att.domain }}</span></li>
         {% else %}<li><a href="{{ url_for('learn.material', attachment_id=att.id) }}">{{ att.original_name }}</a><span class="small muted">{{ att.size_label }}</span></li>{% endif %}
       {% endfor %}</ul>
-      {% if shown|selectattr('is_link')|list %}<p class="small muted" style="margin-bottom:0">Links open other websites in a new tab. We are not responsible for their content.</p>{% endif %}
+      {% if shown|selectattr('is_link')|list %}<p class="small muted" style="margin-bottom:0">{{ _('Links open other websites in a new tab. We are not responsible for their content.') }}</p>{% endif %}
     </div>{% endif %}
 
     <div class="row spread">
-      <div>{% if prev_l %}<a class="btn secondary small" href="{{ url_for('learn.lesson', lesson_id=prev_l.id) }}">← Previous</a>{% endif %}</div>
+      <div>{% if prev_l %}<a class="btn secondary small" href="{{ url_for('learn.lesson', lesson_id=prev_l.id) }}">← {{ _('Previous') }}</a>{% endif %}</div>
       {% if progress %}
       <form method="post" action="{{ url_for('learn.complete', lesson_id=lesson.id) }}">{{ csrf() }}
         {% if next_l %}<input type="hidden" name="next_lesson" value="{{ next_l.id }}">{% endif %}
         {% if lesson.id in progress.done_lessons %}
-          {% if next_l %}<button class="btn small">Next lesson →</button>{% else %}<span class="badge passed">✓ Completed</span>{% endif %}
-        {% else %}<button class="btn small">Mark complete{% if next_l %} & continue →{% endif %}</button>{% endif %}
+          {% if next_l %}<button class="btn small">{{ _('Next lesson') }} →</button>{% else %}<span class="badge passed">✓ {{ _('Completed') }}</span>{% endif %}
+        {% else %}<button class="btn small">{% if next_l %}{{ _('Mark complete and continue') }} →{% else %}{{ _('Mark complete') }}{% endif %}</button>{% endif %}
       </form>
-      {% elif next_l and next_l.is_preview %}<a class="btn small" href="{{ url_for('learn.lesson', lesson_id=next_l.id) }}">Next →</a>{% endif %}
+      {% elif next_l and next_l.is_preview %}<a class="btn small" href="{{ url_for('learn.lesson', lesson_id=next_l.id) }}">{{ _('Next') }} →</a>{% endif %}
     </div>
 
     {% if progress and config.FEATURE_DISCUSSION %}
     <div class="card" id="discussion" style="margin-top:24px">
-      <h3>Questions & discussion</h3>
+      <h3>{{ _('Questions and discussion') }}</h3>
       {% for c in lesson.comments %}
         <div style="border-bottom:1px solid var(--line);padding:8px 0">
-          <b>{{ c.user.full_name }}</b> {% if c.user.is_staff %}<span class="badge">Instructor</span>{% endif %}
-          <span class="small muted">{{ c.created_at.strftime('%d %b %Y %H:%M') }}</span>
+          <b>{{ c.user.full_name }}</b> {% if c.user.is_staff %}<span class="badge">{{ _('Instructor') }}</span>{% endif %}
+          <span class="small muted">{{ c.created_at|localdate('%d %b %Y %H:%M') }}</span>
           <div style="white-space:pre-wrap">{{ c.body }}</div>
           {% if c.user_id == current_user.id or current_user.is_staff %}
-          <form method="post" action="{{ url_for('learn.delete_comment', comment_id=c.id) }}">{{ csrf() }}<button class="linkbtn small">delete</button></form>{% endif %}
+          <form method="post" action="{{ url_for('learn.delete_comment', comment_id=c.id) }}">{{ csrf() }}<button class="linkbtn small">{{ _('delete') }}</button></form>{% endif %}
         </div>
-      {% else %}<p class="muted small">No questions yet. Ask the instructor anything about this lesson.</p>{% endfor %}
+      {% else %}<p class="muted small">{{ _('No questions yet. Ask the instructor anything about this lesson.') }}</p>{% endfor %}
       <form method="post" action="{{ url_for('learn.comment', lesson_id=lesson.id) }}" class="stack">{{ csrf() }}
-        <textarea name="body" placeholder="Ask a question or share your result…" required></textarea>
-        <p><button class="btn small">Post</button></p>
+        <textarea name="body" placeholder="{{ _('Ask a question or share your result…') }}" aria-label="{{ _('Your question') }}" required></textarea>
+        <p><button class="btn small">{{ _('Post') }}</button></p>
       </form>
     </div>
     {% endif %}

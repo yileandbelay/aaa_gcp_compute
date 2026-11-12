@@ -1,24 +1,25 @@
 {% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}{{ a.title }} · {{ a.course.title }}{% endblock %}
 {% block content %}
 <p class="small"><a href="{{ url_for('main.course_detail', slug=a.course.slug) }}">← {{ a.course.title }}</a></p>
 <div class="card">
-  <h1>{{ a.title }} {% if a.is_final %}<span class="badge">Final exam</span>{% endif %}</h1>
+  <h1>{{ a.title }} {% if a.is_final %}<span class="badge">{{ _('Final exam') }}</span>{% endif %}</h1>
   {{ a.instructions|markdown }}
   <ul>
-    <li>{{ a.questions|length }} multiple‑choice questions</li>
-    <li>Pass mark: {{ a.pass_mark }}%</li>
-    <li>Attempts: {% if a.max_attempts %}{{ used }} of {{ a.max_attempts }} used{% else %}unlimited{% endif %}</li>
-    {% if a.time_limit_min %}<li>Time limit: {{ a.time_limit_min }} minutes (timer starts when you begin)</li>{% endif %}
+    <li>{{ _n('%(n)s multiple-choice question', '%(n)s multiple-choice questions', a.questions|length) }}</li>
+    <li>{{ _('Pass mark: %(n)s%%', n=a.pass_mark) }}</li>
+    <li>{% if a.max_attempts %}{{ _('Attempts: %(used)s of %(max)s used', used=used, max=a.max_attempts) }}{% else %}{{ _('Attempts: unlimited') }}{% endif %}</li>
+    {% if a.time_limit_min %}<li>{{ _('Time limit: %(n)s minutes (the timer starts when you begin)', n=a.time_limit_min) }}</li>{% endif %}
   </ul>
   {% if can_attempt %}
-    <form method="post" action="{{ url_for('assess.start', aid=a.id) }}">{{ csrf() }}<button class="btn">Start assessment</button></form>
-  {% elif attempts and attempts|selectattr('passed')|list %}<p class="badge passed">You passed this assessment </p>
-  {% else %}<p class="badge failed">No attempts remaining – contact your instructor.</p>{% endif %}
+    <form method="post" action="{{ url_for('assess.start', aid=a.id) }}">{{ csrf() }}<button class="btn">{{ _('Start assessment') }}</button></form>
+  {% elif attempts and attempts|selectattr('passed')|list %}<p class="badge passed">{{ _('You passed this assessment') }}</p>
+  {% else %}<p class="badge failed">{{ _('No attempts remaining - contact your instructor.') }}</p>{% endif %}
 </div>
-{% if attempts %}<div class="card"><h2>Your attempts</h2><table>
-<tr><th>Submitted</th><th>Score</th><th>Result</th><th></th></tr>
-{% for t in attempts %}<tr><td>{{ t.submitted_at.strftime('%d %b %Y %H:%M') }}</td><td>{{ t.score }}%</td>
-<td><span class="badge {{ 'passed' if t.passed else 'failed' }}">{{ 'Passed' if t.passed else 'Not passed' }}</span></td>
-<td><a href="{{ url_for('assess.result', attempt_id=t.id) }}">Review</a></td></tr>{% endfor %}
+{% if attempts %}<div class="card"><h2>{{ _('Your attempts') }}</h2><table>
+<tr><th>{{ _('Submitted') }}</th><th>{{ _('Score') }}</th><th>{{ _('Result') }}</th><th></th></tr>
+{% for t in attempts %}<tr><td>{{ t.submitted_at|localdate('%d %b %Y %H:%M') }}</td><td>{{ t.score }}%</td>
+<td><span class="badge {{ 'passed' if t.passed else 'failed' }}">{{ _('Passed') if t.passed else _('Not passed') }}</span></td>
+<td><a href="{{ url_for('assess.result', attempt_id=t.id) }}">{{ _('Review') }}</a></td></tr>{% endfor %}
 </table></div>{% endif %}
 {% endblock %}

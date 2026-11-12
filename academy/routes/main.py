@@ -6,6 +6,7 @@ from flask_login import current_user, login_required
 
 from ..enrollment import EMAIL_RE
 from ..mail import send_email
+from ..i18n import gettext as _
 from ..models import Certificate, ContactMessage, Course, Enrollment, Payment, Review, db, utcnow
 from ..reviews import can_review, distribution, popularity, rating_summary
 from ..utils import course_progress
@@ -72,6 +73,20 @@ def catalog():
         q=q, filtered=filtered)
 
 
+@bp.route("/lang/<code>")
+def set_language(code):
+    """Remember the visitor's language in a cookie and go back to the page they were on."""
+    if code not in current_app.config["LANGUAGES"]:
+        abort(404)
+    target = request.args.get("next", "")
+    if not target.startswith("/") or target.startswith("//") or "\\" in target:
+        target = url_for("main.index")
+    resp = redirect(target)
+    resp.set_cookie("lang", code, max_age=365 * 24 * 3600, samesite="Lax",
+                    secure=current_app.config["SESSION_COOKIE_SECURE"])
+    return resp
+
+
 @bp.route("/healthz")
 def healthz():
     """Uptime check for the hosting provider / monitoring."""
@@ -114,14 +129,14 @@ def review_save(slug):
     if not current_app.config["FEATURE_REVIEWS"]:
         abort(404)
     if not can_review(current_user, course):
-        flash("You can rate a course once you are enrolled and have completed a lesson.", "error")
+        flash(_("You can rate a course once you are enrolled and have completed a lesson."), "error")
         return redirect(url_for("main.course_detail", slug=slug) + "#reviews")
     try:
         rating = int(request.form.get("rating", ""))
     except ValueError:
         rating = 0
     if not 1 <= rating <= 5:
-        flash("Please choose a rating from 1 to 5 stars.", "error")
+        flash(_("Please choose a rating from 1 to 5 stars."), "error")
         return redirect(url_for("main.course_detail", slug=slug) + "#reviews")
     review = Review.query.filter_by(user_id=current_user.id, course_id=course.id).first()
     if not review:
@@ -130,7 +145,7 @@ def review_save(slug):
     review.rating = rating
     review.comment = request.form.get("comment", "").strip()[:2000] or None
     db.session.commit()
-    flash("Thank you for your feedback!", "success")
+    flash(_("Thank you for your feedback!"), "success")
     return redirect(url_for("main.course_detail", slug=slug) + "#reviews")
 
 
@@ -142,7 +157,7 @@ def review_delete(slug):
     if review:
         db.session.delete(review)
         db.session.commit()
-        flash("Your review was removed.", "info")
+        flash(_("Your review was removed."), "info")
     return redirect(url_for("main.course_detail", slug=slug) + "#reviews")
 
 
@@ -194,7 +209,7 @@ def contact():
     if request.method == "POST" and cfg["CONTACT_FORM"]:
         # Hidden field that real visitors leave empty; bots fill it in. Pretend it worked.
         if form.get("website"):
-            flash("Thank you - your message has been sent.", "success")
+            flash(_("Thank you - your message has been sent."), "success")
             return redirect(url_for("main.contact"))
         name = form.get("name", "").strip()[:120]
         email = form.get("email", "").strip()[:255]
@@ -202,16 +217,16 @@ def contact():
         message = form.get("message", "").strip()[:4000]
         errors = []
         if len(name) < 2:
-            errors.append("Please tell us your name.")
+            errors.append(_("Please tell us your name."))
         if not EMAIL_RE.match(email):
-            errors.append("Please enter a valid email address so we can reply.")
+            errors.append(_("Please enter a valid email address so we can reply."))
         if len(message) < 10:
-            errors.append("Please write a message of at least a few words.")
+            errors.append(_("Please write a message of at least a few words."))
         recent = ContactMessage.query.filter(
             ContactMessage.ip == _client_ip(),
             ContactMessage.created_at >= utcnow() - timedelta(hours=1)).count()
         if recent >= cfg["CONTACT_MAX_PER_HOUR"]:
-            errors.append("You have sent several messages already. Please try again later.")
+            errors.append(_("You have sent several messages already. Please try again later."))
         if errors:
             for e in errors:
                 flash(e, "error")
@@ -223,6 +238,6 @@ def contact():
         if inbox not in PLACEHOLDER_EMAILS:
             send_email(inbox, f"[{cfg['SITE_NAME']}] {subject or 'New message'} - from {name}",
                        f"From: {name} <{email}>\n\n{message}\n", reply_to=email)
-        flash("Thank you - your message has been sent. We will reply by email.", "success")
+        flash(_("Thank you - your message has been sent. We will reply by email."), "success")
         return redirect(url_for("main.contact"))
     return render_template("contact.html", form=form)

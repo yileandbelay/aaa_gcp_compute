@@ -44,6 +44,11 @@ class Config:
     VIDEO_TOKEN_TTL = int(os.environ.get("VIDEO_TOKEN_TTL", "7200"))
 
     # Branding ---------------------------------------------------------------
+    # Languages offered on the site (codes of translation files in academy/translations/).
+    LANGUAGES = [c.strip() for c in os.environ.get("LANGUAGES", "en,am").split(",") if c.strip()]
+    DEFAULT_LANGUAGE = os.environ.get("DEFAULT_LANGUAGE", "en")
+    # Use the visitor's browser language on their first visit (they can always switch).
+    LANGUAGE_AUTODETECT = _bool("LANGUAGE_AUTODETECT", True)
     SITE_NAME = os.environ.get("SITE_NAME", "Mek Online Academy")
     # Short name (max 16 characters) used where space is limited, e.g. the Chapa checkout title.
     SITE_SHORT_NAME = os.environ.get("SITE_SHORT_NAME", "Mek Academy")[:16]
