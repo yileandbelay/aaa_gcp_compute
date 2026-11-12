@@ -241,3 +241,33 @@ def test_seed_from_custom_json(tmp_path):
         assert Course.query.count() == 1
         assert course.assessments[0].questions[0].correct_index == 0
         assert float(course.hours) == 6
+
+
+def test_app_starts_when_instance_folder_cannot_be_created(tmp_path, monkeypatch):
+    """On a server the code directory is read-only for the app user."""
+    import os
+
+    real_makedirs = os.makedirs
+
+    def makedirs(path, *args, **kwargs):
+        if str(path).endswith("instance"):
+            raise PermissionError(13, "Permission denied", str(path))
+        return real_makedirs(path, *args, **kwargs)
+
+    monkeypatch.setattr("academy.os.makedirs", makedirs)
+    app = make_app(tmp_path)
+    assert app.test_client().get("/healthz").get_json() == {"status": "ok"}
+
+
+def test_unwritable_upload_folder_still_fails_loudly(tmp_path, monkeypatch):
+    """Only the optional instance folder is tolerated; uploads must be writable."""
+    real_makedirs = __import__("os").makedirs
+
+    def makedirs(path, *args, **kwargs):
+        if str(path).endswith("uploads"):
+            raise PermissionError(13, "Permission denied", str(path))
+        return real_makedirs(path, *args, **kwargs)
+
+    monkeypatch.setattr("academy.os.makedirs", makedirs)
+    with pytest.raises(PermissionError):
+        make_app(tmp_path)

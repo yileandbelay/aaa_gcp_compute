@@ -25,7 +25,12 @@ def load_user(user_id):
 def create_app(config_object=Config):
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(config_object)
-    os.makedirs(app.instance_path, exist_ok=True)
+    try:
+        # Holds the default SQLite database for local development. On a server the app
+        # directory is usually read-only for the app user, and DATABASE_URL points elsewhere.
+        os.makedirs(app.instance_path, exist_ok=True)
+    except OSError:
+        app.logger.debug("Could not create %s; continuing without it.", app.instance_path)
     os.makedirs(app.config["UPLOAD_DIR"], exist_ok=True)
 
     if not app.testing and app.config["SECRET_KEY"] == "dev-only-change-me" and not app.debug:
