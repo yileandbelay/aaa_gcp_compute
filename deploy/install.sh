@@ -50,6 +50,8 @@ echo "==> Installing '$NAME' from $REPO ($BRANCH) on port $PORT"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y -q
 apt-get install -y -q python3 python3-venv python3-pip git nginx certbot python3-certbot-nginx
+# Optional: lets the nightly backup also copy itself off the server (see RCLONE_REMOTE in the settings).
+apt-get install -y -q rclone || echo "(rclone is not available here; off-server backups stay off until it is installed)"
 
 id "$NAME" >/dev/null 2>&1 || useradd --system --home "$DATA_DIR" --shell /usr/sbin/nologin "$NAME"
 mkdir -p "$DATA_DIR/uploads" "$DATA_DIR/instance" "$DATA_DIR/backups"
