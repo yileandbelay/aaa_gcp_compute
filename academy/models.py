@@ -44,6 +44,7 @@ class User(UserMixin, db.Model):
     bio = db.Column(db.Text)
     is_active_account = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=utcnow)
+    deleted_at = db.Column(db.DateTime)  # set when the person deleted their account (details erased, see privacy.py)
 
     enrollments = db.relationship("Enrollment", foreign_keys="Enrollment.user_id", back_populates="user",
                                   cascade="all, delete-orphan")
@@ -69,7 +70,7 @@ class User(UserMixin, db.Model):
     @property
     def can_study(self):
         """May take courses (has the student role). Everyone without a staff level is a student."""
-        return bool(self.is_student or self.role == "student")
+        return bool(not self.deleted_at and (self.is_student or self.role == "student"))
 
     @property
     def role_names(self):

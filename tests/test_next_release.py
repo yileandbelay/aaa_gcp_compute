@@ -988,3 +988,205 @@ def test_certificate_qr_texts_in_amharic(app):
 def test_exactly_one_dependency_was_added_for_qr_codes():
     text = open("requirements.txt").read()
     assert re.search(r"^segno==\d+\.\d+\.\d+", text, re.M)
+
+
+# --- NX-17: download my data and delete my account --------------------------------------------
+
+def full_student(app, email="gone@example.com"):
+    """A student with a phone, an enrolment, a paid payment with a receipt file, and a certificate."""
+    from academy.models import Certificate, Enrollment, Invitation, Payment
+    with app.app_context():
+        u = User(email=email, full_name="Leaving Student", phone="0911000000", city="Adama")
+        u.set_password("secret123")
+        db.session.add(u)
+        db.session.flush()
+        course = Course.query.filter(Course.price > 0).first()
+        e = Enrollment(user_id=u.id, course_id=course.id)
+        db.session.add(e)
+        e.activate(source="purchase")
+        folder = os.path.join(app.config["UPLOAD_DIR"], "receipts")
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, "mine.png"), "wb") as fh:
+            fh.write(PNG_BYTES)
+        pay = Payment(user_id=u.id, course_id=course.id, amount=Decimal("2500"), currency="ETB", method="manual",
+                      channel="cash", status="paid", receipt_file="mine.png", provider_ref="TX-9", note="internal note")
+        cert = Certificate(user_id=u.id, course_id=course.id)
+        db.session.add_all([pay, cert, Invitation(email=email, course_id=course.id)])
+        db.session.commit()
+        return u.id, cert.code, pay.id, course.title
+
+
+def signed_in(app, email="gone@example.com"):
+    c = app.test_client()
+    assert login(c, email, "secret123", area="student").status_code == 302
+    return c
+
+
+def test_download_my_data_contains_profile_enrolments_payments_and_certificates(app):
+    import json
+    uid, code, pid, title = full_student(app)
+    r = signed_in(app).get("/profile/data.json")
+    assert r.status_code == 200 and r.mimetype == "application/json"
+    assert "attachment" in r.headers["Content-Disposition"] and "my-data.json" in r.headers["Content-Disposition"]
+    data = json.loads(r.data)
+    assert data["profile"]["email"] == "gone@example.com" and data["profile"]["phone"] == "0911000000"
+    assert data["profile"]["roles"] == ["Student"]
+    assert data["enrolments"][0]["course"] == title and data["enrolments"][0]["status"] == "active"
+    pay = data["payments"][0]
+    assert pay["amount"] == "2500.00" and pay["how"] == "Cash" and pay["transaction_id"] == "TX-9" and pay["has_receipt_file"] is True
+    assert data["certificates"][0]["code"] == code and code in data["certificates"][0]["verify_at"]
+    text = r.data.decode()
+    assert "internal note" not in text and "password" not in text.lower() and "hash" not in text.lower()
+
+
+def test_download_is_only_for_the_signed_in_person_and_nobody_elses(app):
+    full_student(app)
+    assert app.test_client().get("/profile/data.json").status_code in (302, 401)
+    other = student_client(app, "other@example.com")
+    data = other.get("/profile/data.json").data.decode()
+    assert "gone@example.com" not in data and "other@example.com" in data
+
+
+def test_deleting_the_account_erases_personal_details_and_closes_it(app):
+    from academy.models import Invitation
+    uid, code, pid, _title = full_student(app)
+    c = signed_in(app)
+    r = c.post("/profile/delete", data={"password": "secret123", "confirm": "1"}, follow_redirects=True)
+    assert b"Your account was deleted" in r.data
+    with app.app_context():
+        u = db.session.get(User, uid)
+        assert u.full_name == "Deleted user" and u.email == f"deleted-{uid}@deleted.invalid"
+        assert u.phone is None and u.city is None and u.bio is None and u.headline is None
+        assert u.is_active_account is False and u.deleted_at is not None and u.can_study is False
+        assert "gone@example.com" not in (u.email or "") and not u.check_password("secret123")
+        assert Invitation.query.filter_by(email="gone@example.com").count() == 0
+    assert c.get("/dashboard").status_code == 302                          # signed out
+    assert login(app.test_client(), "gone@example.com", "secret123", area="student").status_code == 200   # cannot sign in again
+
+
+def test_uploaded_receipts_are_removed_but_payment_records_stay_for_accounting(app):
+    from academy.models import Payment
+    uid, code, pid, _title = full_student(app)
+    signed_in(app).post("/profile/delete", data={"password": "secret123", "confirm": "1"})
+    assert not os.path.exists(os.path.join(app.config["UPLOAD_DIR"], "receipts", "mine.png"))
+    with app.app_context():
+        p = db.session.get(Payment, pid)
+        assert p.receipt_file is None and p.status == "paid" and p.amount == Decimal("2500.00") and p.method == "manual"
+        assert p.user.full_name == "Deleted user"
+    page = admin_client(app).get("/admin/payments").data.decode()
+    assert "Deleted user" in page and "gone@example.com" not in page
+
+
+def test_certificates_stay_verifiable_without_the_holders_name(app):
+    uid, code, pid, title = full_student(app)
+    before = app.test_client().get(f"/certificates/{code}").data.decode()
+    assert "Leaving Student" in before
+    signed_in(app).post("/profile/delete", data={"password": "secret123", "confirm": "1"})
+    page = app.test_client().get(f"/certificates/{code}")
+    html = page.data.decode()
+    assert page.status_code == 200 and title in html and "Holder details removed on request" in html
+    assert "Leaving Student" not in html and "gone@example.com" not in html
+
+
+def test_certificate_note_in_amharic_after_deletion(app):
+    uid, code, pid, title = full_student(app)
+    signed_in(app).post("/profile/delete", data={"password": "secret123", "confirm": "1"})
+    c = app.test_client()
+    c.set_cookie("lang", "am")
+    html = c.get(f"/certificates/{code}").data.decode()
+    assert "የባለቤቱ ዝርዝር በጥያቄው መሠረት ተወግዷል" in html and "Holder details removed" not in html
+
+
+def test_wrong_password_or_missing_confirmation_deletes_nothing(app):
+    uid, *_rest = full_student(app)
+    c = signed_in(app)
+    r = c.post("/profile/delete", data={"password": "nope", "confirm": "1"}, follow_redirects=True)
+    assert b"Current password is incorrect" in r.data
+    r = c.post("/profile/delete", data={"password": "secret123"}, follow_redirects=True)
+    assert b"confirm that you understand" in r.data
+    with app.app_context():
+        u = db.session.get(User, uid)
+        assert u.full_name == "Leaving Student" and u.deleted_at is None and u.is_active_account
+
+
+def test_staff_must_be_demoted_before_deleting(app):
+    for client, label in ((admin_client(app), "admin"), (teacher_client(app), "teacher")):
+        r = client.post("/profile/delete", data={"password": "admin12345" if label == "admin" else "instructor123", "confirm": "1"}, follow_redirects=True)
+        assert b"Ask an admin to remove your staff access first" in r.data
+    with app.app_context():
+        assert User.query.filter_by(email="admin@example.com").one().deleted_at is None
+        assert User.query.filter_by(email="instructor@example.com").one().deleted_at is None
+    page = admin_client(app).get("/profile").data.decode()
+    assert 'action="/profile/delete"' not in page and "cannot be deleted here" in page
+
+
+def test_a_student_who_is_also_staff_is_blocked_until_demoted(app):
+    with app.app_context():
+        u = User(email="dual@example.com", full_name="Dual", role="instructor", is_student=True)
+        u.set_password("secret123")
+        db.session.add(u)
+        db.session.commit()
+        uid = u.id
+    c = app.test_client()
+    login(c, "dual@example.com", "secret123", area="staff")
+    assert b"Ask an admin" in c.post("/profile/delete", data={"password": "secret123", "confirm": "1"}, follow_redirects=True).data
+    admin_client(app).post(f"/admin/users/{uid}", data={"action": "roles", "level": "student", "student": "1"})
+    c2 = app.test_client()
+    login(c2, "dual@example.com", "secret123", area="student")
+    assert b"deleted" in c2.post("/profile/delete", data={"password": "secret123", "confirm": "1"}, follow_redirects=True).data
+
+
+def test_the_email_can_be_used_to_register_again_after_deletion(app):
+    full_student(app)
+    signed_in(app).post("/profile/delete", data={"password": "secret123", "confirm": "1"})
+    again = app.test_client()
+    r = again.post("/register", data={"full_name": "Fresh Start", "email": "gone@example.com", "password": "secret123", "password2": "secret123", "agree": "1"})
+    assert r.status_code == 302
+    with app.app_context():
+        assert User.query.filter_by(email="gone@example.com").one().full_name == "Fresh Start"
+
+
+def test_deleted_accounts_disappear_from_admin_student_lists_and_counts(app):
+    uid, *_rest = full_student(app)
+    admin = admin_client(app)
+    assert "Leaving Student" in admin.get("/admin/students").data.decode()
+    signed_in(app).post("/profile/delete", data={"password": "secret123", "confirm": "1"})
+    page = admin.get("/admin/students").data.decode()
+    assert "Leaving Student" not in page and "Deleted user" not in page
+    assert "Deleted user" not in admin.get("/admin/students.csv").data.decode()
+
+
+def test_profile_page_offers_download_and_delete_in_both_languages(app):
+    full_student(app)
+    c = signed_in(app)
+    page = c.get("/profile").data.decode()
+    assert 'href="/profile/data.json"' in page and 'action="/profile/delete"' in page and 'type="password"' in page and "cannot be undone" in page
+    c.set_cookie("lang", "am")
+    am = c.get("/profile").data.decode()
+    assert "መረጃዬን አውርድ" in am and "መለያዬን ሰርዝ" in am and "Download my data" not in am
+
+
+def test_deleted_at_migration_up_and_down_keeps_users(tmp_path):
+    import sqlite3
+    import subprocess
+    import sys
+    db_file = tmp_path / "m.db"
+    env = {**os.environ, "FLASK_APP": "wsgi.py", "SECRET_KEY": "x", "DATABASE_URL": f"sqlite:///{db_file}"}
+    run = lambda *a: subprocess.run([sys.executable, "-m", "flask", *a], env=env, capture_output=True, text=True)
+    assert run("db", "upgrade", "e0f4a6b8c3d5").returncode == 0
+    con = sqlite3.connect(db_file)
+    con.execute("insert into user (full_name, email, password_hash, role, is_student, is_active_account, created_at) values ('U', 'u@example.com', 'h', 'student', 1, 1, '2026-01-01')")
+    con.commit(); con.close()
+    assert run("db", "upgrade").returncode == 0
+    assert sqlite3.connect(db_file).execute("select email, deleted_at from user").fetchall() == [("u@example.com", None)]
+    assert run("db", "downgrade").returncode == 0
+    assert "deleted_at" not in [r[1] for r in sqlite3.connect(db_file).execute("pragma table_info(user)")]
+    assert sqlite3.connect(db_file).execute("select email from user").fetchall() == [("u@example.com",)]
+
+
+def test_privacy_page_states_data_location_and_the_self_service_choices(app):
+    app.config["BUNNY_API_KEY"] = "k"
+    page = app.test_client().get("/policies/privacy").data.decode()
+    assert "European Union" in page and "Bunny Stream" in page and "Frankfurt" in page
+    assert "download a copy of your data" in page and "delete your account yourself" in page
+    assert "contact us to delete" not in page.lower()

@@ -1,4 +1,5 @@
 """Student registration, login and profile."""
+import json
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -10,6 +11,7 @@ from ..enrollment import apply_invitations
 from ..mail import send_email
 from ..i18n import gettext as _
 from ..models import LoginAttempt, User, db, utcnow
+from ..privacy import erase_account, export_user_data
 
 bp = Blueprint("auth", __name__)
 
@@ -197,6 +199,37 @@ def reset_password(token):
 def logout():
     logout_user()
     flash(_("You have been logged out."), "info")
+    return redirect(url_for("main.index"))
+
+
+@bp.route("/profile/data.json")
+@login_required
+def download_data():
+    """A copy of the person's own data as a JSON file."""
+    resp = current_app.response_class(json.dumps(export_user_data(current_user), ensure_ascii=False, indent=2),
+                                      mimetype="application/json")
+    resp.headers["Content-Disposition"] = "attachment; filename=my-data.json"
+    resp.headers["Cache-Control"] = "private, no-store"
+    return resp
+
+
+@bp.route("/profile/delete", methods=["POST"])
+@login_required
+def delete_account():
+    if current_user.is_staff:
+        flash(_("Teacher and admin accounts cannot be deleted here. Ask an admin to remove your staff access first."), "error")
+        return redirect(url_for("auth.profile"))
+    if not current_user.check_password(request.form.get("password", "")):
+        flash(_("Current password is incorrect."), "error")
+        return redirect(url_for("auth.profile"))
+    if not request.form.get("confirm"):
+        flash(_("Please confirm that you understand this cannot be undone."), "error")
+        return redirect(url_for("auth.profile"))
+    user = db.session.get(User, current_user.id)
+    erase_account(user)
+    db.session.commit()
+    logout_user()
+    flash(_("Your account was deleted and your personal details were removed."), "success")
     return redirect(url_for("main.index"))
 
 

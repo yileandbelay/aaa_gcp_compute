@@ -19,5 +19,20 @@
     <label for="new_password">{{ _('New password') }}</label><input type="password" id="new_password" name="new_password" minlength="8">
     <p><button class="btn">{{ _('Save') }}</button></p>
   </form>
+  <hr>
+  <h3>{{ _('Your data') }}</h3>
+  <p class="small muted">{{ _('Get a copy of your profile, enrolments, payments and certificates as a file.') }}</p>
+  <p><a class="btn secondary" href="{{ url_for('auth.download_data') }}">{{ _('Download my data') }}</a></p>
+  <h3>{{ _('Delete my account') }}</h3>
+  {% if current_user.is_staff %}
+  <p class="small muted">{{ _('Teacher and admin accounts cannot be deleted here. Ask an admin to remove your staff access first.') }}</p>
+  {% else %}
+  <p class="small muted">{{ _('This removes your name, email, phone and uploaded receipts. Payment records are kept for accounting, and your certificates stay verifiable without your name. This cannot be undone.') }}</p>
+  <form method="post" action="{{ url_for('auth.delete_account') }}" class="stack">{{ csrf() }}
+    <label for="delete_password">{{ _('Confirm with your password') }}</label><input type="password" id="delete_password" name="password" required autocomplete="current-password">
+    <label class="check"><input type="checkbox" name="confirm" value="1" required> {{ _('I understand this cannot be undone') }}</label>
+    <p><button class="btn danger">{{ _('Delete my account') }}</button></p>
+  </form>
+  {% endif %}
 </div>
 {% endblock %}
