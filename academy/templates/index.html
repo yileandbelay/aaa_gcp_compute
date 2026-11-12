@@ -26,7 +26,7 @@
 {% if topics %}
 <section class="section">
   <div class="section-head"><h2>{{ _('Browse by topic') }}</h2></div>
-  <div class="topic-grid">{% for name, n in topics %}<a class="topic" href="{{ url_for('main.catalog', category=name) }}"><b>{{ name }}</b><span>{{ _n('%(n)s course', '%(n)s courses', n) }}</span></a>{% endfor %}</div>
+  <div class="topic-grid">{% for name, n in topics %}<a class="topic" href="{{ url_for('main.catalog', category=name) }}"><span class="topic-icon">{{ icon(topic_icon(name)) }}</span><b>{{ name }}</b><span>{{ _n('%(n)s course', '%(n)s courses', n) }}</span></a>{% endfor %}</div>
 </section>
 {% endif %}
 

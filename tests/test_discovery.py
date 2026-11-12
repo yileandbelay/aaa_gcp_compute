@@ -547,3 +547,23 @@ def test_popular_and_rated_sorting_appear_once_real_data_exists(app):
 def test_unavailable_sort_falls_back_to_newest(catalog):
     html = catalog.test_client().get("/courses?sort=rating").get_data(as_text=True)
     assert re.search(r'<option value="newest"\s+selected', html)
+
+
+# --- Topic icons ------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("topic,icon_name", [
+    ("Business", "briefcase"), ("Leadership & Management", "briefcase"), ("TECHNOLOGY", "laptop"),
+    ("Health and Safety", "heart"), ("Communication", "chat"), ("Statistics", "chart"),
+    ("Engineering", "tool"), ("Teaching", "cap"), ("Digital Marketing", "laptop"), ("Marketing", "megaphone"),
+    ("Cooking", "book"), ("", "book"), (None, "book"),
+])
+def test_topic_icon_matches_keywords_case_insensitively(topic, icon_name):
+    from academy.utils import topic_icon
+
+    assert topic_icon(topic) == icon_name
+
+
+def test_topic_tiles_show_a_decorative_icon(catalog):
+    html = catalog.test_client().get("/").get_data(as_text=True)
+    tile = re.search(r'<a class="topic".*?</a>', html, re.S).group(0)
+    assert 'class="topic-icon"' in tile and 'aria-hidden="true"' in tile and "#i-briefcase" in html
