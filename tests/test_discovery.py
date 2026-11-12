@@ -381,3 +381,32 @@ def test_logo_mark_hidden_from_screen_readers_and_footer_year(app):
     html = app.test_client().get("/").get_data(as_text=True)
     assert html.count('<span class="mark" aria-hidden="true">') == 2
     assert f"© {datetime.now(timezone.utc).year} " in html
+
+
+# --- Homepage hero panel ----------------------------------------------------------------------
+
+def hero_panel(app, path="/"):
+    html = app.test_client().get(path).get_data(as_text=True)
+    m = re.search(r'<aside class="hero-panel".*?</aside>', html, re.S)
+    return m.group(0) if m else None
+
+
+def test_hero_panel_lists_real_features_without_numbers(app):
+    panel = hero_panel(app)
+    assert panel and "What you get" in panel
+    assert not re.search(r"\d", re.sub(r"<[^>]+>", "", panel))
+    assert "certificate" in panel and "English or Amharic" in panel
+
+
+def test_hero_panel_hides_lines_for_disabled_features(app):
+    app.config["FEATURE_CERTIFICATES"] = False
+    assert "certificate" not in hero_panel(app)
+    app.config["LANGUAGES"] = ["en"]
+    assert "Amharic" not in hero_panel(app)
+
+
+def test_hero_panel_in_amharic(app):
+    c = app.test_client()
+    c.set_cookie("lang", "am")
+    panel = re.search(r'<aside class="hero-panel".*?</aside>', c.get("/").get_data(as_text=True), re.S).group(0)
+    assert "የሚያገኙት" in panel and "What you get" not in panel

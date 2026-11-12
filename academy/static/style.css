@@ -269,7 +269,7 @@ html[lang=am] .footer-grid h4 { letter-spacing: 0; text-transform: none; }
 /* 6 ── Pages ──────────────────────────────────────────────────────────────── */
 /* Home */
 .hero { background: var(--brand-soft); border: 1px solid var(--line); border-radius: calc(var(--radius) + 6px); padding: var(--s6) var(--s5); margin-bottom: var(--s6); }
-.hero h1 { font-size: 1.9rem; max-width: 20ch; }
+.hero h1 { font-size: 2.2rem; max-width: 20ch; }
 .hero h1::after { content: ""; display: block; width: 56px; height: 4px; border-radius: 2px; background: var(--gold); margin-top: var(--s3); }
 .hero p { max-width: 58ch; color: var(--muted); font-size: 1.05rem; }
 .hero-search { display: flex; flex-direction: column; gap: var(--s2); max-width: 620px; margin: var(--s5) 0 var(--s4); }
@@ -277,8 +277,14 @@ html[lang=am] .footer-grid h4 { letter-spacing: 0; text-transform: none; }
 .hero-popular { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; font-size: .9rem; color: var(--muted); }
 .hero-popular .chip { min-height: 32px; font-size: .86rem; background: var(--surface); }
 .hero-actions { margin-top: var(--s5); }
-@media (min-width: 600px) { .hero-search { flex-direction: row; } .hero-search .btn { min-height: 52px; padding-inline: var(--s6); } }
-@media (min-width: 900px) { .hero { padding: var(--s7) var(--s7); } .hero h1 { font-size: 2.7rem; } }
+.hero-actions .btn { width: 100%; }
+.hero-panel { margin-top: var(--s5); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s4) var(--s5); box-shadow: var(--shadow); }
+.hero-panel h2 { font-size: 1.1rem; margin-bottom: var(--s3); }
+.hero-panel ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s3); }
+.hero-panel li { display: flex; gap: var(--s3); align-items: flex-start; color: var(--ink); }
+.hero-panel .i { flex: none; color: var(--brand); margin-top: 2px; }
+@media (min-width: 600px) { .hero-actions .btn { width: auto; } .hero-search { flex-direction: row; } .hero-search .btn { min-height: 52px; padding-inline: var(--s6); } }
+@media (min-width: 900px) { .hero { padding: var(--s7) var(--s7); } .hero h1 { font-size: 3rem; } .hero { display: grid; grid-template-columns: 3fr 2fr; gap: var(--s7); align-items: center; } .hero-panel { margin-top: 0; } }
 .topic-grid { display: grid; gap: var(--s3); grid-template-columns: repeat(2, 1fr); }
 .topic { display: flex; flex-direction: column; gap: 2px; padding: var(--s4) var(--s4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); text-decoration: none; transition: border-color .15s, background-color .15s; }
 .topic b { font-size: 1rem; line-height: 1.3; }

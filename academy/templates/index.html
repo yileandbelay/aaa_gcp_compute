@@ -1,6 +1,7 @@
 {% extends "base.html" %}{% from "_macros.html" import course_card, icon with context %}
 {% block content %}
 <section class="hero">
+  <div class="hero-main">
   <h1>{{ _(config.SITE_HEADLINE) }}</h1>
   <p>{{ _(config.SITE_INTRO) }}</p>
   <form class="hero-search" action="{{ url_for('main.catalog') }}" role="search">
@@ -9,6 +10,17 @@
   </form>
   {% if topics %}<div class="hero-popular"><span>{{ _('Popular:') }}</span>{% for name, n in topics[:4] %}<a class="chip" href="{{ url_for('main.catalog', category=name) }}">{{ name }}</a>{% endfor %}</div>{% endif %}
   {% if not current_user.is_authenticated %}<div class="row hero-actions"><a class="btn" href="{{ url_for('auth.register') }}">{{ _('Create a free account') }}</a><a class="btn secondary" href="{{ url_for('main.catalog') }}">{{ _('Browse courses') }}</a></div>{% endif %}
+  </div>
+  <aside class="hero-panel" aria-labelledby="hero-panel-title">
+    <h2 id="hero-panel-title">{{ _('What you get') }}</h2>
+    <ul>
+      <li>{{ icon('play') }}<span>{{ _('Video and text lessons with downloadable materials') }}</span></li>
+      <li>{{ icon('check') }}<span>{{ _('Auto-graded quizzes and final exams') }}</span></li>
+      {% if config.FEATURE_CERTIFICATES %}<li>{{ icon('award') }}<span>{{ _('A verifiable certificate showing your training hours') }}</span></li>{% endif %}
+      <li>{{ icon('device') }}<span>{{ _('Learn on your phone or computer') }}</span></li>
+      {% if available_languages()|length > 1 %}<li>{{ icon('globe') }}<span>{{ _('Use the site in English or Amharic') }}</span></li>{% endif %}
+    </ul>
+  </aside>
 </section>
 
 {% if topics %}
