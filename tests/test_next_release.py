@@ -163,3 +163,22 @@ def test_wrong_door_messages_point_to_the_other_sign_in_not_to_tabs(app):
     c = app.test_client()
     r = login(c, "admin@example.com", "admin12345", area="student")
     assert b"teacher and admin sign-in" in r.data and b"tab" not in r.data.split(b'class="flash')[1].split(b"</div>")[0]
+
+
+# --- NX-5: topic icon on course card covers ---------------------------------------------------
+
+def cover_of(app, slug):
+    html = app.test_client().get("/courses").data.decode()
+    for m in re.finditer(r'<article class="card course-card">.*?</article>', html, re.S):
+        if f"/courses/{slug}" in m.group(0):
+            return re.search(r'<div class="cover".*?</div>', m.group(0), re.S).group(0)
+
+
+def test_card_cover_shows_the_matching_topic_icon_and_keeps_the_text(app):
+    add_course(app, "Biz Course", category="Business")
+    add_course(app, "Odd Course", category="Cooking")
+    add_course(app, "No Topic")
+    biz = cover_of(app, "biz-course")
+    assert "#i-briefcase" in biz and "Business" in biz and 'aria-hidden="true"' in biz
+    assert "#i-book" in cover_of(app, "odd-course") and "Cooking" in cover_of(app, "odd-course")
+    assert "#i-book" in cover_of(app, "no-topic")
