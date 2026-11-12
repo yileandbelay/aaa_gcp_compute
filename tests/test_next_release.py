@@ -527,3 +527,77 @@ def test_only_admins_can_see_the_report(app):
 def test_report_is_empty_but_works_with_no_payments(app):
     page = admin_client(app).get("/admin/reports").data.decode()
     assert "Nothing recorded in" in page and "0.00 ETB" in page
+
+
+# --- NX-20: lesson lock control for admins only -----------------------------------------------
+
+def own_course_with_lessons(app):
+    with app.app_context():
+        c = Course.query.filter_by(slug="project-management-fundamentals").one()
+        c.instructor_id = User.query.filter_by(email="instructor@example.com").one().id
+        db.session.commit()
+        return c.id, [l.id for l in c.lessons]
+
+
+def flag(app, lesson_id):
+    with app.app_context():
+        return db.session.get(Lesson, lesson_id).is_preview
+
+
+def test_a_teachers_toggle_request_returns_403_and_changes_nothing(app):
+    cid, ids_ = own_course_with_lessons(app)
+    for lid in ids_[:2]:
+        before = flag(app, lid)
+        assert teacher_client(app).post(f"/admin/lessons/{lid}/public").status_code == 403
+        assert flag(app, lid) is before
+
+
+def test_teachers_see_a_read_only_label_and_no_toggle(app):
+    cid, ids_ = own_course_with_lessons(app)
+    with app.app_context():
+        db.session.get(Lesson, ids_[0]).is_preview = True
+        db.session.commit()
+    page = teacher_client(app).get(f"/admin/courses/{cid}").data.decode()
+    table = page.split('id="lessons"')[1].split("Quick add")[0]
+    assert "Make public" not in table and "Lock it" not in table and "/public" not in table
+    assert 'class="badge active">public' in table and 'class="badge">locked' in table
+    form = teacher_client(app).get(f"/admin/lessons/{ids_[0]}").data.decode()
+    assert 'name="is_preview"' not in form and "only an admin can make a lesson public" in form
+
+
+def test_admin_still_sees_the_toggle_and_can_use_it(app):
+    cid, ids_ = own_course_with_lessons(app)
+    before = flag(app, ids_[1])
+    admin = admin_client(app)
+    table = admin.get(f"/admin/courses/{cid}").data.decode().split('id="lessons"')[1].split("Quick add")[0]
+    assert "Make public" in table or "Lock it" in table
+    assert admin.post(f"/admin/lessons/{ids_[1]}/public").status_code == 302 and flag(app, ids_[1]) is (not before)
+    assert 'name="is_preview"' in admin.get(f"/admin/lessons/{ids_[1]}").data.decode()
+
+
+def test_a_teacher_cannot_change_the_flag_through_the_lesson_form(app):
+    cid, ids_ = own_course_with_lessons(app)
+    with app.app_context():
+        db.session.get(Lesson, ids_[0]).is_preview = False
+        db.session.get(Lesson, ids_[1]).is_preview = True
+        db.session.commit()
+    t = teacher_client(app)
+    t.post(f"/admin/lessons/{ids_[0]}", data={"title": "Edited", "kind": "text", "is_preview_present": "1", "is_preview": "1"})
+    t.post(f"/admin/lessons/{ids_[1]}", data={"title": "Edited 2", "kind": "text", "is_preview_present": "1"})
+    with app.app_context():
+        assert db.session.get(Lesson, ids_[0]).title == "Edited" and db.session.get(Lesson, ids_[0]).is_preview is False
+        assert db.session.get(Lesson, ids_[1]).title == "Edited 2" and db.session.get(Lesson, ids_[1]).is_preview is True
+
+
+def test_lessons_a_teacher_creates_start_locked(app):
+    cid, _ids = own_course_with_lessons(app)
+    teacher_client(app).post(f"/admin/courses/{cid}/lessons/new", data={"title": "Teacher made", "kind": "text", "is_preview_present": "1", "is_preview": "1"})
+    with app.app_context():
+        assert Lesson.query.filter_by(title="Teacher made").one().is_preview is False
+
+
+def test_an_admin_can_make_a_new_lesson_public_from_the_form(app):
+    cid, _ids = own_course_with_lessons(app)
+    admin_client(app).post(f"/admin/courses/{cid}/lessons/new", data={"title": "Admin made", "kind": "text", "is_preview_present": "1", "is_preview": "1"})
+    with app.app_context():
+        assert Lesson.query.filter_by(title="Admin made").one().is_preview is True

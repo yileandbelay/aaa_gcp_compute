@@ -188,7 +188,8 @@ def test_admin_switches_a_lesson_between_public_and_locked(app):
         assert db.session.get(Lesson, ids_[0]).is_preview is False
 
 
-def test_only_the_courses_teacher_or_an_admin_may_switch_a_lesson(app):
+def test_only_an_admin_may_switch_a_lesson(app):
+    """PRD v1.1 CRS-5 / NX-20: a hired teacher does not decide what is free."""
     cid, ids_ = lessons(app)
     with app.app_context():
         other = User(email="other@example.com", full_name="Other Teacher", role="instructor")
@@ -198,16 +199,17 @@ def test_only_the_courses_teacher_or_an_admin_may_switch_a_lesson(app):
         db.session.add_all([other, student])
         db.session.get(Course, cid).instructor_id = User.query.filter_by(email="instructor@example.com").one().id
         db.session.commit()
-    before = None
-    with app.app_context():
         before = db.session.get(Lesson, ids_[0]).is_preview
-    for email, pw in (("other@example.com", "secret123"), ("s@example.com", "secret123")):
+    for email, pw, area in (("other@example.com", "secret123", "staff"), ("s@example.com", "secret123", "student"),
+                            ("instructor@example.com", "instructor123", "staff")):      # the course's own teacher too
         c = app.test_client()
-        login(c, email, pw, area="staff" if email.startswith("other") else "student")
-        assert c.post(f"/admin/lessons/{ids_[0]}/public").status_code == 403
+        login(c, email, pw, area=area)
+        assert c.post(f"/admin/lessons/{ids_[0]}/public").status_code == 403, email
     assert app.test_client().post(f"/admin/lessons/{ids_[0]}/public").status_code in (302, 400, 401, 403)
-    owner = app.test_client()
-    login(owner, "instructor@example.com", "instructor123", area="staff")
-    assert owner.post(f"/admin/lessons/{ids_[0]}/public").status_code == 302
+    with app.app_context():
+        assert db.session.get(Lesson, ids_[0]).is_preview is before
+    admin = app.test_client()
+    login(admin, "admin@example.com", "admin12345", area="staff")
+    assert admin.post(f"/admin/lessons/{ids_[0]}/public").status_code == 302
     with app.app_context():
         assert db.session.get(Lesson, ids_[0]).is_preview is (not before)

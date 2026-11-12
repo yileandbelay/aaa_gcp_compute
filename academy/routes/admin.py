@@ -441,8 +441,8 @@ def lesson_form(course_id=None, lesson_id=None):
             lesson.body = f.get("body", "")
         if "duration_min" in f:
             lesson.duration_min = _int(f.get("duration_min")) or None
-        if "title" in f and "is_preview_present" in f:
-            lesson.is_preview = bool(f.get("is_preview"))
+        if "title" in f and "is_preview_present" in f and current_user.is_admin:
+            lesson.is_preview = bool(f.get("is_preview"))   # only admins decide what is public
         if lesson.kind == "video":
             _save_video_choice(lesson, f)
         for f_upload in request.files.getlist("materials"):
@@ -561,10 +561,11 @@ def lesson_delete(lesson_id):
 
 
 @bp.route("/lessons/<int:lesson_id>/public", methods=["POST"])
-@staff_required
+@admin_required
 def lesson_public(lesson_id):
-    """Switch one lesson between public (anyone may watch) and locked (enrolled students only)."""
-    lesson = _lesson(lesson_id)
+    """Switch one lesson between public (anyone may watch) and locked (enrolled students only).
+    Admin only: a teacher does not decide what is free."""
+    lesson = db.get_or_404(Lesson, lesson_id)
     lesson.is_preview = not lesson.is_preview
     db.session.commit()
     flash(f"\"{lesson.title}\" is now {'public: anyone can watch it' if lesson.is_preview else 'locked: enrolled students only'}.",

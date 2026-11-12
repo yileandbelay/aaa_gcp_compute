@@ -77,7 +77,7 @@
         {% if l.duration_min %}· {{ l.duration_min }} min{% endif %}
       </div></td>
     <td>{% if l.is_preview %}<span class="badge active">public</span>{% else %}<span class="badge">locked</span>{% endif %}{% if l.kind == 'video' and not l.has_video %} <span class="badge failed">no video yet</span>{% endif %}
-      <form method="post" action="{{ url_for('admin.lesson_public', lesson_id=l.id) }}" style="margin-top:4px">{{ csrf() }}<button class="linkbtn small">{{ 'Lock it' if l.is_preview else 'Make public' }}</button></form></td>
+      {% if current_user.is_admin %}<form method="post" action="{{ url_for('admin.lesson_public', lesson_id=l.id) }}" style="margin-top:4px">{{ csrf() }}<button class="linkbtn small">{{ 'Lock it' if l.is_preview else 'Make public' }}</button></form>{% endif %}</td>
     <td class="row">
       <form method="post" action="{{ url_for('admin.lesson_move', lesson_id=l.id, direction='up') }}">{{ csrf() }}<button class="linkbtn" aria-label="Move up">▲</button></form>
       <form method="post" action="{{ url_for('admin.lesson_move', lesson_id=l.id, direction='down') }}">{{ csrf() }}<button class="linkbtn" aria-label="Move down">▼</button></form>
