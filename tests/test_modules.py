@@ -104,7 +104,7 @@ def test_materials_download_requires_enrollment(app):
     cid, lessons = pm_course(app)
     _upload_material(app, lessons[2])
     with app.app_context():
-        att = Attachment.query.one()
+        att = Attachment.query.filter(Attachment.stored_name.isnot(None)).one()
         assert att.original_name == "handout.pdf" and att.size_bytes == 16
         aid = att.id
     s = app.test_client()
@@ -130,14 +130,14 @@ def test_material_delete_removes_file(app):
     _, lessons = pm_course(app)
     admin, _ = _upload_material(app, lessons[0])
     with app.app_context():
-        att = Attachment.query.one()
+        att = Attachment.query.filter(Attachment.stored_name.isnot(None)).one()
         path = os.path.join(app.config["UPLOAD_DIR"], "materials", att.stored_name)
         aid = att.id
     assert os.path.exists(path)
     admin.post(f"/admin/materials/{aid}/delete")
     assert not os.path.exists(path)
     with app.app_context():
-        assert Attachment.query.count() == 0
+        assert Attachment.query.filter(Attachment.stored_name.isnot(None)).count() == 0
 
 
 def test_material_download_can_be_switched_off(tmp_path):
@@ -145,7 +145,7 @@ def test_material_download_can_be_switched_off(tmp_path):
     cid, lessons = pm_course(app)
     _upload_material(app, lessons[0])
     with app.app_context():
-        aid = Attachment.query.one().id
+        aid = Attachment.query.filter(Attachment.stored_name.isnot(None)).one().id
     s = app.test_client()
     register(s)
     s.post(f"/pay/course/{cid}/demo")

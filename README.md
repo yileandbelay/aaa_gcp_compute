@@ -8,9 +8,12 @@ It's built with Python / Flask and runs on SQLite by default (PostgreSQL is supp
 
 | Module | What you get |
 |---|---|
-| **Students** | Registration (name, email, phone, city), login, password reset by email, profile; admins can suspend accounts |
+| **Students and staff** | Students register (name, email, phone, city), log in, reset passwords by email. **Staff** (admins and instructors) are kept apart from students: separate lists, never counted as students. Admins add staff by email; the new person sets their own password. Suspended accounts are locked out at once |
+| **Roles** | **Admin:** everything. **Instructor (course admin):** manages only the courses assigned to them, including their lessons, quizzes, announcements and students |
+| **Enrolling students** | Each course has an "Enroll students" page: tick registered students or paste email addresses. People without an account are invited and get the course when they register. Optional email notice; see who has access and how (paid, assigned, free), remove or restore access |
 | **Courses** | Categories, levels, training hours, search and category filter, free or paid, free-preview lessons, instructor profiles |
-| **Lessons** | Video and text (Markdown with tables and lists) lessons, downloadable materials (PDF, slides, spreadsheets…), progress tracking |
+| **Lessons** | Video, text and external-link lessons. Each lesson can have downloadable files (PDF, slides, spreadsheets…) and links (another site, a free course elsewhere). Videos: upload to your video host, paste a YouTube or Vimeo link, or store on your server. Progress tracking |
+| **Contact** | A Contact page with your details (email, phone, WhatsApp, Telegram, address, hours) and a message form. Messages are saved in an admin inbox with an unread badge, and also emailed to you. Spam protection: hidden field and a per-IP hourly limit |
 | **Video** | Upload from the lesson editor straight to a video host, and play it in the lesson with a per-student signed link: **Bunny Stream** or **VdoCipher** (DRM). Hosts are pluggable. Videos can also be stored on your own server (expiring per-student links, served by nginx) |
 | **Assessments** | Multiple-choice quizzes and exams with pass mark, attempt limit, server-enforced timer, explanations; answers revealed only after passing or using all attempts |
 | **Payments** | **Chapa** (telebirr, CBE Birr, M-Pesa, cards) verified with Chapa's API; **bank transfer / mobile money** with receipt upload and admin approval; emails to the student; printable receipts |
@@ -128,6 +131,16 @@ Copy a template from `academy/templates/` into the theme folder and edit the cop
 
 **3. Starter courses (`flask seed-demo --file my_courses.json`).** This loads courses, lessons and quizzes from a JSON file in the format of [`academy/sample_data/demo_courses.json`](academy/sample_data/demo_courses.json). Quiz answers are numbered from 1. The command also creates the demo admin account, so on a live site use it only on a test copy, or change that account's password afterwards.
 
+## Running the academy day to day
+
+**People.** *Admin → Students* lists learners; *Admin → Staff* lists admins and instructors. To add a teacher, open Staff, fill in the "Add a staff member" form and choose **Instructor**. They get an email with a link to choose a password (or, if email is not set up yet, the link appears on screen for you to send them). Then open a course and choose them in the **Instructor** field so they can edit it.
+
+**Courses.** *Admin → Courses → New course*, then follow the checklist on the course page: add lessons (the "Quick add" box creates a lesson and opens it), add a quiz, publish. In the lesson editor choose **Video**, **Text** or **External link**. For videos, upload to your video host or paste a YouTube or Vimeo link. Public YouTube or Vimeo videos are not protected, so use them for free content. Add files and links under "Files and links": one link per line as `Title | https://address`.
+
+**Assigning a course to students.** Open the course, click **Enroll and manage students**, tick the students and/or paste email addresses, and press Enroll. Students you enroll see the course under "My learning". If an address has no account yet, the course is added when that person registers. Students can also pay for themselves, and the list shows how each one got access.
+
+**Messages.** What visitors send from the Contact page appears under *Admin → Messages*.
+
 ## Video hosting
 
 Hosting video on a video service keeps the heavy traffic off your server, so a small, cheap server is enough. Set up one or both services; each lesson picks its host in the lesson editor.
@@ -157,6 +170,7 @@ academy/
   routes/            one blueprint per area: main, auth, learn, assess, pay, admin
   payments.py        Chapa integration       videohosts/  Bunny Stream and VdoCipher providers
   mail.py            SMTP email              utils.py   CSRF, access checks, progress
+  enrollment.py      assigning courses, invitations
   seed.py            JSON course loader      sample_data/demo_courses.json
   migrations/        database migrations (Flask-Migrate / Alembic)
   templates/ static/ built-in pages and styles (override with a theme folder)

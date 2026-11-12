@@ -194,7 +194,7 @@ def test_admin_creates_course_lesson_and_question(app):
     admin = app.test_client()
     login(admin, "admin@example.com", "admin12345")
     r = admin.post("/admin/courses/new", data={"title": "Customer Service Excellence", "price": "3000", "is_published": "1"})
-    cid = int(r.location.rstrip("/").split("/")[-1])
+    cid = int(re.search(r"/admin/courses/(\d+)", r.location).group(1))
     admin.post(f"/admin/courses/{cid}/lessons/new", data={
         "title": "Handling complaints", "kind": "video", "body": "Listen first.",
         "video": (io.BytesIO(b"fakevideo"), "complaints.mp4"),

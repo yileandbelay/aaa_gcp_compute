@@ -45,7 +45,7 @@
   <ol>
   {% for l in course.lessons %}
     <li style="margin-bottom:6px">
-      {% if l.kind == 'video' %}▶{% else %}≡{% endif %}
+      {% if l.kind == 'video' %}▶{% elif l.kind == 'link' %}↗{% else %}≡{% endif %}
       {% if progress is not none or l.is_preview %}<a href="{{ url_for('learn.lesson', lesson_id=l.id) }}">{{ l.title }}</a>{% else %}{{ l.title }} <span class="small muted">(locked)</span>{% endif %}
       {% if l.is_preview and progress is none %}<span class="badge">Free preview</span>{% endif %}
       {% if l.duration_min %}<span class="small muted">· {{ l.duration_min }} min</span>{% endif %}

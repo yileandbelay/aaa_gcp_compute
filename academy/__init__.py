@@ -62,6 +62,17 @@ def create_app(config_object=Config):
     app.jinja_env.filters["markdown"] = render_markdown
     app.jinja_env.filters["money"] = lambda v: f"{float(v or 0):,.2f}"
 
+    @app.context_processor
+    def admin_counters():
+        """Unread contact messages, shown as a badge in the admin navigation."""
+        from flask_login import current_user
+
+        from .models import ContactMessage
+
+        if current_user.is_authenticated and current_user.is_admin:
+            return {"unread_messages": ContactMessage.query.filter_by(is_read=False).count()}
+        return {"unread_messages": 0}
+
     @app.after_request
     def security_headers(resp):
         resp.headers.setdefault("X-Content-Type-Options", "nosniff")

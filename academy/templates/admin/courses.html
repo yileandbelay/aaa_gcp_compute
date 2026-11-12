@@ -3,13 +3,14 @@
 <h1>Courses</h1>{% include "admin/_nav.html" %}
 <p><a class="btn" href="{{ url_for('admin.course_new') }}">+ New course</a></p>
 <div class="table-wrap"><table>
-<tr><th>Title</th><th>Price</th><th>Lessons</th><th>Students</th><th>Status</th><th></th></tr>
+<tr><th>Title</th>{% if current_user.is_admin %}<th>Instructor</th>{% endif %}<th>Price</th><th>Lessons</th><th>Students</th><th>Status</th><th></th></tr>
 {% for c in courses %}<tr>
   <td><a href="{{ url_for('admin.course_edit', course_id=c.id) }}">{{ c.title }}</a></td>
+  {% if current_user.is_admin %}<td>{{ c.instructor.full_name if c.instructor else '–' }}</td>{% endif %}
   <td>{{ c.price|money }}</td><td>{{ c.lessons|length }}</td>
   <td><a href="{{ url_for('admin.course_students', course_id=c.id) }}">{{ c.enrollments|selectattr('status','equalto','active')|list|length }}</a></td>
   <td><span class="badge {{ 'active' if c.is_published else '' }}">{{ 'Published' if c.is_published else 'Draft' }}</span></td>
   <td><a href="{{ url_for('main.course_detail', slug=c.slug) }}">View</a></td>
-</tr>{% else %}<tr><td colspan="6" class="muted">No courses yet.</td></tr>{% endfor %}
+</tr>{% else %}<tr><td colspan="7" class="muted">No courses yet. Create your first one with "New course".</td></tr>{% endfor %}
 </table></div>
 {% endblock %}

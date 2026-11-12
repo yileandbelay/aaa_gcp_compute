@@ -20,6 +20,7 @@ class VideoProvider:
     help = ""           # one-line help under the video ID field
     ref_pattern = re.compile(r"^[A-Za-z0-9-]{8,64}$")  # what a valid video ID looks like
     burned_watermark = False  # True if the host burns the viewer's identity into the stream
+    overlay_watermark = True  # False for hosts whose videos are public anyway (YouTube)
 
     @property
     def config(self):
@@ -31,6 +32,18 @@ class VideoProvider:
 
     def valid_ref(self, ref):
         return bool(self.ref_pattern.match(ref or ""))
+
+    def normalize_ref(self, text):
+        """Turn what an admin typed (an ID, or a pasted URL) into the stored reference.
+        Raise ValueError if it isn't valid."""
+        text = (text or "").strip()
+        if not self.valid_ref(text):
+            raise ValueError(f"That does not look like a {self.label} video ID.")
+        return text
+
+    def display_ref(self, ref):
+        """What to show in the editor for a stored reference."""
+        return ref
 
     def embed_url(self, ref, user):
         """URL for the iframe player, personalised for ``user``."""

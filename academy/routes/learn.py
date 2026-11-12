@@ -139,6 +139,8 @@ def delete_comment(comment_id):
 def material(attachment_id):
     """Download a lesson handout. Same access rules as the lesson itself."""
     att = db.get_or_404(Attachment, attachment_id)
+    if att.is_link:
+        abort(404)
     _lesson_or_403(att.lesson_id)
     if not current_app.config["ALLOW_MATERIAL_DOWNLOAD"] and not current_user.is_staff:
         abort(403)

@@ -1,8 +1,12 @@
 """Public pages, course catalog and student dashboard."""
-from flask import Blueprint, abort, current_app, render_template, request
+from datetime import timedelta
+
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from ..models import Certificate, Course, Enrollment, Payment, db
+from ..enrollment import EMAIL_RE
+from ..mail import send_email
+from ..models import Certificate, ContactMessage, Course, Enrollment, Payment, db, utcnow
 from ..utils import course_progress
 
 bp = Blueprint("main", __name__)
@@ -86,3 +90,53 @@ def policy(page):
     if page not in POLICY_PAGES:
         abort(404)
     return render_template(f"policies/{page}.html", title=POLICY_PAGES[page])
+
+
+# --- Contact -------------------------------------------------------------------
+
+PLACEHOLDER_EMAILS = {"", "info@example.com"}
+
+
+def _client_ip():
+    return (request.remote_addr or "unknown")[:64]
+
+
+@bp.route("/contact", methods=["GET", "POST"])
+def contact():
+    cfg = current_app.config
+    form = request.form
+    if request.method == "POST" and cfg["CONTACT_FORM"]:
+        # Hidden field that real visitors leave empty; bots fill it in. Pretend it worked.
+        if form.get("website"):
+            flash("Thank you - your message has been sent.", "success")
+            return redirect(url_for("main.contact"))
+        name = form.get("name", "").strip()[:120]
+        email = form.get("email", "").strip()[:255]
+        subject = form.get("subject", "").strip()[:200]
+        message = form.get("message", "").strip()[:4000]
+        errors = []
+        if len(name) < 2:
+            errors.append("Please tell us your name.")
+        if not EMAIL_RE.match(email):
+            errors.append("Please enter a valid email address so we can reply.")
+        if len(message) < 10:
+            errors.append("Please write a message of at least a few words.")
+        recent = ContactMessage.query.filter(
+            ContactMessage.ip == _client_ip(),
+            ContactMessage.created_at >= utcnow() - timedelta(hours=1)).count()
+        if recent >= cfg["CONTACT_MAX_PER_HOUR"]:
+            errors.append("You have sent several messages already. Please try again later.")
+        if errors:
+            for e in errors:
+                flash(e, "error")
+            return render_template("contact.html", form=form), 400
+        db.session.add(ContactMessage(name=name, email=email, subject=subject or None, message=message,
+                                      ip=_client_ip()))
+        db.session.commit()
+        inbox = cfg["CONTACT_EMAIL"]
+        if inbox not in PLACEHOLDER_EMAILS:
+            send_email(inbox, f"[{cfg['SITE_NAME']}] {subject or 'New message'} - from {name}",
+                       f"From: {name} <{email}>\n\n{message}\n", reply_to=email)
+        flash("Thank you - your message has been sent. We will reply by email.", "success")
+        return redirect(url_for("main.contact"))
+    return render_template("contact.html", form=form)

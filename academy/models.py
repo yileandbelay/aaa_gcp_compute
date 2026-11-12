@@ -36,7 +36,8 @@ class User(UserMixin, db.Model):
     is_active_account = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=utcnow)
 
-    enrollments = db.relationship("Enrollment", back_populates="user", cascade="all, delete-orphan")
+    enrollments = db.relationship("Enrollment", foreign_keys="Enrollment.user_id", back_populates="user",
+                                  cascade="all, delete-orphan")
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -97,7 +98,7 @@ class Course(db.Model):
 
 
 class Lesson(db.Model):
-    TYPES = ("text", "video")
+    TYPES = ("text", "video", "link")  # link = an external resource (another site, a free course...)
 
     id = db.Column(db.Integer, primary_key=True)
     course_id = db.Column(db.Integer, db.ForeignKey("course.id"), nullable=False)
@@ -137,16 +138,30 @@ class Enrollment(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     course_id = db.Column(db.Integer, db.ForeignKey("course.id"), nullable=False)
     status = db.Column(db.String(20), nullable=False, default="pending")
+    # How the student got access: purchase (paid), assigned (added by staff), free (self-enrolled)
+    source = db.Column(db.String(20), nullable=False, default="purchase", server_default="purchase")
+    assigned_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     created_at = db.Column(db.DateTime, default=utcnow)
     activated_at = db.Column(db.DateTime)
 
-    user = db.relationship("User", back_populates="enrollments")
+    assigned_by = db.relationship("User", foreign_keys=[assigned_by_id])
+    user = db.relationship("User", foreign_keys=[user_id], back_populates="enrollments")
     course = db.relationship("Course", back_populates="enrollments")
     __table_args__ = (db.UniqueConstraint("user_id", "course_id"),)
 
-    def activate(self):
+    SOURCE_LABELS = {"purchase": "Paid", "assigned": "Assigned", "free": "Free enrollment"}
+
+    @property
+    def source_label(self):
+        return self.SOURCE_LABELS.get(self.source, self.source)
+
+    def activate(self, source=None, by=None):
         self.status = "active"
         self.activated_at = utcnow()
+        if source:
+            self.source = source
+        if by is not None:
+            self.assigned_by_id = by.id
 
 
 class Payment(db.Model):
@@ -183,7 +198,7 @@ class Payment(db.Model):
         if not enr:
             enr = Enrollment(user_id=self.user_id, course_id=self.course_id)
             db.session.add(enr)
-        enr.activate()
+        enr.activate(source="purchase")
 
 
 class LessonProgress(db.Model):
@@ -298,17 +313,59 @@ class Attachment(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     lesson_id = db.Column(db.Integer, db.ForeignKey("lesson.id"), nullable=False)
-    stored_name = db.Column(db.String(255), nullable=False)  # random name inside UPLOAD_DIR/materials
-    original_name = db.Column(db.String(255), nullable=False)
+    # A resource is either an uploaded file (stored_name) or a link to another site (url).
+    stored_name = db.Column(db.String(255))  # random name inside UPLOAD_DIR/materials
+    url = db.Column(db.String(500))
+    original_name = db.Column(db.String(255), nullable=False)  # file name, or the link's title
     size_bytes = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=utcnow)
 
     lesson = db.relationship("Lesson", back_populates="attachments")
 
     @property
+    def is_link(self):
+        return bool(self.url)
+
+    @property
+    def domain(self):
+        from urllib.parse import urlparse
+
+        return (urlparse(self.url or "").hostname or "").removeprefix("www.")
+
+    @property
     def size_label(self):
+        if self.is_link:
+            return self.domain
         size = self.size_bytes or 0
         for unit in ("B", "KB", "MB", "GB"):
             if size < 1024 or unit == "GB":
                 return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
             size /= 1024
+
+
+class Invitation(db.Model):
+    """A course assigned to an email address that has no account yet. It is applied
+    automatically when someone registers with that address."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), nullable=False, index=True)
+    course_id = db.Column(db.Integer, db.ForeignKey("course.id"), nullable=False)
+    invited_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    created_at = db.Column(db.DateTime, default=utcnow)
+
+    course = db.relationship("Course")
+    invited_by = db.relationship("User")
+    __table_args__ = (db.UniqueConstraint("email", "course_id"),)
+
+
+class ContactMessage(db.Model):
+    """A message sent through the public contact form."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    email = db.Column(db.String(255), nullable=False)
+    subject = db.Column(db.String(200))
+    message = db.Column(db.Text, nullable=False)
+    ip = db.Column(db.String(64), index=True)
+    is_read = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)

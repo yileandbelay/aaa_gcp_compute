@@ -1,8 +1,10 @@
-<div class="row" style="margin-bottom:18px">
+<div class="section-nav">
   <a class="btn secondary small" href="{{ url_for('admin.dashboard') }}">Overview</a>
   <a class="btn secondary small" href="{{ url_for('admin.courses') }}">Courses</a>
   {% if current_user.is_admin %}
   <a class="btn secondary small" href="{{ url_for('admin.students') }}">Students</a>
+  <a class="btn secondary small" href="{{ url_for('admin.staff') }}">Staff</a>
   <a class="btn secondary small" href="{{ url_for('admin.payments') }}">Payments</a>
+  <a class="btn secondary small" href="{{ url_for('admin.messages') }}">Messages{% if unread_messages %}<span class="nav-badge">{{ unread_messages }}</span>{% endif %}</a>
   {% endif %}
 </div>

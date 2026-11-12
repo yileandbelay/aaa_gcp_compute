@@ -17,29 +17,91 @@
       "hours": 12,
       "price": "2500.00",
       "lessons": [
-        {"title": "What makes a project a project", "kind": "text", "preview": true, "minutes": 10,
-         "body": "## Projects vs. operations\n\nA **project** is temporary and creates something unique. **Operations** are ongoing and repetitive.\n\n| | Project | Operations |\n|---|---|---|\n| Duration | Has a start and end | Continuous |\n| Output | Unique result | Repeated output |\n| Example | Opening a new branch | Running the branch |\n\n> **Tip:** If you can't say when it ends, it is probably not a project yet."},
-        {"title": "Scope and the work breakdown structure", "kind": "video", "minutes": 22,
-         "body": "Watch the walkthrough, then practise on your own project.\n\n### Steps\n1. Write the project objective in one sentence.\n2. List the major deliverables.\n3. Break each deliverable into work packages small enough to estimate (8-80 hours)."},
-        {"title": "Scheduling with milestones", "kind": "text", "minutes": 15,
-         "body": "## Milestones\n\nA milestone marks a significant point - it has **no duration**.\n\n- Sign-off of requirements\n- Prototype approved\n- Go-live\n\n### Critical path\nThe longest chain of dependent tasks. Any delay on it delays the whole project."},
-        {"title": "Managing risks", "kind": "text", "minutes": 12,
-         "body": "## Risk register\n\n| Risk | Likelihood | Impact | Response |\n|---|---|---|---|\n| Key supplier late | Medium | High | Second supplier on standby |\n| Budget cut | Low | High | Prioritised scope list |\n\nReview the register at every status meeting."}
+        {
+          "title": "What makes a project a project",
+          "kind": "text",
+          "preview": true,
+          "minutes": 10,
+          "body": "## Projects vs. operations\n\nA **project** is temporary and creates something unique. **Operations** are ongoing and repetitive.\n\n| | Project | Operations |\n|---|---|---|\n| Duration | Has a start and end | Continuous |\n| Output | Unique result | Repeated output |\n| Example | Opening a new branch | Running the branch |\n\n> **Tip:** If you can't say when it ends, it is probably not a project yet."
+        },
+        {
+          "title": "Scope and the work breakdown structure",
+          "kind": "video",
+          "minutes": 22,
+          "body": "Watch the walkthrough, then practise on your own project.\n\n### Steps\n1. Write the project objective in one sentence.\n2. List the major deliverables.\n3. Break each deliverable into work packages small enough to estimate (8-80 hours)."
+        },
+        {
+          "title": "Scheduling with milestones",
+          "kind": "text",
+          "minutes": 15,
+          "body": "## Milestones\n\nA milestone marks a significant point - it has **no duration**.\n\n- Sign-off of requirements\n- Prototype approved\n- Go-live\n\n### Critical path\nThe longest chain of dependent tasks. Any delay on it delays the whole project."
+        },
+        {
+          "title": "Managing risks",
+          "kind": "text",
+          "minutes": 12,
+          "body": "## Risk register\n\n| Risk | Likelihood | Impact | Response |\n|---|---|---|---|\n| Key supplier late | Medium | High | Second supplier on standby |\n| Budget cut | Low | High | Prioritised scope list |\n\nReview the register at every status meeting."
+        },
+        {
+          "title": "Further reading and free resources",
+          "kind": "link",
+          "minutes": 10,
+          "body": "Keep learning with these free resources from respected organisations.",
+          "links": [
+            {
+              "title": "Project Management Institute",
+              "url": "https://www.pmi.org"
+            },
+            {
+              "title": "Free project templates",
+              "url": "https://www.pmi.org/learning"
+            }
+          ]
+        }
       ],
       "assessments": [
-        {"title": "Final exam", "final": true, "pass_mark": 70, "attempts": 3, "minutes": 20,
-         "instructions": "Answer all questions. You need 70% to pass.",
-         "questions": [
-           {"text": "Which of these is a project rather than operations?",
-            "options": ["Paying monthly salaries", "Opening a new branch office", "Answering daily customer calls", "Monthly stock count"],
-            "answer": 2, "explanation": "Opening a branch is temporary and produces a unique result."},
-           {"text": "What is the duration of a milestone?",
-            "options": ["One day", "One week", "Zero - it marks a point in time", "It depends on the task"],
-            "answer": 3},
-           {"text": "What is the critical path?",
-            "options": ["The most expensive tasks", "The longest chain of dependent tasks", "Tasks done by the project manager", "The first tasks in the plan"],
-            "answer": 2, "explanation": "A delay on the critical path delays the whole project."}
-         ]}
+        {
+          "title": "Final exam",
+          "final": true,
+          "pass_mark": 70,
+          "attempts": 3,
+          "minutes": 20,
+          "instructions": "Answer all questions. You need 70% to pass.",
+          "questions": [
+            {
+              "text": "Which of these is a project rather than operations?",
+              "options": [
+                "Paying monthly salaries",
+                "Opening a new branch office",
+                "Answering daily customer calls",
+                "Monthly stock count"
+              ],
+              "answer": 2,
+              "explanation": "Opening a branch is temporary and produces a unique result."
+            },
+            {
+              "text": "What is the duration of a milestone?",
+              "options": [
+                "One day",
+                "One week",
+                "Zero - it marks a point in time",
+                "It depends on the task"
+              ],
+              "answer": 3
+            },
+            {
+              "text": "What is the critical path?",
+              "options": [
+                "The most expensive tasks",
+                "The longest chain of dependent tasks",
+                "Tasks done by the project manager",
+                "The first tasks in the plan"
+              ],
+              "answer": 2,
+              "explanation": "A delay on the critical path delays the whole project."
+            }
+          ]
+        }
       ]
     },
     {
@@ -52,8 +114,12 @@
       "hours": 4,
       "price": "0",
       "lessons": [
-        {"title": "Essential formulas: SUM, AVERAGE, IF", "kind": "text", "minutes": 15,
-         "body": "## Three formulas to start with\n\n- `=SUM(B2:B20)` adds a range\n- `=AVERAGE(B2:B20)` gives the mean\n- `=IF(C2>=50,\"Pass\",\"Fail\")` returns one of two values\n\nPractise with the attached workbook."}
+        {
+          "title": "Essential formulas: SUM, AVERAGE, IF",
+          "kind": "text",
+          "minutes": 15,
+          "body": "## Three formulas to start with\n\n- `=SUM(B2:B20)` adds a range\n- `=AVERAGE(B2:B20)` gives the mean\n- `=IF(C2>=50,\"Pass\",\"Fail\")` returns one of two values\n\nPractise with the attached workbook."
+        }
       ],
       "assessments": []
     }

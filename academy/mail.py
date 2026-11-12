@@ -5,7 +5,7 @@ from email.message import EmailMessage
 from flask import current_app
 
 
-def send_email(to, subject, body):
+def send_email(to, subject, body, reply_to=None):
     """Send a plain-text email. Returns True if handed to the SMTP server.
 
     Without MAIL_SERVER configured (local development) the message is logged
@@ -19,6 +19,8 @@ def send_email(to, subject, body):
     msg["From"] = cfg["MAIL_FROM"]
     msg["To"] = to
     msg["Subject"] = subject
+    if reply_to:
+        msg["Reply-To"] = reply_to
     msg.set_content(body)
     try:
         with smtplib.SMTP(cfg["MAIL_SERVER"], cfg["MAIL_PORT"], timeout=15) as smtp:

@@ -1,0 +1,38 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf, progress_bar %}
+{% block title %}{{ user.full_name }} · Admin{% endblock %}
+{% block content %}
+<p class="small"><a href="{{ url_for('admin.staff') if user.is_staff else url_for('admin.students') }}">← {{ 'Staff' if user.is_staff else 'Students' }}</a></p>
+<h1>{{ user.full_name }} <span class="badge {{ 'active' if user.role == 'admin' else '' }}">{{ user.role }}</span></h1>
+<div class="card">
+  <p>{{ user.email }} · {{ user.phone or 'no phone' }} · {{ user.city or '' }} · joined {{ user.created_at.strftime('%d %b %Y') }}{% if not user.is_active_account %} · <span class="badge failed">suspended</span>{% endif %}</p>
+  {% if user.id != current_user.id %}
+  <div class="row">
+    <form method="post" class="row">{{ csrf() }}<input type="hidden" name="action" value="role">
+      <select name="role" aria-label="Role" style="width:auto">{% for r in ['student','instructor','admin'] %}<option value="{{ r }}" {{ 'selected' if user.role == r }}>{{ 'instructor (course admin)' if r == 'instructor' else r }}</option>{% endfor %}</select><button class="btn small secondary">Change role</button></form>
+    <form method="post">{{ csrf() }}<input type="hidden" name="action" value="toggle_active"><button class="btn small {{ 'danger' if user.is_active_account else 'ok' }}">{{ 'Suspend account' if user.is_active_account else 'Reactivate account' }}</button></form>
+  </div>
+  <p class="small muted">Changing a student to instructor or admin moves them from Students to Staff. A suspended account cannot log in.</p>
+  {% else %}<p class="small muted">This is your own account. Ask another admin to change your role or suspend you.</p>{% endif %}
+</div>
+
+{% if user.is_staff %}
+<div class="card"><h2>Courses taught</h2>
+  <ul>{% for c in teaching %}<li><a href="{{ url_for('admin.course_edit', course_id=c.id) }}">{{ c.title }}</a></li>{% else %}<li class="muted">None. {{ 'Admins can edit every course.' if user.role == 'admin' else 'Assign courses to this instructor from the course page (Instructor field).' }}</li>{% endfor %}</ul>
+</div>
+{% else %}
+<div class="card"><h2>Courses</h2><table>
+{% for e, p in rows %}<tr><td><a href="{{ url_for('admin.course_students', course_id=e.course.id) }}">{{ e.course.title }}</a></td><td><span class="badge {{ e.status }}">{{ e.status }}</span></td><td class="small">{{ e.source_label }}{% if e.source == 'assigned' and e.assigned_by %} by {{ e.assigned_by.full_name }}{% endif %}</td><td style="width:26%">{{ progress_bar(p.percent) }}</td>
+<td>{% if e.status == 'active' %}<form method="post">{{ csrf() }}<input type="hidden" name="action" value="revoke"><input type="hidden" name="enrollment_id" value="{{ e.id }}"><button class="linkbtn">remove access</button></form>{% endif %}</td></tr>
+{% else %}<tr><td class="muted">Not enrolled in any course.</td></tr>{% endfor %}</table>
+{% if courses %}
+<h3>Assign a course</h3>
+<form method="post" class="row">{{ csrf() }}<input type="hidden" name="action" value="grant">
+  <select name="course_id" aria-label="Course" style="width:auto;max-width:100%">{% for c in courses %}<option value="{{ c.id }}">{{ c.title }}</option>{% endfor %}</select>
+  <label class="check" style="margin:0"><input type="checkbox" name="notify" value="1" checked> Email them</label>
+  <button class="btn small">Give access</button></form>
+<p class="small muted">For scholarships, staff training, or students who paid by other means.</p>
+{% endif %}
+</div>
+<div class="card"><h2>Payments</h2>{% include "admin/_payments_table.html" %}</div>
+{% endif %}
+{% endblock %}
