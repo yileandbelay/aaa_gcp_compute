@@ -567,3 +567,65 @@ def test_topic_tiles_show_a_decorative_icon(catalog):
     html = catalog.test_client().get("/").get_data(as_text=True)
     tile = re.search(r'<a class="topic".*?</a>', html, re.S).group(0)
     assert 'class="topic-icon"' in tile and 'aria-hidden="true"' in tile and "#i-briefcase" in html
+
+
+# --- Course card anatomy ----------------------------------------------------------------------
+
+def card_html(app, slug, user=None):
+    c = app.test_client()
+    if user:
+        login(c, *user)
+    html = c.get("/courses").get_data(as_text=True)
+    for m in re.finditer(r'<article class="card course-card">.*?</article>', html, re.S):
+        if f"/courses/{slug}" in m.group(0):
+            return m.group(0)
+
+
+def order(card, *markers):
+    positions = [card.index(m) for m in markers]
+    assert positions == sorted(positions), dict(zip(markers, positions))
+
+
+def test_course_card_has_one_fixed_order(app):
+    from academy.models import User
+
+    with app.app_context():
+        teacher = User.query.filter_by(email="admin@example.com").first()
+        cid = add_course(app, "Full Card", level="Intermediate", category="Business", hours=3, price="750",
+                         summary="Everything present", minutes=20)
+        db.session.get(Course, cid).instructor_id = teacher.id
+        db.session.commit()
+    card = card_html(app, "full-card")
+    order(card, 'class="cover"', 'class="meta"', "<h3>", 'class="small muted instructor"', 'class="summary"',
+          'class="foot"', 'class="price', 'class="small muted counts"', 'class="actions"')
+
+
+def test_course_card_with_only_title_and_price_leaves_slots_out(app):
+    add_course(app, "Bare Card", price="0")
+    card = card_html(app, "bare-card")
+    assert "instructor" not in card and 'class="summary"' not in card and 'class="rating"' not in card
+    order(card, "<h3>", 'class="foot"', 'class="actions"')
+    assert "Free" in card
+
+
+def test_course_card_prices_and_actions(app):
+    add_course(app, "Paid One", price="500")
+    add_course(app, "Free One", price="0")
+    assert "500.00" in card_html(app, "paid-one") and "Free" in card_html(app, "free-one")
+    assert ">Enroll<" in card_html(app, "paid-one")
+    c = app.test_client()
+    register(c)
+    with app.app_context():
+        from academy.models import Enrollment, User
+
+        u = User.query.filter_by(email="student@example.com").first()
+        e = Enrollment(user_id=u.id, course_id=Course.query.filter_by(slug="free-one").first().id)
+        db.session.add(e)
+        e.activate(source="free")
+        db.session.commit()
+    html = c.get("/courses").get_data(as_text=True)
+    mine = [m.group(0) for m in re.finditer(r'<article class="card course-card">.*?</article>', html, re.S)
+            if "/courses/free-one" in m.group(0)][0]
+    assert "Continue learning" in mine and ">Enroll<" not in mine
+    staff = card_html(app, "free-one", ("admin@example.com", "admin12345"))
+    assert "Continue learning" in staff

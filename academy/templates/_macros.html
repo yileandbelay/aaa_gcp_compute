@@ -26,11 +26,11 @@
   <div class="body">
     <div class="meta"><span class="badge">{{ _(c.level) }}</span>{% if c.length_hours %}<span>{{ hours(c) }}</span>{% endif %}</div>
     <h3><a href="{{ url_for('main.course_detail', slug=c.slug) }}">{{ c.title }}</a></h3>
-    {% if c.instructor %}<p class="small muted" style="margin:0">{{ c.instructor.full_name }}</p>{% endif %}
+    {% if c.instructor %}<p class="small muted instructor">{{ c.instructor.full_name }}</p>{% endif %}
     {% if r and r[1] and config.FEATURE_REVIEWS %}<div>{{ stars(r[0], r[1]) }}</div>{% endif %}
     {% if c.summary %}<p class="summary">{{ c.summary }}</p>{% endif %}
     {% set nl, na = c.lessons|length, c.assessments|length %}
-    <div class="foot"><span class="price {{ 'is-free' if c.is_free }}">{{ price(c) }}</span><span class="small muted">{{ _n('%(n)s lesson', '%(n)s lessons', nl) }}{% if na %} · {{ _n('%(n)s assessment', '%(n)s assessments', na) }}{% endif %}</span></div>
+    <div class="foot"><span class="price {{ 'is-free' if c.is_free }}">{{ price(c) }}</span><span class="small muted counts">{% if nl %}{{ _n('%(n)s lesson', '%(n)s lessons', nl) }}{% endif %}{% if nl and na %} · {% endif %}{% if na %}{{ _n('%(n)s assessment', '%(n)s assessments', na) }}{% endif %}</span></div>
     {# Enroll for everyone: guests are asked to create an account first and then come back to enrolling #}
     <div class="actions">
       {% if current_user.is_authenticated and mine is not none and c.id in mine %}
