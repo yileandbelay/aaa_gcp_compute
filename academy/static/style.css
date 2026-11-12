@@ -81,7 +81,7 @@ img, video, svg { max-width: 100%; }
 h1, h2, h3, h4 { color: var(--ink); line-height: 1.25; margin: 0 0 var(--s3); letter-spacing: -.012em; font-weight: 700; text-wrap: balance; }
 h1 { font-size: 1.75rem; }
 h2 { font-size: 1.3rem; }
-h3 { font-size: 1.05rem; }
+h3, .subhead { font-size: 1.05rem; }
 p { margin: 0 0 var(--s4); }
 a { color: var(--brand); text-underline-offset: 3px; }
 a:hover { color: var(--brand-dark); }
@@ -259,8 +259,7 @@ header.top { background: rgba(255, 255, 255, .94); backdrop-filter: saturate(1.4
 
 footer.site-footer { background: var(--surface); border-top: 1px solid var(--line); color: var(--muted); font-size: .92rem; padding-block: var(--s6); }
 .footer-grid { display: grid; gap: var(--s5); }
-.footer-grid h4 { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink); margin-bottom: var(--s2); }
-html[lang=am] .footer-grid h4 { letter-spacing: 0; text-transform: none; }
+.footer-grid .footer-title { font-size: .95rem; color: var(--ink); margin-bottom: var(--s2); }
 .footer-grid a { display: block; color: var(--muted); text-decoration: none; padding: 4px 0; }
 .footer-grid a.logo { display: inline-flex; color: var(--ink); padding: 0; }
 .footer-grid a:hover { color: var(--brand); text-decoration: underline; }
@@ -359,6 +358,7 @@ html[lang=am] .course-card .cover { letter-spacing: 0; text-transform: none; fon
 .course-hero { background: var(--brand-soft); border: 1px solid var(--line); border-radius: calc(var(--radius) + 6px); padding: var(--s5); margin-bottom: var(--s5); }
 .course-hero h1 { margin-bottom: var(--s2); }
 .course-hero .badge, .hero .badge { background: var(--surface); }
+.course-hero a { color: var(--brand-dark); }   /* emerald text on sage needs the darker green (4.5:1) */
 .course-hero .lead { color: var(--muted); font-size: 1.05rem; max-width: 64ch; }
 .course-layout { display: grid; gap: var(--s5); grid-template-areas: "side" "main"; }
 .course-main { grid-area: main; min-width: 0; }
@@ -578,3 +578,10 @@ body.has-tabbar.has-mobile-cta { padding-bottom: 140px; }
 .sidebar .section-heading { font-weight: 700; font-size: .85rem; color: var(--muted); padding: var(--s3) 10px 2px; list-style: none; }
 .section-row th { background: var(--brand-soft); text-align: left; }
 .section-row form { margin: 0; }
+
+.flash a { color: inherit; font-weight: 700; text-decoration: underline; }   /* links inside coloured notices stay readable */
+
+/* Wide tables in lesson text scroll inside their own box instead of widening the page (checked at 320px) */
+.lesson-body { overflow-wrap: anywhere; min-width: 0; }
+.lesson-body table { display: block; max-width: 100%; overflow-x: auto; }
+.layout-lesson > article { min-width: 0; }

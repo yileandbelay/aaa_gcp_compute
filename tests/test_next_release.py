@@ -1470,3 +1470,45 @@ def test_catalog_with_filters_and_sorting_also_has_a_fixed_query_cost(tmp_path):
     many_app, _ = build_site(tmp_path, "many", 20, 8)
     for path in ("/courses?sort=popular", "/courses?price=free", "/courses?q=Q1", "/courses?category=Cat1&level=Beginner"):
         assert count_queries(few_app, path) == count_queries(many_app, path), path
+
+
+# --- NX-11 audit fixes ------------------------------------------------------------------------
+
+def headings(html):
+    return [int(n) for n in re.findall(r"<h([1-6])[ >]", html)]
+
+
+def test_headings_never_skip_a_level_on_the_main_student_pages(app):
+    guest = app.test_client()
+    stu = student_client(app, "audit@example.com")
+    for client, path in ((guest, "/"), (guest, "/courses"), (guest, "/courses/project-management-fundamentals"),
+                         (guest, "/login"), (stu, "/profile"), (stu, "/dashboard")):
+        levels = headings(client.get(path).data.decode())
+        assert levels.count(1) == 1, path                                   # one h1 per page
+        assert all(b - a <= 1 for a, b in zip(levels, levels[1:])), (path, levels)
+
+
+def test_footer_titles_are_real_headings_without_uppercase_styling(app):
+    page = app.test_client().get("/").data.decode().split('<footer class="site-footer">')[1]
+    assert "<h4" not in page and page.count('class="footer-title"') == 2
+    css = open("academy/static/style.css").read()
+    assert not re.search(r"\.footer-grid \.footer-title \{[^}]*text-transform: uppercase", css)
+
+
+def test_a_favicon_is_declared_so_browsers_do_not_request_a_missing_one(app):
+    page = app.test_client().get("/").data.decode()
+    assert '<link rel="icon" href="data:image/svg+xml,' in page and "%23287D63" in page
+    app.config["BRAND_COLOR"] = "#123456"
+    assert "%23123456" in app.test_client().get("/").data.decode()
+
+
+def test_emerald_text_on_sage_uses_the_darker_green_and_notice_links_stay_readable():
+    css = open("academy/static/style.css").read()
+    assert re.search(r"\.course-hero a \{ color: var\(--brand-dark\); \}", css)
+    assert re.search(r"\.flash a \{ color: inherit;", css)
+
+
+def test_wide_lesson_tables_scroll_inside_their_box_and_do_not_widen_the_page():
+    css = open("academy/static/style.css").read()
+    assert re.search(r"\.layout-lesson > article \{ min-width: 0; \}", css)
+    assert re.search(r"\.lesson-body table \{ display: block;[^}]*overflow-x: auto", css)
