@@ -186,3 +186,8 @@ def test_staff_login_page_in_amharic(app):
     c.set_cookie("lang", "am")
     page = c.get("/login?area=staff").data.decode()
     assert "የመምህር እና የአስተዳዳሪ መግቢያ" in page and "Teacher and admin sign in" not in page
+
+
+def test_video_hosts_are_told_which_site_embeds_them(app):
+    r = app.test_client().get("/")
+    assert r.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"

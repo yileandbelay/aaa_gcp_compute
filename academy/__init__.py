@@ -88,7 +88,9 @@ def create_app(config_object=Config):
     def security_headers(resp):
         resp.headers.setdefault("X-Content-Type-Options", "nosniff")
         resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
-        resp.headers.setdefault("Referrer-Policy", "same-origin")
+        # Other sites get only our domain name (no page address). Video hosts such as Bunny need
+        # that to check their "allowed domains" list; "same-origin" sent them nothing, so they refused.
+        resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         return resp
 
     for code in (400, 403, 404, 413):
