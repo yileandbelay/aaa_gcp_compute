@@ -97,12 +97,29 @@ def localdate(value, fmt="%d %b %Y"):
     return text
 
 
+def duration(minutes):
+    """Minutes as people say them: "15 min", "1 h", "1 h 20 min". Empty for nothing or less."""
+    try:
+        total = int(round(float(minutes or 0)))
+    except (TypeError, ValueError):
+        return ""
+    if total <= 0:
+        return ""
+    hours, mins = divmod(total, 60)
+    if not hours:
+        return gettext("%(n)s min", n=mins)
+    if not mins:
+        return gettext("%(n)s h", n=hours)
+    return f"{gettext('%(n)s h', n=hours)} {gettext('%(n)s min', n=mins)}"
+
+
 def init_app(app):
     app.extensions["i18n"] = load_catalogs(app)
     app.jinja_env.globals.update(
         _=gettext, _n=ngettext, current_lang=current_language,
         language_names=LANGUAGE_NAMES, language_short=LANGUAGE_SHORT, available_languages=lambda: app.config["LANGUAGES"])
     app.jinja_env.filters["localdate"] = localdate
+    app.jinja_env.filters["duration"] = duration
 
     @app.context_processor
     def translated_site_name():

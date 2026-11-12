@@ -1,7 +1,7 @@
 {% macro csrf() %}<input type="hidden" name="_csrf" value="{{ csrf_token() }}">{% endmacro %}
 {% macro progress_bar(pct) %}<div class="progress" role="progressbar" aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100" title="{{ pct }}%"><div style="width:{{ pct }}%"></div></div>{% endmacro %}
 {% macro price(course) %}{% if course.is_free %}{{ _('Free') }}{% else %}{{ course.price|money }} {{ currency }}{% endif %}{% endmacro %}
-{% macro hours(course) %}{% if course.length_hours %}{{ _('%(n)s h', n='%g'|format(course.length_hours|round(1))) }}{% endif %}{% endmacro %}
+{% macro hours(course) %}{% if course.length_hours %}{{ (course.length_hours * 60)|duration }}{% endif %}{% endmacro %}
 {% macro icon(name) %}<svg class="i" aria-hidden="true"><use href="#i-{{ name }}"/></svg>{% endmacro %}
 {# Shown instead of a course list while no course is published. #}
 {% macro empty_panel() %}

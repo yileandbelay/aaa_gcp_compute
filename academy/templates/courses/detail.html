@@ -32,7 +32,7 @@
       {% endif %}
       <ul class="includes" aria-label="{{ _('This course includes') }}">
         {% if course.lessons %}<li>{{ _n('%(n)s lesson', '%(n)s lessons', course.lessons|length) }}{% if videos %} ({{ _n('%(n)s video', '%(n)s videos', videos) }}){% endif %}</li>{% endif %}
-        {% if course.total_minutes %}<li>{{ _('%(n)s h of lessons', n='%g'|format((course.total_minutes / 60)|round(1))) }}</li>{% endif %}
+        {% if course.total_minutes %}<li>{{ _('%(time)s of lessons', time=course.total_minutes|duration) }}</li>{% endif %}
         {% if course.assessments %}<li>{{ _n('%(n)s quiz or exam', '%(n)s quizzes or exams', course.assessments|length) }}</li>{% endif %}
         {% if course.file_count %}<li>{{ _n('%(n)s downloadable file', '%(n)s downloadable files', course.file_count) }}</li>{% endif %}
         {% if config.FEATURE_CERTIFICATES %}<li>{{ _('Certificate of completion') }}</li>{% endif %}
@@ -54,7 +54,7 @@
 {% if course.description %}<div class="card"><h2>{{ _('About this course') }}</h2>{{ course.description|markdown }}</div>{% endif %}
 
 <div class="card" id="syllabus">
-  <div class="row spread"><h2>{{ _('Syllabus') }}</h2>{% if course.total_minutes %}<span class="muted small">{{ _n('%(n)s lesson', '%(n)s lessons', course.lessons|length) }} · {{ _('%(n)s h', n='%g'|format((course.total_minutes / 60)|round(1))) }}</span>{% endif %}</div>
+  <div class="row spread"><h2>{{ _('Syllabus') }}</h2>{% if course.total_minutes %}<span class="muted small">{{ _n('%(n)s lesson', '%(n)s lessons', course.lessons|length) }} · {{ course.total_minutes|duration }}</span>{% endif %}</div>
   <ol class="syllabus">
   {% for l in course.lessons %}
     <li>
@@ -63,7 +63,7 @@
         {% if l.is_preview and progress is none %}<span class="badge">{{ _('Free preview') }}</span>{% endif %}
         {% if l.attachments %}<span class="small muted"> · {{ _n('%(n)s file or link', '%(n)s files or links', l.attachments|length) }}</span>{% endif %}
         {% if progress and l.id in progress.done_lessons %}<span class="badge passed">✓ {{ _('done') }}</span>{% endif %}</span>
-      <span class="small muted dur">{% if l.duration_min %}{{ _('%(n)s min', n=l.duration_min) }}{% endif %}</span>
+      <span class="small muted dur">{{ l.duration_min|duration }}</span>
     </li>
   {% else %}<li class="muted">{{ _('Lessons coming soon.') }}</li>{% endfor %}
   </ol>
