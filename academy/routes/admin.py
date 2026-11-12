@@ -23,9 +23,10 @@ from ..ledger import paid_total, paid_totals, record_payment
 from ..settings import (PAYMENT_INSTRUCTIONS, PAYMENT_INSTRUCTIONS_AM, get_setting, payment_instructions,
                         set_setting)
 from ..mail import send_email
+from ..reports import monthly_report, report_years
 from ..reviews import rating_summary
 from ..models import (Announcement, Assessment, Attachment, Attempt, Certificate, ContactMessage, Course,
-                      Enrollment, Invitation, Lesson, LessonProgress, Payment, Question, Review, User, db)
+                      Enrollment, Invitation, Lesson, LessonProgress, Payment, Question, Review, User, db, utcnow)
 from ..utils import admin_required, course_progress, save_upload, slugify, staff_required
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -927,6 +928,38 @@ def payment_review(payment_id):
                    f"{' Reason: ' + p.note if p.note else ''}\n\nYou can submit a new receipt here:\n{course_link}\n"
                    f"\n{site}\n")
     return redirect(url_for("admin.payments", status=request.form.get("back_status", "")))
+
+
+# --- Revenue and enrolment report (admin) -----------------------------------------
+
+def _report_year():
+    year = _int(request.args.get("year"), 0)
+    return year if 2000 <= year <= 2100 else utcnow().year
+
+
+@bp.route("/reports")
+@admin_required
+def reports():
+    year = _report_year()
+    rows, totals = monthly_report(year)
+    return render_template("admin/reports.html", year=year, years=report_years(), rows=rows, totals=totals)
+
+
+@bp.route("/reports.csv")
+@admin_required
+def reports_csv():
+    year = _report_year()
+    rows, totals = monthly_report(year)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["year", "month", "course", "confirmed_payments", "revenue", "currency", "new_enrolments"])
+    for r in rows:
+        w.writerow([year, r["month_name"], r["course"], r["payments"], f"{r['revenue']:.2f}",
+                    current_app.config["CURRENCY"], r["enrolments"]])
+    w.writerow([year, "TOTAL", "", totals["payments"], f"{totals['revenue']:.2f}", current_app.config["CURRENCY"],
+                totals["enrolments"]])
+    return Response(buf.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition": f"attachment; filename=report-{year}.csv"})
 
 
 # --- Contact messages (admin) -------------------------------------------------

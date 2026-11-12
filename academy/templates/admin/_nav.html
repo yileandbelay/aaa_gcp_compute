@@ -6,6 +6,7 @@
   <a href="{{ url_for('admin.students') }}" {% if ep == 'admin.students' or (ep == 'admin.user_detail' and user is defined and not user.is_staff) %}aria-current="page"{% endif %}>Students</a>
   <a href="{{ url_for('admin.staff') }}" {% if ep == 'admin.staff' or (ep == 'admin.user_detail' and user is defined and user.is_staff) %}aria-current="page"{% endif %}>Staff</a>
   <a href="{{ url_for('admin.payments') }}" {% if ep.startswith('admin.payment') %}aria-current="page"{% endif %}>Payments</a>
+  <a href="{{ url_for('admin.reports') }}" {% if ep.startswith('admin.report') %}aria-current="page"{% endif %}>Reports</a>
   <a href="{{ url_for('admin.messages') }}" {% if ep.startswith('admin.message') %}aria-current="page"{% endif %}>Messages{% if unread_messages %}<span class="nav-badge">{{ unread_messages }}</span>{% endif %}</a>
   {% endif %}
 </nav>

@@ -430,3 +430,100 @@ def test_admin_recorded_payments_do_not_send_the_receipt_notice(app, monkeypatch
         sid, cid = stu.id, Course.query.filter(Course.price > 0).first().id
     admin_client(app).post("/admin/payments/record", data={"user_id": sid, "course_id": cid, "amount": "100", "channel": "cash", "confirm": "1"})
     assert sent == []
+
+
+# --- NX-14: revenue and enrolment report ------------------------------------------------------
+
+from datetime import datetime  # noqa: E402
+
+
+def seed_money(app):
+    """Confirmed payments in March and April 2026 (and one in 2025), plus ignored ones."""
+    from academy.models import Enrollment, Payment
+    with app.app_context():
+        a, b = [c.id for c in Course.query.order_by(Course.id).limit(2)]
+        users = []
+        for i in range(5):
+            u = User(email=f"r{i}@example.com", full_name=f"Reporter {i}")
+            u.set_password("secret123")
+            db.session.add(u)
+            users.append(u)
+        db.session.flush()
+
+        def pay(user, course, amount, when, status="paid"):
+            db.session.add(Payment(user_id=user.id, course_id=course, amount=Decimal(amount), currency="ETB", method="manual",
+                                   status=status, paid_at=when if status == "paid" else None))
+
+        def join(user, course, when):
+            e = Enrollment(user_id=user.id, course_id=course, status="active", activated_at=when)
+            db.session.add(e)
+
+        pay(users[0], a, "1000", datetime(2026, 3, 5, 12)); pay(users[1], a, "1500.50", datetime(2026, 3, 20, 12))
+        pay(users[2], b, "700", datetime(2026, 3, 9, 12)); pay(users[3], a, "999", datetime(2026, 3, 9), status="submitted")
+        pay(users[3], b, "400", datetime(2026, 4, 2, 12)); pay(users[4], a, "250", datetime(2025, 12, 31, 12))
+        join(users[0], a, datetime(2026, 3, 5)); join(users[1], a, datetime(2026, 3, 20)); join(users[2], b, datetime(2026, 3, 9))
+        join(users[3], b, datetime(2026, 4, 2)); join(users[4], a, datetime(2025, 12, 31))
+        db.session.commit()
+        return a, b
+
+
+def parse_table(html):
+    rows = re.findall(r"<tr><td>(\w+)</td><td>([^<]+)</td><td>(\d+)</td><td>([\d,\.]+)</td><td>(\d+)</td></tr>", html)
+    return [(m, c, int(p), r.replace(",", ""), int(e)) for m, c, p, r, e in rows]
+
+
+def test_report_totals_match_the_payments(app):
+    seed_money(app)
+    page = admin_client(app).get("/admin/reports?year=2026").data.decode()
+    rows = parse_table(page)
+    march = [r for r in rows if r[0] == "March"]
+    assert sum(r[2] for r in march) == 3 and sum(Decimal(r[3]) for r in march) == Decimal("3200.50")   # paid only
+    assert sum(r[4] for r in march) == 3
+    april = [r for r in rows if r[0] == "April"]
+    assert sum(Decimal(r[3]) for r in april) == Decimal("400.00") and sum(r[4] for r in april) == 1
+    assert "3,600.50 ETB" in page and "2026" in page
+    assert all("December" != r[0] for r in rows)                          # last year's payment is not in 2026
+    # the same numbers as the payments table
+    with app.app_context():
+        from academy.models import Payment
+        total = sum(Decimal(str(p.amount)) for p in Payment.query.filter(Payment.status == "paid") if p.paid_at.year == 2026)
+    assert total == Decimal("3600.50")
+
+
+def test_report_filters_by_year_and_lists_years_with_data(app):
+    seed_money(app)
+    admin = admin_client(app)
+    page = admin.get("/admin/reports?year=2025").data.decode()
+    assert "250.00 ETB" in page and "December" in page and "2026" in page.split("Year:")[1][:200]
+    assert "Nothing recorded in" in admin.get("/admin/reports?year=2031").data.decode()
+    assert "Nothing recorded" not in admin.get("/admin/reports?year=2026").data.decode()
+    assert admin.get("/admin/reports?year=banana").status_code == 200       # falls back to this year
+
+
+def test_report_csv_matches_the_screen(app):
+    seed_money(app)
+    admin = admin_client(app)
+    screen = parse_table(admin.get("/admin/reports?year=2026").data.decode())
+    r = admin.get("/admin/reports.csv?year=2026")
+    assert r.status_code == 200 and r.mimetype == "text/csv" and "report-2026.csv" in r.headers["Content-Disposition"]
+    lines = [l.split(",") for l in r.data.decode().strip().splitlines()]
+    assert lines[0][:3] == ["year", "month", "course"]
+    body, total = lines[1:-1], lines[-1]
+    assert [(l[1], l[2], int(l[3]), l[4], int(l[6])) for l in body] == [(m, c, p, f"{Decimal(rev):.2f}", e) for m, c, p, rev, e in screen]
+    assert total[1] == "TOTAL" and total[4] == "3600.50" and total[3] == "4" and total[6] == "4"
+
+
+def test_only_admins_can_see_the_report(app):
+    seed_money(app)
+    student = student_client(app, "x@example.com")
+    for path in ("/admin/reports", "/admin/reports.csv"):
+        assert teacher_client(app).get(path).status_code == 403
+        assert student.get(path).status_code == 403
+        assert app.test_client().get(path).status_code in (302, 401, 403)
+    assert 'href="/admin/reports"' in admin_client(app).get("/admin/").data.decode()
+    assert 'href="/admin/reports"' not in teacher_client(app).get("/admin/").data.decode()
+
+
+def test_report_is_empty_but_works_with_no_payments(app):
+    page = admin_client(app).get("/admin/reports").data.decode()
+    assert "Nothing recorded in" in page and "0.00 ETB" in page

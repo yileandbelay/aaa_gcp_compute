@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Reports · Admin{% endblock %}
+{% block content %}
+<h1>Reports</h1>{% include "admin/_nav.html" %}
+<p class="muted">Confirmed money received and new enrolments, per course and month. Payments count in the month they were received; an enrolment counts in the month it became active.</p>
+<p class="row">Year:
+{% for y in years %}<a class="badge {{ 'active' if y == year else '' }}" href="{{ url_for('admin.reports', year=y) }}">{{ y }}</a>{% endfor %}
+<a class="btn small secondary" href="{{ url_for('admin.reports_csv', year=year) }}">Download {{ year }} (CSV)</a></p>
+<div class="card"><div class="row spread">
+  <div><div class="small muted">Revenue {{ year }}</div><b style="font-size:1.4rem">{{ totals.revenue|money }} {{ currency }}</b></div>
+  <div><div class="small muted">Confirmed payments</div><b style="font-size:1.4rem">{{ totals.payments }}</b></div>
+  <div><div class="small muted">New enrolments</div><b style="font-size:1.4rem">{{ totals.enrolments }}</b></div>
+</div></div>
+<div class="table-wrap"><table><tr><th>Month</th><th>Course</th><th>Payments</th><th>Revenue ({{ currency }})</th><th>New enrolments</th></tr>
+{% for r in rows %}<tr><td>{{ r.month_name }}</td><td>{{ r.course }}</td><td>{{ r.payments }}</td><td>{{ r.revenue|money }}</td><td>{{ r.enrolments }}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">Nothing recorded in {{ year }} yet.</td></tr>{% endfor %}
+{% if rows %}<tr><th colspan="2">Total {{ year }}</th><th>{{ totals.payments }}</th><th>{{ totals.revenue|money }}</th><th>{{ totals.enrolments }}</th></tr>{% endif %}
+</table></div>
+{% endblock %}
