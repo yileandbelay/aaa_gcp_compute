@@ -126,7 +126,7 @@ main.container { padding-block: var(--s5) var(--s7); min-height: 60vh; }
 .btn.ok { background: var(--brand); }
 .btn.danger { background: var(--err); border-color: var(--err); }
 .btn.danger:hover { background: #8A2F23; border-color: #8A2F23; }
-.btn.small { min-height: 36px; padding: 0 var(--s4); font-size: .9rem; }
+.btn.small { min-height: 44px; padding: 0 var(--s4); font-size: .9rem; }
 .btn.block { display: flex; width: 100%; }
 .btn[disabled] { opacity: .55; cursor: not-allowed; }
 .linkbtn { background: none; border: 0; color: var(--brand); padding: 0; text-decoration: underline; text-underline-offset: 3px; }
@@ -240,8 +240,8 @@ header.top { background: rgba(255, 255, 255, .94); backdrop-filter: saturate(1.4
   .topbar { flex-wrap: nowrap; gap: var(--s5); }
   .nav-toggle { display: none; }
   .site-nav, .js .site-nav { display: flex; flex-direction: row; align-items: center; flex-basis: auto; gap: var(--s1); padding: 0; margin-left: auto; }
-  .site-nav a, .site-nav .linkbtn { padding: 0 var(--s3); min-height: 40px; }
-  .site-nav a.btn { margin: 0 0 0 var(--s2); padding: 0 var(--s4); min-height: 40px; }
+  .site-nav a, .site-nav .linkbtn { padding: 0 var(--s3); min-height: 44px; }
+  .site-nav a.btn { margin: 0 0 0 var(--s2); padding: 0 var(--s4); min-height: 44px; }
   .langs { margin: 0 0 0 var(--s2); align-self: center; }
 }
 /* The header search appears once there is room; below that the menu and the pages have their own search */
