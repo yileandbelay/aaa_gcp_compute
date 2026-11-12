@@ -340,3 +340,93 @@ def test_teacher_wording_in_amharic_uses_the_glossary_term(app):
         db.session.commit()
     page = c.get(f"/courses/{slug}").data.decode()
     assert "መምህርዎ" in page and "አስተማሪ" not in page
+
+
+# --- NX-9: new-receipt email to admins --------------------------------------------------------
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 32
+
+
+def upload_receipt(app, c):
+    with app.app_context():
+        cid = Course.query.filter(Course.price > 0).first().id
+    return c.post(f"/pay/course/{cid}/manual", data={"reference": "FT55", "receipt": (__import__("io").BytesIO(PNG), "s.png")},
+                  content_type="multipart/form-data", follow_redirects=True), cid
+
+
+def second_admin(app):
+    with app.app_context():
+        u = User(email="boss2@example.com", full_name="Second Admin", role="admin")
+        u.set_password("secret123")
+        db.session.add(u)
+        db.session.commit()
+
+
+def test_each_admin_gets_one_email_with_student_course_amount_and_link(app, monkeypatch):
+    sent = []
+    monkeypatch.setattr("academy.routes.pay.send_email", lambda to, subject, body, reply_to=None: sent.append((to, subject, body)) or True)
+    second_admin(app)
+    r, cid = upload_receipt(app, student_client(app))
+    assert b"Receipt submitted" in r.data
+    assert sorted(to for to, _s, _b in sent) == ["admin@example.com", "boss2@example.com"]
+    _to, subject, body = sent[0]
+    assert "Abebe Kebede" in body and "stu@example.com" in body and "2,500.00 ETB" in body and "FT55" in body
+    assert "/admin/payments?status=submitted" in body and "Receipt to review" in subject
+
+
+def test_teachers_students_and_suspended_admins_are_not_emailed(app, monkeypatch):
+    sent = []
+    monkeypatch.setattr("academy.routes.pay.send_email", lambda to, subject, body, reply_to=None: sent.append(to) or True)
+    with app.app_context():
+        u = User(email="gone@example.com", full_name="Gone Admin", role="admin", is_active_account=False)
+        u.set_password("secret123")
+        db.session.add(u)
+        db.session.commit()
+    upload_receipt(app, student_client(app))
+    assert sent == ["admin@example.com"]
+
+
+def test_upload_still_succeeds_when_mail_fails(app, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("smtp down")
+
+    monkeypatch.setattr("academy.routes.pay.send_email", boom)
+    second_admin(app)
+    r, _cid = upload_receipt(app, student_client(app))
+    assert b"Receipt submitted" in r.data
+    from academy.models import Payment
+    with app.app_context():
+        assert Payment.query.filter_by(status="submitted").count() == 1
+
+
+def test_one_failing_address_does_not_skip_the_other_admin(app, monkeypatch):
+    sent = []
+
+    def flaky(to, subject, body, reply_to=None):
+        if to == "admin@example.com":
+            raise OSError("mailbox full")
+        sent.append(to)
+        return True
+
+    monkeypatch.setattr("academy.routes.pay.send_email", flaky)
+    second_admin(app)
+    upload_receipt(app, student_client(app))
+    assert sent == ["boss2@example.com"]
+
+
+def test_without_a_mail_server_the_notice_is_only_logged(app):
+    r, _cid = upload_receipt(app, student_client(app))                  # MAIL_SERVER is empty in tests
+    assert b"Receipt submitted" in r.data
+
+
+def test_admin_recorded_payments_do_not_send_the_receipt_notice(app, monkeypatch):
+    sent = []
+    monkeypatch.setattr("academy.routes.pay.send_email", lambda *a, **k: sent.append(a) or True)
+    with app.app_context():
+        stu = User(email="s2@example.com", full_name="S Two")
+        stu.set_password("secret123")
+        db.session.add(stu)
+        db.session.commit()
+        sid, cid = stu.id, Course.query.filter(Course.price > 0).first().id
+    admin_client(app).post("/admin/payments/record", data={"user_id": sid, "course_id": cid, "amount": "100", "channel": "cash", "confirm": "1"})
+    assert sent == []
