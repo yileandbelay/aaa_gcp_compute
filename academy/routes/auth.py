@@ -82,9 +82,9 @@ def _area():
 def _area_error(user, area):
     """Why this account may not enter the chosen area, or None. Accounts with both roles use either."""
     if area == "staff" and not user.is_staff:
-        return _("This account does not have teacher or admin access. Use the Student tab.")
+        return _("This account does not have teacher or admin access. Sign in as a student instead.")
     if area == "student" and not user.can_study:
-        return _("This account is for teachers and admins. Use the Teacher / Admin tab.")
+        return _("This account is for teachers and admins. Use the teacher and admin sign-in.")
     return None
 
 

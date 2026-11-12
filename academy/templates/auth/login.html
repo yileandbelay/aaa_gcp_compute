@@ -1,10 +1,6 @@
 {% extends "auth/_access.html" %}
 {% set mode = 'login' %}
 {% block form %}
-  <nav class="who" aria-label="{{ _('Who is signing in?') }}">
-    <a href="{{ url_for('auth.login', area='student', next=request.args.get('next')) }}" {% if area != 'staff' %}aria-current="page"{% endif %}>{{ _('Student') }}</a>
-    <a href="{{ url_for('auth.login', area='staff', next=request.args.get('next')) }}" {% if area == 'staff' %}aria-current="page"{% endif %}>{{ _('Teacher / Admin') }}</a>
-  </nav>
   {% if area == 'staff' %}
   <h1>{{ _('Teacher and admin sign in') }}</h1>
   <p class="lead">{{ _('Manage your courses and students.') }}</p>
@@ -22,7 +18,9 @@
   <p class="small" style="text-align:center;margin-bottom:0"><a href="{{ url_for('auth.forgot_password') }}">{{ _('Forgot your password?') }}</a></p>
   {% if area == 'staff' %}
   <p class="auth-switch">{{ _('Teacher and admin accounts are created by the academy admin.') }}</p>
+  <p class="auth-switch other-door"><a href="{{ url_for('auth.login', area='student', next=request.args.get('next')) }}">{{ _('Student? Log in here') }}</a></p>
   {% else %}
   <p class="auth-switch">{{ _('New here?') }} <a href="{{ url_for('auth.register', next=request.args.get('next')) }}">{{ _('Create an account') }}</a></p>
+    <p class="auth-switch other-door"><a href="{{ url_for('auth.login', area='staff', next=request.args.get('next')) }}">{{ _('Teacher or admin? Sign in here') }}</a></p>
   {% endif %}
 {% endblock %}

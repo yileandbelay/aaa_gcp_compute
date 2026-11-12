@@ -146,3 +146,20 @@ def test_empty_homepage_asks_a_guest_to_sign_up_at_most_twice(app):
 def test_call_to_action_band_shows_when_courses_exist_and_hides_when_signed_in(app):
     assert 'class="cta-band' in app.test_client().get("/").data.decode()
     assert 'class="cta-band' not in student_client(app).get("/").data.decode()
+
+
+# --- NX-4: student-first sign-in --------------------------------------------------------------
+
+def test_student_first_sign_in_in_amharic(app):
+    c = app.test_client()
+    c.set_cookie("lang", "am")
+    page = c.get("/login").data.decode()
+    assert "መምህር ወይም አስተዳዳሪ ነዎት? እዚህ ይግቡ" in page and "Teacher or admin?" not in page
+    staff = c.get("/login?area=staff").data.decode()
+    assert "ተማሪ ነዎት? እዚህ ይግቡ" in staff and "Student?" not in staff
+
+
+def test_wrong_door_messages_point_to_the_other_sign_in_not_to_tabs(app):
+    c = app.test_client()
+    r = login(c, "admin@example.com", "admin12345", area="student")
+    assert b"teacher and admin sign-in" in r.data and b"tab" not in r.data.split(b'class="flash')[1].split(b"</div>")[0]
