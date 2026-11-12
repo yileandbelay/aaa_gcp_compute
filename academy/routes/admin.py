@@ -147,12 +147,23 @@ def _fill_course(course, form):
             raise InvalidOperation
     except InvalidOperation:
         abort(400, "Invalid number of training hours")
-    try:
-        course.price = Decimal(form.get("price") or "0")
-        if course.price < 0:
-            raise InvalidOperation
-    except InvalidOperation:
-        abort(400, "Invalid price")
+    # Only admins set the price. A teacher's submission never changes it, and a course a teacher
+    # creates starts free until an admin prices it.
+    if current_user.is_admin:
+        try:
+            price = Decimal(form.get("price") or "0")
+            if price < 0:
+                raise InvalidOperation
+        except InvalidOperation:
+            abort(400, "Invalid price")
+        pricing = form.get("pricing")  # "free", "paid", or absent for older forms
+        if pricing == "free":
+            price = Decimal("0")
+        elif pricing == "paid" and price <= 0:
+            abort(400, "A paid course needs a price above 0.")
+        course.price = price
+    elif course.price is None:
+        course.price = Decimal("0")
     course.learn_points = form.get("learn_points", "").strip() or None
     course.audience = form.get("audience", "").strip() or None
     course.prerequisites = form.get("prerequisites", "").strip() or None

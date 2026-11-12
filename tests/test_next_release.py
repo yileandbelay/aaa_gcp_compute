@@ -208,3 +208,73 @@ def test_footer_shows_only_the_detail_that_is_set(app):
     app.config.update(CONTACT_EMAIL="hello@mek-academy.com", CONTACT_PHONE="+251 9XX XXX XXX")
     page = footer(app)
     assert "mailto:hello@mek-academy.com" in page and "tel:" not in page
+
+
+# --- NX-7: clear pricing block in the course editor -------------------------------------------
+
+def course_form_data(**extra):
+    data = {"title": "Priced Course", "level": "Beginner", "summary": "x"}
+    data.update(extra)
+    return data
+
+
+def price_of(app, slug):
+    with app.app_context():
+        return Course.query.filter_by(slug=slug).one().price
+
+
+def test_pricing_block_has_free_and_paid_choices_and_a_price_input(app):
+    page = admin_client(app).get("/admin/courses/new").data.decode()
+    assert '<fieldset class="pricing">' in page and 'name="pricing" value="free"' in page
+    assert 'name="pricing" value="paid"' in page and 'id="price"' in page and "<script" not in page.split('class="pricing"')[1].split("</fieldset>")[0]
+    assert re.search(r'name="pricing" value="free" checked', page)           # new courses start free
+
+
+def test_free_saves_price_zero_even_if_a_price_was_typed(app):
+    admin_client(app).post("/admin/courses/new", data=course_form_data(pricing="free", price="900"))
+    assert price_of(app, "priced-course") == 0
+
+
+def test_paid_needs_a_price_above_zero_and_saves_it(app):
+    admin = admin_client(app)
+    for bad in ("", "0", "-5"):
+        assert admin.post("/admin/courses/new", data=course_form_data(pricing="paid", price=bad)).status_code == 400
+    with app.app_context():
+        assert Course.query.filter_by(slug="priced-course").count() == 0
+    admin.post("/admin/courses/new", data=course_form_data(pricing="paid", price="1250.50"))
+    assert price_of(app, "priced-course") == Decimal("1250.50")
+
+
+def test_editing_shows_the_saved_choice(app):
+    admin = admin_client(app)
+    admin.post("/admin/courses/new", data=course_form_data(pricing="paid", price="700"))
+    with app.app_context():
+        cid = Course.query.filter_by(slug="priced-course").one().id
+    page = admin.get(f"/admin/courses/{cid}").data.decode()
+    assert re.search(r'value="paid" checked', page) and 'value="700.00"' in page
+
+
+def test_a_teacher_sees_the_price_read_only_and_cannot_change_it(app):
+    admin = admin_client(app)
+    admin.post("/admin/courses/new", data=course_form_data(pricing="paid", price="700"))
+    with app.app_context():
+        c = Course.query.filter_by(slug="priced-course").one()
+        c.instructor_id = User.query.filter_by(email="instructor@example.com").one().id
+        db.session.commit()
+        cid = c.id
+    teacher = teacher_client(app)
+    page = teacher.get(f"/admin/courses/{cid}").data.decode()
+    assert "700.00" in page and 'name="price"' not in page and 'name="pricing"' not in page
+    assert "Only an admin sets the price" in page
+    teacher.post(f"/admin/courses/{cid}", data=course_form_data(pricing="free", price="0"))
+    assert price_of(app, "priced-course") == Decimal("700")
+
+
+def test_a_course_created_by_a_teacher_starts_free(app):
+    teacher_client(app).post("/admin/courses/new", data=course_form_data(pricing="paid", price="5000"))
+    assert price_of(app, "priced-course") == 0
+
+
+def test_older_forms_without_the_pricing_choice_still_save_the_price(app):
+    admin_client(app).post("/admin/courses/new", data=course_form_data(price="320"))
+    assert price_of(app, "priced-course") == Decimal("320")

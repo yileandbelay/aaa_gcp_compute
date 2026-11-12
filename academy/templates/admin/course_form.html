@@ -41,8 +41,19 @@
     <div style="flex:1;min-width:160px"><label for="category">Category</label><input type="text" id="category" name="category" list="cats" value="{{ course.category or '' if course }}" placeholder="e.g. Business">
       <datalist id="cats">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist></div>
     <div style="flex:1;min-width:120px"><label for="hours">Training hours</label><input type="number" id="hours" name="hours" step="0.5" min="0" value="{{ '%g'|format(course.hours|float) if course and course.hours }}"></div>
-    <div style="flex:1;min-width:140px"><label for="price">Price ({{ currency }}, 0 = free)</label><input type="number" id="price" name="price" step="0.01" min="0" value="{{ course.price if course else 0 }}"></div>
   </div>
+  {% set is_paid = course and course.price and course.price > 0 %}
+  <fieldset class="pricing">
+    <legend>Pricing</legend>
+    {% if current_user.is_admin %}
+    <label class="check"><input type="radio" name="pricing" value="free" {{ 'checked' if not is_paid }}> <b>Free</b> <span class="small muted">anyone can enroll straight away</span></label>
+    <label class="check"><input type="radio" name="pricing" value="paid" {{ 'checked' if is_paid }}> <b>Paid</b> <span class="small muted">students pay before they get access</span></label>
+    <div class="price-field"><label for="price">Price ({{ currency }})</label><input type="number" id="price" name="price" step="0.01" min="0" value="{{ course.price if is_paid }}" placeholder="e.g. 2500"></div>
+    {% else %}
+    <p><b>{{ (course.price|money ~ ' ' ~ currency) if is_paid else 'Free' }}</b></p>
+    <p class="small muted">Only an admin sets the price. Ask an admin if it should change.</p>
+    {% endif %}
+  </fieldset>
   {% if current_user.is_admin %}
   <label for="instructor_id">Instructor (course admin)</label>
   <select id="instructor_id" name="instructor_id">{% for s in staff %}<option value="{{ s.id }}" {{ 'selected' if (course and course.instructor_id == s.id) or (not course and s.id == current_user.id) }}>{{ s.full_name }} ({{ s.role }})</option>{% endfor %}</select>

@@ -537,3 +537,10 @@ body.has-tabbar.has-mobile-cta { padding-bottom: 140px; }
   .home .home-how { order: 5; }
   .home .home-cta { order: 6; }
 }
+
+/* Course editor: the price input appears when "Paid" is chosen. Pure CSS, so it works without
+   JavaScript; browsers without :has() simply always show the field. */
+.pricing { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--s3) var(--s4); margin: var(--s3) 0; }
+.pricing legend { font-weight: 700; padding: 0 var(--s2); }
+.pricing .price-field { margin-top: var(--s2); max-width: 260px; }
+@supports selector(:has(*)) { .pricing:not(:has(input[value=paid]:checked)) .price-field { display: none; } }
