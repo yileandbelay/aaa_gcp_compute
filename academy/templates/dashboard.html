@@ -1,24 +1,34 @@
 {% extends "base.html" %}{% from "_macros.html" import progress_bar %}
 {% block title %}{{ _('My learning') }} · {{ site_name }}{% endblock %}
 {% block content %}
-<h1>{{ _('Welcome back, %(name)s', name=current_user.full_name.split(' ')[0]) }}</h1>
-<h2>{{ _('My courses') }}</h2>
+<div class="page-head"><h1>{{ _('Welcome back, %(name)s', name=current_user.full_name.split(' ')[0]) }}</h1><p>{{ _('Pick up where you left off.') }}</p></div>
+
+<div class="stats" style="margin-bottom:var(--s6)">
+  <div class="stat"><b>{{ stats.in_progress }}</b><span>{{ _('Courses in progress') }}</span></div>
+  <div class="stat"><b>{{ stats.finished }}</b><span>{{ _('Courses completed') }}</span></div>
+  <div class="stat"><b>{{ stats.lessons }}</b><span>{{ _('Lessons completed') }}</span></div>
+  {% if config.FEATURE_CERTIFICATES %}<div class="stat"><b>{{ stats.certificates }}</b><span>{{ _('Certificates earned') }}</span></div>{% endif %}
+</div>
+
+<div class="section-head"><h2>{{ _('My courses') }}</h2>{% if rows %}<a href="{{ url_for('main.catalog') }}">{{ _('Browse courses') }} →</a>{% endif %}</div>
 {% if rows %}
-<div class="grid">{% for course, p in rows %}
-  <div class="card">
-    <h3><a href="{{ url_for('main.course_detail', slug=course.slug) }}">{{ course.title }}</a></h3>
-    {{ progress_bar(p.percent) }}<p class="small muted">{{ _('%(n)s%% complete', n=p.percent) }}</p>
-    {% if course.lessons %}<a class="btn small" href="{{ url_for('learn.lesson', lesson_id=course.lessons[0].id) }}">{{ _('Open') }}</a>{% endif %}
+<div class="grid" style="margin-bottom:var(--s6)">{% for r in rows %}
+  <div class="card continue-card">
+    <h3 style="margin:0"><a href="{{ url_for('main.course_detail', slug=r.course.slug) }}" style="color:var(--ink);text-decoration:none">{{ r.course.title }}</a></h3>
+    <div>{{ progress_bar(r.progress.percent) }}<div class="pct"><span>{{ _('%(n)s%% complete', n=r.progress.percent) }}</span>{% if r.progress.percent >= 100 %}<span class="badge passed">{{ _('Completed') }}</span>{% endif %}</div></div>
+    {% if r.next %}<p class="next">{{ _('Next: %(title)s', title=r.next.title) }}</p>
+    <a class="btn small" href="{{ url_for('learn.lesson', lesson_id=r.next.id) }}">{{ _('Open') }}</a>
+    {% elif r.course.lessons %}<a class="btn small secondary" href="{{ url_for('learn.lesson', lesson_id=r.course.lessons[0].id) }}">{{ _('Open') }}</a>{% endif %}
   </div>{% endfor %}</div>
-{% else %}<p class="muted">{{ _('You are not enrolled in any course yet.') }} <a href="{{ url_for('main.catalog') }}">{{ _('Browse courses') }}</a>.</p>{% endif %}
+{% else %}<div class="card sage" style="margin-bottom:var(--s6)"><p style="margin:0 0 var(--s3)">{{ _('You are not enrolled in any course yet.') }}</p><a class="btn" href="{{ url_for('main.catalog') }}">{{ _('Browse courses') }}</a></div>{% endif %}
 
-{% if certificates and config.FEATURE_CERTIFICATES %}<h2>{{ _('Certificates') }}</h2><ul>
+{% if certificates and config.FEATURE_CERTIFICATES %}<div class="section"><h2>{{ _('Certificates') }}</h2><ul>
 {% for c in certificates %}<li><a href="{{ url_for('main.certificate', code=c.code) }}">{{ c.course.title }}</a> <span class="small muted">· {{ c.issued_at|localdate }} · #{{ c.code }}</span></li>{% endfor %}
-</ul>{% endif %}
+</ul></div>{% endif %}
 
-{% if payments %}<h2>{{ _('Payments') }}</h2><div class="table-wrap"><table>
+{% if payments %}<div class="section"><h2>{{ _('Payments') }}</h2><div class="table-wrap"><table>
 <tr><th>{{ _('Date') }}</th><th>{{ _('Course') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Method') }}</th><th>{{ _('Status') }}</th><th></th></tr>
 {% for p in payments %}<tr><td>{{ p.created_at|localdate }}</td><td>{{ p.course.title }}</td><td>{{ p.amount|money }} {{ p.currency }}</td><td>{{ _(p.method|capitalize) }}</td><td><span class="badge {{ p.status }}">{{ _(p.status|capitalize) }}</span></td>
 <td>{% if p.status == 'paid' %}<a href="{{ url_for('pay.invoice', payment_id=p.id) }}">{{ _('Receipt') }}</a>{% endif %}</td></tr>{% endfor %}
-</table></div>{% endif %}
+</table></div></div>{% endif %}
 {% endblock %}

@@ -38,6 +38,11 @@ def create_app(config_object=Config):
     if app.config["PAYMENT_DEMO_MODE"] and not app.testing:
         app.logger.warning("PAYMENT_DEMO_MODE is ON - payments are simulated. Do not use in production.")
 
+    # Servers installed before the green theme have the old blue default in their settings file.
+    # Treat it as "not set" so they pick up the new colours.
+    if str(app.config.get("BRAND_COLOR", "")).strip().lower() == "#1f4fd1":
+        app.config["BRAND_COLOR"] = ""
+
     if app.config.get("BEHIND_PROXY"):
         from werkzeug.middleware.proxy_fix import ProxyFix
 

@@ -60,7 +60,8 @@ class Config:
         "materials, test yourself and earn a certificate - on your phone or computer.",
     )
     # Main colour of buttons, links and highlights (any CSS colour).
-    BRAND_COLOR = os.environ.get("BRAND_COLOR", "#1f4fd1")
+    # Optional override of the main colour (buttons, links). Empty = the built-in emerald.
+    BRAND_COLOR = os.environ.get("BRAND_COLOR", "")
     # Optional folder with "templates/" and/or "static/" sub-folders whose files
     # override the built-in ones (e.g. themes/my-academy). Lets one codebase run
     # several differently branded academies without editing the core.

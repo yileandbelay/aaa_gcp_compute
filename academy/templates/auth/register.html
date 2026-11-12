@@ -1,18 +1,17 @@
-{% extends "base.html" %}{% from "_macros.html" import csrf %}
-{% block title %}{{ _('Register') }} · {{ site_name }}{% endblock %}
-{% block content %}
-<div class="card" style="max-width:520px;margin:auto">
-  <h1>{{ _('Student registration') }}</h1>
-  <form method="post" class="stack">{{ csrf() }}
-    <label for="full_name">{{ _('Full name') }}</label><input type="text" id="full_name" name="full_name" value="{{ form.get('full_name','') }}" required>
-    <label for="email">{{ _('Email') }}</label><input type="email" id="email" name="email" value="{{ form.get('email','') }}" required>
-    <label for="phone">{{ _('Phone (for payment and updates)') }}</label><input type="tel" id="phone" name="phone" value="{{ form.get('phone','') }}" placeholder="+251 9…">
+{% extends "auth/_access.html" %}
+{% set mode = 'register' %}
+{% block form %}
+  <h1>{{ _('Create your free account') }}</h1>
+  <p class="lead">{{ _('Join to enroll in courses and track your progress.') }}</p>
+  <form method="post" class="stack" action="{{ url_for('auth.register', next=request.args.get('next')) }}">{{ csrf() }}
+    <label for="full_name">{{ _('Full name') }}</label><input type="text" id="full_name" name="full_name" value="{{ form.get('full_name','') }}" required autocomplete="name">
+    <label for="email">{{ _('Email') }}</label><input type="email" id="email" name="email" value="{{ form.get('email','') }}" required autocomplete="email">
+    <label for="phone">{{ _('Phone (for payment and updates)') }}</label><input type="tel" id="phone" name="phone" value="{{ form.get('phone','') }}" placeholder="+251 9…" autocomplete="tel">
     <label for="city">{{ _('City') }}</label><input type="text" id="city" name="city" value="{{ form.get('city','') }}">
-    <label for="password">{{ _('Password (at least 8 characters)') }}</label><input type="password" id="password" name="password" minlength="8" required>
-    <label for="password2">{{ _('Confirm password') }}</label><input type="password" id="password2" name="password2" minlength="8" required>
-    <label class="check"><input type="checkbox" name="agree" value="1" required> {{ _('I accept the %(link)s and will not share my account or course materials.', link=('<a href="%s" target="_blank">%s</a>'|format(url_for('main.policy', page='terms'), _('terms of use')))|safe) }}</label>
-    <p><button class="btn">{{ _('Create account') }}</button></p>
+    <label for="password">{{ _('Password (at least 8 characters)') }}</label><input type="password" id="password" name="password" minlength="8" required autocomplete="new-password">
+    <label for="password2">{{ _('Confirm password') }}</label><input type="password" id="password2" name="password2" minlength="8" required autocomplete="new-password">
+    <label class="check" style="margin-top:var(--s4)"><input type="checkbox" name="agree" value="1" required> <span>{{ _('I accept the %(link)s and will not share my account or course materials.', link=('<a href="%s" target="_blank">%s</a>'|format(url_for('main.policy', page='terms'), _('terms of use')))|safe) }}</span></label>
+    <p style="margin-top:var(--s4)"><button class="btn block">{{ _('Create account') }}</button></p>
   </form>
-  <p class="small">{{ _('Already registered?') }} <a href="{{ url_for('auth.login', next=request.args.get('next')) }}">{{ _('Log in') }}</a></p>
-</div>
+  <p class="auth-switch">{{ _('Already registered?') }} <a href="{{ url_for('auth.login', next=request.args.get('next')) }}">{{ _('Log in') }}</a></p>
 {% endblock %}

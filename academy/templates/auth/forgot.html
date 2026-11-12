@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% from "_macros.html" import csrf %}
 {% block title %}{{ _('Forgot your password?') }} · {{ site_name }}{% endblock %}
 {% block content %}
-<div class="card" style="max-width:420px;margin:auto">
+<div class="card auth-card">
   <h1>{{ _('Forgot your password?') }}</h1>
   <p class="muted">{{ _('Enter the email you registered with and we will send you a link to choose a new password.') }}</p>
   <form method="post" class="stack">{{ csrf() }}

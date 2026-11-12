@@ -228,11 +228,11 @@ def english_ui_left(page, phrases):
 def test_public_pages_in_amharic(app):
     c = am_client(app)
     expectations = {
-        "/": ["ኮርሶችን ይመልከቱ", "የምስክር ወረቀቶች"],
+        "/": ["ኮርሶችን ይመልከቱ", "እንዴት እንደሚሠራ", "ምን መማር ይፈልጋሉ?"],
         "/courses": ["ኮርሶች", "ርዝመት"],
         "/courses/project-management-fundamentals": ["የሚማሩት", "የትምህርት ዝርዝር", "ይህ ኮርስ ለማን ነው", "ግምገማዎችና አስተያየቶች"],
         "/login": ["የይለፍ ቃል", "ይግቡ"],
-        "/register": ["የተማሪ ምዝገባ", "መለያ ይፍጠሩ"],
+        "/register": ["ነጻ መለያዎን ይፍጠሩ", "መለያ ይፍጠሩ"],
         "/forgot-password": ["የይለፍ ቃልዎን ረስተዋል?"],
         "/contact": ["መልእክት ይላኩ", "ያግኙን"],
         "/policies/terms": ["ያግኙን"],

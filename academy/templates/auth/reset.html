@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% from "_macros.html" import csrf %}
 {% block title %}{{ _('Choose a new password') }} · {{ site_name }}{% endblock %}
 {% block content %}
-<div class="card" style="max-width:420px;margin:auto">
+<div class="card auth-card">
   <h1>{{ _('Choose a new password') }}</h1>
   <form method="post" class="stack">{{ csrf() }}
     <label for="password">{{ _('New password (at least 8 characters)') }}</label><input type="password" id="password" name="password" minlength="8" required>

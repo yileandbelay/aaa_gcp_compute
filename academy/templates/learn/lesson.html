@@ -3,7 +3,8 @@
 {% block content %}
 <p class="small"><a href="{{ url_for('main.course_detail', slug=course.slug) }}">← {{ course.title }}</a></p>
 <div class="layout-lesson">
-  <aside class="sidebar card">
+  <details class="sidebar card" open data-collapse-narrow>
+    <summary>{{ _('Course content') }}</summary><div class="sidebar-body">
     {% if progress %}<p class="small"><b>{{ _('%(n)s%% complete', n=progress.percent) }}</b></p>{{ progress_bar(progress.percent) }}<br>{% endif %}
     <ol>
     {% for l in lessons %}
@@ -14,7 +15,8 @@
     {% if progress and course.assessments %}<hr><b class="small">{{ _('Assessments') }}</b><ol>
       {% for a in course.assessments %}<li><a href="{{ url_for('assess.overview', aid=a.id) }}"><span class="tick">{% if a.id in progress.passed_assessments %}✓{% else %}✎{% endif %}</span>{{ a.title }}</a></li>{% endfor %}
     </ol>{% endif %}
-  </aside>
+    </div>
+  </details>
 
   <article>
     <h1>{{ lesson.title }}</h1>
@@ -55,7 +57,7 @@
       {% if shown|selectattr('is_link')|list %}<p class="small muted" style="margin-bottom:0">{{ _('Links open other websites in a new tab. We are not responsible for their content.') }}</p>{% endif %}
     </div>{% endif %}
 
-    <div class="row spread">
+    <div class="lesson-nav">
       <div>{% if prev_l %}<a class="btn secondary small" href="{{ url_for('learn.lesson', lesson_id=prev_l.id) }}">← {{ _('Previous') }}</a>{% endif %}</div>
       {% if progress %}
       <form method="post" action="{{ url_for('learn.complete', lesson_id=lesson.id) }}">{{ csrf() }}

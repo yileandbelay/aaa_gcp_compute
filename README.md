@@ -8,6 +8,7 @@ It's built with Python / Flask and runs on SQLite by default (PostgreSQL is supp
 
 | Module | What you get |
 |---|---|
+| **Sign in** | One entry point: the header has a single "Log in" button, and the page has a Log in tab and a Create account tab. "Enroll" buttons on every course send guests to create an account and then straight back to enrolling |
 | **Students and staff** | Students register (name, email, phone, city), log in, reset passwords by email. **Staff** (admins and instructors) are kept apart from students: separate lists, never counted as students. Admins add staff by email; the new person sets their own password. Suspended accounts are locked out at once |
 | **Roles** | **Admin:** everything. **Instructor (course admin):** manages only the courses assigned to them, including their lessons, quizzes, announcements and students |
 | **Enrolling students** | Each course has an "Enroll students" page: tick registered students or paste email addresses. People without an account are invited and get the course when they register. Optional email notice; see who has access and how (paid, assigned, free), remove or restore access |
@@ -110,12 +111,14 @@ You can set an academy up in three layers, none of which touch the core code.
 
 | Group | Settings |
 |---|---|
-| Branding | `SITE_NAME`, `SITE_SHORT_NAME`, `SITE_TAGLINE`, `SITE_HEADLINE`, `SITE_INTRO`, `BRAND_COLOR`, `TX_PREFIX`, `CONTACT_EMAIL`, `CONTACT_PHONE` |
+| Branding | `SITE_NAME`, `SITE_SHORT_NAME`, `SITE_TAGLINE`, `SITE_HEADLINE`, `SITE_INTRO`, `BRAND_COLOR` (optional), `TX_PREFIX`, `CONTACT_EMAIL`, `CONTACT_PHONE` |
 | Modules on/off | `FEATURE_DISCUSSION`, `FEATURE_ANNOUNCEMENTS`, `FEATURE_CERTIFICATES`, `FEATURE_REVIEWS` |
 | Content protection | `PROTECT_LESSON_TEXT` (block copying lesson text), `VIDEO_WATERMARK`, `ALLOW_VIDEO_DOWNLOAD`, `ALLOW_MATERIAL_DOWNLOAD` |
 | Video hosting | `BUNNY_LIBRARY_ID`, `BUNNY_API_KEY`, `BUNNY_TOKEN_KEY`, `VDOCIPHER_API_SECRET` |
 | Payments | `CURRENCY`, `CHAPA_SECRET_KEY`, `MANUAL_PAYMENT_ENABLED`, `MANUAL_PAYMENT_INSTRUCTIONS` |
 | Email | `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` |
+
+**Look and feel.** The built-in design is a calm sage-green and emerald theme (emerald `#287D63`, sage `#E7F3EB`, off-white `#FAFCFA`, forest `#20352E`, muted green `#42594E`, gold `#E8B96A` for small accents only). It is written mobile-first, with every colour, spacing and size defined once at the top of `academy/static/style.css`, so changing the tokens there restyles every page. The text colours meet WCAG AA contrast; a test checks this. `BRAND_COLOR` is optional and only recolours buttons and links. Leave it empty to use the emerald. (Servers installed before the green theme have the old blue value in their settings file; it is ignored automatically.)
 
 **2. Theme folder (`THEME_DIR`).** Point it at a folder like this:
 
