@@ -1,0 +1,13 @@
+{# One page for both: tabs switch between logging in and creating an account. Child templates
+   set `mode` ("login" or "register") and fill the form block. #}
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}{{ _('Log in') if mode == 'login' else _('Create account') }} · {{ site_name }}{% endblock %}
+{% block content %}
+<div class="card auth-card {{ 'wide' if mode == 'register' }}">
+  <div class="auth-tabs" role="tablist" aria-label="{{ _('Log in or create an account') }}">
+    <a href="{{ url_for('auth.login', next=request.args.get('next')) }}" role="tab" aria-selected="{{ 'true' if mode == 'login' else 'false' }}">{{ _('Log in') }}</a>
+    <a href="{{ url_for('auth.register', next=request.args.get('next')) }}" role="tab" aria-selected="{{ 'true' if mode == 'register' else 'false' }}">{{ _('Create account') }}</a>
+  </div>
+  {% block form %}{% endblock %}
+</div>
+{% endblock %}

@@ -1,15 +1,14 @@
-{% extends "base.html" %}{% from "_macros.html" import csrf %}
-{% block title %}{{ _('Log in') }} · {{ site_name }}{% endblock %}
-{% block content %}
-<div class="card" style="max-width:420px;margin:auto">
-  <h1>{{ _('Log in') }}</h1>
-  <form method="post" class="stack">{{ csrf() }}
-    <label for="email">{{ _('Email') }}</label><input type="email" id="email" name="email" required autofocus>
-    <label for="password">{{ _('Password') }}</label><input type="password" id="password" name="password" required>
+{% extends "auth/_access.html" %}
+{% set mode = 'login' %}
+{% block form %}
+  <h1>{{ _('Welcome back') }}</h1>
+  <p class="lead">{{ _('Log in to continue learning.') }}</p>
+  <form method="post" class="stack" action="{{ url_for('auth.login', next=request.args.get('next')) }}">{{ csrf() }}
+    <label for="email">{{ _('Email') }}</label><input type="email" id="email" name="email" required autofocus autocomplete="email">
+    <label for="password">{{ _('Password') }}</label><input type="password" id="password" name="password" required autocomplete="current-password">
     <label class="check"><input type="checkbox" name="remember" value="1"> {{ _('Remember me') }}</label>
-    <p><button class="btn">{{ _('Log in') }}</button></p>
+    <p style="margin-top:var(--s4)"><button class="btn block">{{ _('Log in') }}</button></p>
   </form>
-  <p class="small"><a href="{{ url_for('auth.forgot_password') }}">{{ _('Forgot your password?') }}</a></p>
-  <p class="small">{{ _('New here?') }} <a href="{{ url_for('auth.register', next=request.args.get('next')) }}">{{ _('Create an account') }}</a></p>
-</div>
+  <p class="small" style="text-align:center;margin-bottom:0"><a href="{{ url_for('auth.forgot_password') }}">{{ _('Forgot your password?') }}</a></p>
+  <p class="auth-switch">{{ _('New here?') }} <a href="{{ url_for('auth.register', next=request.args.get('next')) }}">{{ _('Create an account') }}</a></p>
 {% endblock %}

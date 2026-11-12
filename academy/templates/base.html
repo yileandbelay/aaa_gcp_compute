@@ -2,30 +2,53 @@
 <html lang="{{ current_lang() }}">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#287D63">
   <title>{% block title %}{{ site_name }}{% endblock %}</title>
+  <script>document.documentElement.classList.add('js')</script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <style>:root{--brand: {{ config.BRAND_COLOR }}}</style>
+  {% if config.BRAND_COLOR %}<style>
+    :root{--brand: {{ config.BRAND_COLOR }}}
+    @supports (color: color-mix(in srgb, red, blue)){:root{--brand-dark: color-mix(in srgb, var(--brand) 82%, #000);--brand-soft: color-mix(in srgb, var(--brand) 11%, #fff)}}
+  </style>{% endif %}
   {% if theme_css %}<link rel="stylesheet" href="{{ url_for('theme_static', filename='theme.css') }}">{% endif %}
 </head>
-<body>
+{% set ep = request.endpoint or '' %}
+<body class="{% if current_user.is_authenticated %}has-tabbar {% endif %}{% block body_class %}{% endblock %}">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h10"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+</svg>
+<a class="sr" href="#main">{{ _('Skip to content') }}</a>
 <header class="top">
-  <div class="container">
+  <div class="container topbar">
     <a class="logo" href="{{ url_for('main.index') }}"><span class="mark">{{ site_name[:1] }}</span>{{ site_name }}</a>
-    <nav>
-      <a href="{{ url_for('main.catalog') }}">{{ _('Courses') }}</a>
-      <a href="{{ url_for('main.contact') }}">{{ _('Contact') }}</a>
+    <form class="header-search" id="header-search" action="{{ url_for('main.catalog') }}" role="search">
+      <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
+      <input type="search" name="q" placeholder="{{ _('Search courses') }}" aria-label="{{ _('Search courses') }}">
+    </form>
+    <button type="button" class="nav-toggle" data-toggle="#site-nav #header-search" aria-controls="site-nav" aria-expanded="false" aria-label="{{ _('Menu') }}">
+      <svg class="i" aria-hidden="true"><use href="#i-menu"/></svg>
+    </button>
+    <nav class="site-nav" id="site-nav" aria-label="{{ _('Main navigation') }}">
+      <a href="{{ url_for('main.catalog') }}" {% if ep == 'main.catalog' %}aria-current="page"{% endif %}>{{ _('Courses') }}</a>
+      <a href="{{ url_for('main.contact') }}" {% if ep == 'main.contact' %}aria-current="page"{% endif %}>{{ _('Contact') }}</a>
       {% if current_user.is_authenticated %}
-        <a href="{{ url_for('main.dashboard') }}">{{ _('My learning') }}</a>
+        <a href="{{ url_for('main.dashboard') }}" {% if ep == 'main.dashboard' %}aria-current="page"{% endif %}>{{ _('My learning') }}</a>
         {% if current_user.is_staff %}<a href="{{ url_for('admin.dashboard') }}">{{ _('Admin') }}</a>{% endif %}
-        <a href="{{ url_for('auth.profile') }}">{{ current_user.full_name.split(' ')[0] }}</a>
+        <a href="{{ url_for('auth.profile') }}" {% if ep == 'auth.profile' %}aria-current="page"{% endif %}>{{ current_user.full_name.split(' ')[0] }}</a>
         <form method="post" action="{{ url_for('auth.logout') }}">
           <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
           <button class="linkbtn">{{ _('Log out') }}</button>
         </form>
       {% else %}
-        <a href="{{ url_for('auth.login') }}">{{ _('Log in') }}</a>
-        <a class="btn small" href="{{ url_for('auth.register') }}">{{ _('Register') }}</a>
+        <a class="btn small" href="{{ url_for('auth.login') }}">{{ _('Log in') }}</a>
       {% endif %}
       {% set langs = available_languages() %}
       {% if langs|length > 1 %}
@@ -34,14 +57,64 @@
     </nav>
   </div>
 </header>
-<main class="container">
+<main class="container" id="main">
   {% with messages = get_flashed_messages(with_categories=true) %}
-    {% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+    {% for cat, msg in messages %}<div class="flash {{ cat }}" role="{{ 'alert' if cat == 'error' else 'status' }}">{{ msg }}</div>{% endfor %}
   {% endwith %}
   {% block content %}{% endblock %}
 </main>
-<footer><div class="container">© {{ site_name }} · {{ _(config.SITE_TAGLINE) }}
-  <div class="row small" style="margin-top:6px"><a href="{{ url_for('main.contact') }}">{{ _('Contact us') }}</a><a href="{{ url_for('main.policy', page='terms') }}">{{ _('Terms of use') }}</a><a href="{{ url_for('main.policy', page='privacy') }}">{{ _('Privacy') }}</a><a href="{{ url_for('main.policy', page='refunds') }}">{{ _('Refunds') }}</a></div></div></footer>
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a class="logo" href="{{ url_for('main.index') }}"><span class="mark">{{ site_name[:1] }}</span>{{ site_name }}</a>
+        <p>{{ _(config.SITE_TAGLINE) }}</p>
+      </div>
+      <div>
+        <h4>{{ _('Explore') }}</h4>
+        <a href="{{ url_for('main.catalog') }}">{{ _('Courses') }}</a>
+        {% if current_user.is_authenticated %}<a href="{{ url_for('main.dashboard') }}">{{ _('My learning') }}</a>{% else %}<a href="{{ url_for('auth.login') }}">{{ _('Log in') }}</a>{% endif %}
+      </div>
+      <div>
+        <h4>{{ _('Support') }}</h4>
+        <a href="{{ url_for('main.contact') }}">{{ _('Contact us') }}</a>
+        <a href="{{ url_for('main.policy', page='terms') }}">{{ _('Terms of use') }}</a>
+        <a href="{{ url_for('main.policy', page='privacy') }}">{{ _('Privacy') }}</a>
+        <a href="{{ url_for('main.policy', page='refunds') }}">{{ _('Refunds') }}</a>
+      </div>
+    </div>
+    <div class="footer-bottom">© {{ site_name }}</div>
+  </div>
+</footer>
+{% if current_user.is_authenticated %}
+<nav class="tabbar" aria-label="{{ _('Main navigation') }}">
+  <a href="{{ url_for('main.index') }}" {% if ep == 'main.index' %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-home"/></svg>{{ _('Home') }}</a>
+  <a href="{{ url_for('main.catalog') }}" {% if ep == 'main.catalog' %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-search"/></svg>{{ _('Courses') }}</a>
+  {% if current_user.is_staff %}<a href="{{ url_for('admin.dashboard') }}" {% if ep.startswith('admin.') %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-grid"/></svg>{{ _('Admin') }}</a>
+  {% else %}<a href="{{ url_for('main.dashboard') }}" {% if ep == 'main.dashboard' %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-book"/></svg>{{ _('My learning') }}</a>{% endif %}
+  <a href="{{ url_for('auth.profile') }}" {% if ep == 'auth.profile' %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-user"/></svg>{{ _('Profile') }}</a>
+</nav>
+{% endif %}
 {% block scripts %}{% endblock %}
+<script>
+(function(){
+  // Show/hide panels (mobile menu, filters). Without JavaScript they are simply visible.
+  document.querySelectorAll('[data-toggle]').forEach(function(btn){
+    var targets = btn.getAttribute('data-toggle').split(' ').map(function(s){return document.querySelector(s);}).filter(Boolean);
+    btn.addEventListener('click', function(){
+      var open = btn.getAttribute('aria-expanded') !== 'true';
+      btn.setAttribute('aria-expanded', open);
+      targets.forEach(function(t){ t.classList.toggle('open', open); });
+    });
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('[data-toggle][aria-expanded=true]').forEach(function(b){ b.click(); });
+  });
+  // The lesson list starts collapsed on small screens, open on large ones.
+  var narrow = window.matchMedia('(max-width: 899px)');
+  document.querySelectorAll('details[data-collapse-narrow]').forEach(function(d){ if (narrow.matches) d.removeAttribute('open'); });
+})();
+</script>
 </body>
 </html>

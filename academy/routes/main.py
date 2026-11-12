@@ -14,10 +14,35 @@ from ..utils import course_progress
 bp = Blueprint("main", __name__)
 
 
+class _AllCourses:
+    """Staff can open every course, so they count as enrolled everywhere."""
+
+    def __contains__(self, _item):
+        return True
+
+
+def _my_course_ids():
+    """Ids of the courses the visitor can already open (for Enroll / Continue buttons)."""
+    if not current_user.is_authenticated:
+        return set()
+    if current_user.is_staff:
+        return _AllCourses()
+    return {e.course_id for e in Enrollment.query.filter_by(user_id=current_user.id, status="active")}
+
+
 @bp.route("/")
 def index():
-    courses = Course.query.filter_by(is_published=True).order_by(Course.created_at.desc()).limit(6).all()
-    return render_template("index.html", courses=courses, ratings=rating_summary([c.id for c in courses]))
+    published = Course.query.filter_by(is_published=True).order_by(Course.created_at.desc()).all()
+    latest = published[:6]
+    topics = {}
+    for c in published:
+        if c.category:
+            topics[c.category] = topics.get(c.category, 0) + 1
+    topics = sorted(topics.items(), key=lambda kv: (-kv[1], kv[0].lower()))[:8]
+    free = [c for c in published if c.is_free and c not in latest][:3]
+    shown = latest + free
+    return render_template("index.html", courses=latest, free_courses=free, topics=topics,
+                           ratings=rating_summary([c.id for c in shown]), mine=_my_course_ids())
 
 
 LENGTHS = (("short", "Short (under 2 hours)"), ("medium", "Medium (2 to 6 hours)"), ("long", "Long (over 6 hours)"))
@@ -70,7 +95,7 @@ def catalog():
     return render_template(
         "courses/catalog.html", courses=courses, ratings=ratings, categories=categories, levels=levels,
         lengths=LENGTHS, sorts=SORTS, category=category, level=level, length=length, price=price, sort=sort,
-        q=q, filtered=filtered)
+        q=q, filtered=filtered, mine=_my_course_ids())
 
 
 @bp.route("/lang/<code>")
@@ -168,10 +193,18 @@ def dashboard():
         Enrollment.query.filter_by(user_id=current_user.id, status="active")
         .order_by(Enrollment.activated_at.desc()).all()
     )
-    rows = [(e.course, course_progress(current_user, e.course)) for e in enrollments]
+    rows, lessons_done, finished = [], 0, 0
+    for e in enrollments:
+        progress = course_progress(current_user, e.course)
+        up_next = next((l for l in e.course.lessons if l.id not in progress["done_lessons"]), None)
+        rows.append({"course": e.course, "progress": progress, "next": up_next})
+        lessons_done += len(progress["done_lessons"])
+        finished += progress["percent"] >= 100
     certificates = Certificate.query.filter_by(user_id=current_user.id).all()
     payments = Payment.query.filter_by(user_id=current_user.id).order_by(Payment.created_at.desc()).all()
-    return render_template("dashboard.html", rows=rows, certificates=certificates, payments=payments)
+    stats = {"in_progress": len(rows) - finished, "finished": finished, "lessons": lessons_done,
+             "certificates": len(certificates)}
+    return render_template("dashboard.html", rows=rows, certificates=certificates, payments=payments, stats=stats)
 
 
 @bp.route("/certificates/<code>")

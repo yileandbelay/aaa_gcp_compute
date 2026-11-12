@@ -1,16 +1,50 @@
-{% extends "base.html" %}{% from "_macros.html" import course_card %}
+{% extends "base.html" %}{% from "_macros.html" import course_card, icon with context %}
 {% block content %}
 <section class="hero">
   <h1>{{ _(config.SITE_HEADLINE) }}</h1>
-  <p style="max-width:620px">{{ _(config.SITE_INTRO) }}</p>
-  <div class="row"><a class="btn" href="{{ url_for('main.catalog') }}">{{ _('Browse courses') }}</a>
-  {% if not current_user.is_authenticated %}<a class="btn secondary" href="{{ url_for('auth.register') }}">{{ _('Create a free account') }}</a>{% endif %}</div>
+  <p>{{ _(config.SITE_INTRO) }}</p>
+  <form class="hero-search" action="{{ url_for('main.catalog') }}" role="search">
+    <input type="search" name="q" placeholder="{{ _('What do you want to learn?') }}" aria-label="{{ _('Search courses') }}">
+    <button class="btn">{{ icon('search') }} {{ _('Search') }}</button>
+  </form>
+  {% if topics %}<div class="hero-popular"><span>{{ _('Popular:') }}</span>{% for name, n in topics[:4] %}<a class="chip" href="{{ url_for('main.catalog', category=name) }}">{{ name }}</a>{% endfor %}</div>{% endif %}
+  {% if not current_user.is_authenticated %}<div class="row hero-actions"><a class="btn" href="{{ url_for('auth.register') }}">{{ _('Create a free account') }}</a><a class="btn secondary" href="{{ url_for('main.catalog') }}">{{ _('Browse courses') }}</a></div>{% endif %}
 </section>
-<div class="grid features" style="margin-bottom:28px">
-  <div class="card"><h3>{{ _('Video & text lessons') }}</h3><p class="muted">{{ _('Learn at your own pace with recorded sessions, notes and downloadable materials.') }}</p></div>
-  <div class="card"><h3>{{ _('Assessments') }}</h3><p class="muted">{{ _('Check your understanding with auto-graded quizzes and final exams.') }}</p></div>
-  <div class="card"><h3>{{ _('Simple payment') }}</h3><p class="muted">{{ _('Pay online or by bank transfer, and get access as soon as payment is confirmed.') }}</p></div>
-  {% if config.FEATURE_CERTIFICATES %}<div class="card"><h3>{{ _('Certificates') }}</h3><p class="muted">{{ _('Earn a verifiable certificate showing your training hours.') }}</p></div>{% endif %}
-</div>
-{% if courses %}<h2>{{ _('Latest courses') }}</h2><div class="grid">{% for c in courses %}{{ course_card(c, ratings) }}{% endfor %}</div>{% endif %}
+
+{% if topics %}
+<section class="section">
+  <div class="section-head"><h2>{{ _('Browse by topic') }}</h2></div>
+  <div class="topic-grid">{% for name, n in topics %}<a class="topic" href="{{ url_for('main.catalog', category=name) }}"><b>{{ name }}</b><span>{{ _n('%(n)s course', '%(n)s courses', n) }}</span></a>{% endfor %}</div>
+</section>
+{% endif %}
+
+{% if courses %}
+<section class="section">
+  <div class="section-head"><h2>{{ _('Latest courses') }}</h2><a href="{{ url_for('main.catalog') }}">{{ _('View all courses') }} →</a></div>
+  <div class="grid">{% for c in courses %}{{ course_card(c, ratings, mine) }}{% endfor %}</div>
+</section>
+{% endif %}
+
+{% if free_courses %}
+<section class="section">
+  <div class="section-head"><h2>{{ _('Start with a free course') }}</h2><a href="{{ url_for('main.catalog', price='free') }}">{{ _('See all free courses') }} →</a></div>
+  <div class="grid">{% for c in free_courses %}{{ course_card(c, ratings, mine) }}{% endfor %}</div>
+</section>
+{% endif %}
+
+<section class="section">
+  <div class="section-head"><h2>{{ _('How it works') }}</h2></div>
+  <div class="steps">
+    <div class="step"><h3>{{ _('Choose a course') }}</h3><p>{{ _('Browse the catalog by topic, level and length, and pick the course that fits your goals.') }}</p></div>
+    <div class="step"><h3>{{ _('Learn at your own pace') }}</h3><p>{{ _('Watch lessons, download materials and take quizzes whenever it suits you, on your phone or computer.') }}</p></div>
+    <div class="step"><h3>{% if config.FEATURE_CERTIFICATES %}{{ _('Earn your certificate') }}{% else %}{{ _('Track your progress') }}{% endif %}</h3><p>{% if config.FEATURE_CERTIFICATES %}{{ _('Complete every lesson and pass the assessments to receive a verifiable certificate.') }}{% else %}{{ _('See how far you have come in every course and pick up where you left off.') }}{% endif %}</p></div>
+  </div>
+</section>
+
+{% if not current_user.is_authenticated %}
+<section class="cta-band">
+  <div><h2>{{ _('Ready to start learning?') }}</h2><p>{{ _('Create a free account and enroll in your first course today.') }}</p></div>
+  <a class="btn" href="{{ url_for('auth.register') }}">{{ _('Create a free account') }}</a>
+</section>
+{% endif %}
 {% endblock %}

@@ -1,18 +1,36 @@
 {% macro csrf() %}<input type="hidden" name="_csrf" value="{{ csrf_token() }}">{% endmacro %}
-{% macro progress_bar(pct) %}<div class="progress" title="{{ pct }}%"><div style="width:{{ pct }}%"></div></div>{% endmacro %}
+{% macro progress_bar(pct) %}<div class="progress" role="progressbar" aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100" title="{{ pct }}%"><div style="width:{{ pct }}%"></div></div>{% endmacro %}
 {% macro price(course) %}{% if course.is_free %}{{ _('Free') }}{% else %}{{ course.price|money }} {{ currency }}{% endif %}{% endmacro %}
 {% macro hours(course) %}{% if course.length_hours %}{{ _('%(n)s h', n='%g'|format(course.length_hours|round(1))) }}{% endif %}{% endmacro %}
+{% macro icon(name) %}<svg class="i" aria-hidden="true"><use href="#i-{{ name }}"/></svg>{% endmacro %}
 {% macro stars(avg, count=none) %}<span class="rating"><span class="stars" role="img" aria-label="{{ _('%(n)s out of 5 stars', n='%.1f'|format(avg)) }}"><span style="width:{{ (avg / 5 * 100)|round(0)|int }}%">★★★★★</span>★★★★★</span> <b>{{ '%.1f'|format(avg) }}</b>{% if count is not none %} <span class="muted small">({{ count }})</span>{% endif %}</span>{% endmacro %}
-{% macro course_card(c, ratings=none) %}
+{# One course in a list. The whole card is a single tap target (the title link covers it). #}
+{# `mine` is the set of course ids the viewer can already open. Imported "with context" so the card
+   can tell guests from signed-in students. #}
+{% macro course_card(c, ratings=none, mine=none) %}
 {% set r = ratings.get(c.id) if ratings else none %}
-<div class="card course-card">
-  <div class="cover">{{ c.category or c.level }}</div>
-  <div class="meta"><span class="badge">{{ _(c.level) }}</span>{% if c.length_hours %}<span>{{ hours(c) }}</span>{% endif %}</div>
-  <h3><a href="{{ url_for('main.course_detail', slug=c.slug) }}">{{ c.title }}</a></h3>
-  {% if r and r[1] and config.FEATURE_REVIEWS %}<div>{{ stars(r[0], r[1]) }}</div>{% endif %}
-  <p class="muted">{{ c.summary }}</p>
-  {% set nl, na = c.lessons|length, c.assessments|length %}
-  <p class="small muted">{{ _n('%(n)s lesson', '%(n)s lessons', nl) }}{% if na %} · {{ _n('%(n)s assessment', '%(n)s assessments', na) }}{% endif %}</p>
-  <div class="price">{{ price(c) }}</div>
-</div>
+<article class="card course-card">
+  <div class="cover" aria-hidden="true">{{ c.category or _(c.level) }}</div>
+  <div class="body">
+    <div class="meta"><span class="badge">{{ _(c.level) }}</span>{% if c.length_hours %}<span>{{ hours(c) }}</span>{% endif %}</div>
+    <h3><a href="{{ url_for('main.course_detail', slug=c.slug) }}">{{ c.title }}</a></h3>
+    {% if c.instructor %}<p class="small muted" style="margin:0">{{ c.instructor.full_name }}</p>{% endif %}
+    {% if r and r[1] and config.FEATURE_REVIEWS %}<div>{{ stars(r[0], r[1]) }}</div>{% endif %}
+    {% if c.summary %}<p class="summary">{{ c.summary }}</p>{% endif %}
+    {% set nl, na = c.lessons|length, c.assessments|length %}
+    <div class="foot"><span class="price {{ 'is-free' if c.is_free }}">{{ price(c) }}</span><span class="small muted">{{ _n('%(n)s lesson', '%(n)s lessons', nl) }}{% if na %} · {{ _n('%(n)s assessment', '%(n)s assessments', na) }}{% endif %}</span></div>
+    {# Enroll for everyone: guests are asked to create an account first and then come back to enrolling #}
+    <div class="actions">
+      {% if current_user.is_authenticated and mine is not none and c.id in mine %}
+        <a class="btn small secondary" href="{{ url_for('main.course_detail', slug=c.slug) }}">{{ _('Continue learning') }}</a>
+      {% elif not current_user.is_authenticated %}
+        <a class="btn small" href="{{ url_for('auth.register', next=(url_for('main.course_detail', slug=c.slug) if c.is_free else url_for('pay.checkout', course_id=c.id))) }}">{{ _('Enroll') }}</a>
+      {% elif c.is_free %}
+        <form method="post" action="{{ url_for('pay.checkout', course_id=c.id) }}">{{ csrf() }}<button class="btn small">{{ _('Enroll') }}</button></form>
+      {% else %}
+        <a class="btn small" href="{{ url_for('pay.checkout', course_id=c.id) }}">{{ _('Enroll') }}</a>
+      {% endif %}
+    </div>
+  </div>
+</article>
 {% endmacro %}

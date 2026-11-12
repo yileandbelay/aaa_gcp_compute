@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% from "_macros.html" import csrf %}
 {% block title %}{{ _('My profile') }} · {{ site_name }}{% endblock %}
 {% block content %}
-<div class="card" style="max-width:560px">
+<div class="card auth-card wide">
   <h1>{{ _('My profile') }}</h1>
   <p class="muted">{{ current_user.email }} · {{ _(current_user.role|capitalize) }} · {{ _('joined %(date)s', date=current_user.created_at|localdate) }}</p>
   <form method="post" class="stack">{{ csrf() }}
