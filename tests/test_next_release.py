@@ -921,9 +921,9 @@ def test_cover_migration_keeps_existing_courses_up_and_down(tmp_path):
     con = sqlite3.connect(db_file)
     con.execute("insert into course (slug, title, level, price, is_published, created_at) values ('c', 'C', 'Beginner', 0, 1, '2026-01-01')")
     con.commit(); con.close()
-    assert run("db", "upgrade").returncode == 0
+    assert run("db", "upgrade", "e0f4a6b8c3d5").returncode == 0
     assert sqlite3.connect(db_file).execute("select title, cover_image from course").fetchall() == [("C", None)]
-    assert run("db", "downgrade").returncode == 0
+    assert run("db", "downgrade", "d9e3f5a7b2c4").returncode == 0
     cols = [r[1] for r in sqlite3.connect(db_file).execute("pragma table_info(course)")]
     assert "cover_image" not in cols and sqlite3.connect(db_file).execute("select title from course").fetchall() == [("C",)]
 
@@ -1177,9 +1177,9 @@ def test_deleted_at_migration_up_and_down_keeps_users(tmp_path):
     con = sqlite3.connect(db_file)
     con.execute("insert into user (full_name, email, password_hash, role, is_student, is_active_account, created_at) values ('U', 'u@example.com', 'h', 'student', 1, 1, '2026-01-01')")
     con.commit(); con.close()
-    assert run("db", "upgrade").returncode == 0
+    assert run("db", "upgrade", "f1a5b7c9d4e6").returncode == 0
     assert sqlite3.connect(db_file).execute("select email, deleted_at from user").fetchall() == [("u@example.com", None)]
-    assert run("db", "downgrade").returncode == 0
+    assert run("db", "downgrade", "e0f4a6b8c3d5").returncode == 0
     assert "deleted_at" not in [r[1] for r in sqlite3.connect(db_file).execute("pragma table_info(user)")]
     assert sqlite3.connect(db_file).execute("select email from user").fetchall() == [("u@example.com",)]
 
