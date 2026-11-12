@@ -40,6 +40,7 @@ def seed(path=None):
         course = Course(
             slug=c["slug"], title=c["title"], summary=c.get("summary"), description=c.get("description"),
             category=c.get("category"), level=c.get("level", "Beginner"),
+            learn_points=c.get("learn_points"), audience=c.get("audience"), prerequisites=c.get("prerequisites"),
             hours=Decimal(str(c["hours"])) if c.get("hours") else None,
             price=Decimal(str(c.get("price", "0"))), is_published=c.get("published", True),
             instructor_id=teacher.id,

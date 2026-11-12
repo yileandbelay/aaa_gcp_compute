@@ -1,11 +1,14 @@
-{% extends "base.html" %}{% from "_macros.html" import csrf, progress_bar, price, hours %}
+{% extends "base.html" %}{% from "_macros.html" import csrf, progress_bar, price, hours, stars %}
 {% block title %}{{ course.title }} · {{ site_name }}{% endblock %}
 {% block content %}
 {% if not course.is_published %}<div class="flash info">Draft – only staff can see this course.</div>{% endif %}
+{% set show_reviews = config.FEATURE_REVIEWS and rating is defined %}
 <div class="card">
-  <div class="meta"><span class="badge">{{ course.level }}</span>{% if course.category %}<span>{{ course.category }}</span>{% endif %}{% if course.hours %}<span>{{ hours(course) }} of training</span>{% endif %}<span>{{ course.lessons|length }} lessons</span></div>
+  <div class="meta"><span class="badge">{{ course.level }}</span>{% if course.category %}<a href="{{ url_for('main.catalog', category=course.category) }}">{{ course.category }}</a>{% endif %}{% if course.length_hours %}<span>{{ hours(course) }} of training</span>{% endif %}<span>{{ course.lessons|length }} lesson{{ 's' if course.lessons|length != 1 }}</span></div>
   <h1>{{ course.title }}</h1>
   <p class="muted">{{ course.summary }}</p>
+  {% if show_reviews and rating[1] %}<p>{{ stars(rating[0], rating[1]) }} <a class="small" href="#reviews">{{ rating[1] }} rating{{ 's' if rating[1] != 1 }}</a></p>{% endif %}
+  {% if course.instructor %}<p class="small">Taught by <b>{{ course.instructor.full_name }}</b></p>{% endif %}
   {% if progress is not none %}
     <p><b>Your progress: {{ progress.percent }}%</b></p>{{ progress_bar(progress.percent) }}
     {% if course.lessons %}<p><a class="btn" href="{{ url_for('learn.lesson', lesson_id=course.lessons[0].id) }}">{% if progress.percent %}Continue learning{% else %}Start course{% endif %}</a></p>{% endif %}
@@ -26,31 +29,38 @@
   {% endif %}
 </div>
 
+{% set videos = course.lessons|selectattr('kind', 'equalto', 'video')|list|length %}
+<ul class="includes" aria-label="This course includes">
+  {% if course.lessons %}<li><b>{{ course.lessons|length }}</b> lesson{{ 's' if course.lessons|length != 1 }}{% if videos %} ({{ videos }} video{{ 's' if videos != 1 }}){% endif %}</li>{% endif %}
+  {% if course.total_minutes %}<li><b>{{ '%g'|format((course.total_minutes / 60)|round(1)) }} h</b> of lessons</li>{% endif %}
+  {% if course.assessments %}<li><b>{{ course.assessments|length }}</b> quiz{{ 'zes' if course.assessments|length != 1 else '' }} or exam{{ 's' if course.assessments|length != 1 }}</li>{% endif %}
+  {% if course.file_count %}<li><b>{{ course.file_count }}</b> downloadable file{{ 's' if course.file_count != 1 }}</li>{% endif %}
+  {% if config.FEATURE_CERTIFICATES %}<li><b>Certificate</b> of completion</li>{% endif %}
+</ul>
+
 {% if progress is not none and course.announcements and config.FEATURE_ANNOUNCEMENTS %}
 <div class="card"><h2>Announcements</h2>
 {% for a in course.announcements[:5] %}<div style="margin-bottom:12px"><b>{{ a.title }}</b> <span class="small muted">{{ a.created_at.strftime('%d %b %Y') }}</span><div>{{ a.body|markdown }}</div></div>{% endfor %}
 </div>{% endif %}
 
-<div class="card"><h2>About this course</h2>{{ course.description|markdown }}</div>
-
-{% if course.instructor %}
-<div class="card"><h2>Your instructor</h2>
-  <div class="instructor"><div class="avatar">{{ course.instructor.full_name[:1] }}</div>
-    <div><b>{{ course.instructor.full_name }}</b>{% if course.instructor.headline %}<div class="muted small">{{ course.instructor.headline }}</div>{% endif %}
-    {% if course.instructor.bio %}<div>{{ course.instructor.bio|markdown }}</div>{% endif %}</div></div>
+{% if course.learn_list %}
+<div class="card"><h2>What you'll learn</h2>
+  <ul class="learn">{% for item in course.learn_list %}<li>{{ item }}</li>{% endfor %}</ul>
 </div>{% endif %}
 
-<div class="card">
-  <h2>Curriculum</h2>
-  <ol>
+{% if course.description %}<div class="card"><h2>About this course</h2>{{ course.description|markdown }}</div>{% endif %}
+
+<div class="card" id="syllabus">
+  <div class="row spread"><h2>Syllabus</h2>{% if course.total_minutes %}<span class="muted small">{{ course.lessons|length }} lessons · {{ '%g'|format((course.total_minutes / 60)|round(1)) }} h</span>{% endif %}</div>
+  <ol class="syllabus">
   {% for l in course.lessons %}
-    <li style="margin-bottom:6px">
-      {% if l.kind == 'video' %}▶{% elif l.kind == 'link' %}↗{% else %}≡{% endif %}
-      {% if progress is not none or l.is_preview %}<a href="{{ url_for('learn.lesson', lesson_id=l.id) }}">{{ l.title }}</a>{% else %}{{ l.title }} <span class="small muted">(locked)</span>{% endif %}
-      {% if l.is_preview and progress is none %}<span class="badge">Free preview</span>{% endif %}
-      {% if l.duration_min %}<span class="small muted">· {{ l.duration_min }} min</span>{% endif %}
-      {% if l.attachments %}<span class="small muted">· {{ l.attachments|length }} file{{ 's' if l.attachments|length > 1 }}</span>{% endif %}
-      {% if progress and l.id in progress.done_lessons %}<span class="badge passed">✓ done</span>{% endif %}
+    <li>
+      <span class="kind" aria-hidden="true">{% if l.kind == 'video' %}▶{% elif l.kind == 'link' %}↗{% else %}≡{% endif %}</span>
+      <span class="grow">{% if progress is not none or l.is_preview %}<a href="{{ url_for('learn.lesson', lesson_id=l.id) }}">{{ l.title }}</a>{% else %}{{ l.title }} <span class="small muted">(locked)</span>{% endif %}
+        {% if l.is_preview and progress is none %}<span class="badge">Free preview</span>{% endif %}
+        {% if l.attachments %}<span class="small muted"> · {{ l.attachments|length }} file{{ 's' if l.attachments|length > 1 }} or link{{ 's' if l.attachments|length > 1 }}</span>{% endif %}
+        {% if progress and l.id in progress.done_lessons %}<span class="badge passed">✓ done</span>{% endif %}</span>
+      <span class="small muted dur">{% if l.duration_min %}{{ l.duration_min }} min{% endif %}</span>
     </li>
   {% else %}<li class="muted">Lessons coming soon.</li>{% endfor %}
   </ol>
@@ -62,4 +72,51 @@
       {% if progress and a.id in progress.passed_assessments %}<span class="badge passed">passed</span>{% endif %}</li>
   {% endfor %}</ul>{% endif %}
 </div>
+
+{% if course.audience or course.prerequisites %}
+<div class="grid2">
+  {% if course.audience %}<div class="card"><h2>Who this course is for</h2>{{ course.audience|markdown }}</div>{% endif %}
+  {% if course.prerequisites %}<div class="card"><h2>Before you start</h2>{{ course.prerequisites|markdown }}</div>{% endif %}
+</div>{% endif %}
+
+{% if course.instructor %}
+<div class="card"><h2>Your instructor</h2>
+  <div class="instructor"><div class="avatar">{{ course.instructor.full_name[:1] }}</div>
+    <div><b>{{ course.instructor.full_name }}</b>{% if course.instructor.headline %}<div class="muted small">{{ course.instructor.headline }}</div>{% endif %}
+    {% if course.instructor.bio %}<div>{{ course.instructor.bio|markdown }}</div>{% endif %}</div></div>
+</div>{% endif %}
+
+{% if show_reviews %}
+<div class="card" id="reviews">
+  <h2>Ratings and feedback</h2>
+  {% if rating[1] %}
+  <div class="rating-summary">
+    <div class="big">{{ '%.1f'|format(rating[0]) }}<div>{{ stars(rating[0]) }}</div><div class="small muted">{{ rating[1] }} rating{{ 's' if rating[1] != 1 }}</div></div>
+    <div class="bars">{% for star in [5, 4, 3, 2, 1] %}<div class="barrow"><span class="small">{{ star }} ★</span><div class="progress"><div style="width:{{ (dist[star] / rating[1] * 100)|round(0)|int }}%"></div></div><span class="small muted">{{ dist[star] }}</span></div>{% endfor %}</div>
+  </div>
+  {% else %}<p class="muted">No ratings yet.{% if can_review %} Be the first to share your experience.{% endif %}</p>{% endif %}
+
+  {% if can_review %}
+  <h3>{{ 'Your review' if my_review else 'Rate this course' }}</h3>
+  <form method="post" action="{{ url_for('main.review_save', slug=course.slug) }}" class="stack">{{ csrf() }}
+    <fieldset class="starpick"><legend class="small">Your rating</legend>
+      {% for n in [5, 4, 3, 2, 1] %}<input type="radio" id="star{{ n }}" name="rating" value="{{ n }}" {{ 'checked' if my_review and my_review.rating == n }} required><label for="star{{ n }}" title="{{ n }} star{{ 's' if n != 1 }}"><span class="sr">{{ n }} star{{ 's' if n != 1 }}</span>★</label>{% endfor %}
+    </fieldset>
+    <label for="comment">Feedback (optional)</label>
+    <textarea id="comment" name="comment" rows="3" maxlength="2000" placeholder="What was useful? What could be better?">{{ my_review.comment if my_review and my_review.comment }}</textarea>
+    <p class="row"><button class="btn small">{{ 'Update review' if my_review else 'Submit review' }}</button>
+    {% if my_review %}<button class="linkbtn" formaction="{{ url_for('main.review_delete', slug=course.slug) }}" style="color:var(--err)">remove my review</button>{% endif %}</p>
+  </form>
+  {% elif current_user.is_authenticated and progress is not none and not current_user.is_staff %}
+  <p class="small muted">You can rate this course after completing your first lesson.</p>
+  {% endif %}
+
+  {% for r in reviews %}
+  <div class="review">
+    <div class="row spread"><div><b>{{ r.author }}</b> {{ stars(r.rating) }}</div><span class="small muted">{{ r.created_at.strftime('%d %b %Y') }}</span></div>
+    <p style="white-space:pre-wrap;margin:6px 0 0">{{ r.comment }}</p>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 {% endblock %}

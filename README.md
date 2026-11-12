@@ -11,7 +11,8 @@ It's built with Python / Flask and runs on SQLite by default (PostgreSQL is supp
 | **Students and staff** | Students register (name, email, phone, city), log in, reset passwords by email. **Staff** (admins and instructors) are kept apart from students: separate lists, never counted as students. Admins add staff by email; the new person sets their own password. Suspended accounts are locked out at once |
 | **Roles** | **Admin:** everything. **Instructor (course admin):** manages only the courses assigned to them, including their lessons, quizzes, announcements and students |
 | **Enrolling students** | Each course has an "Enroll students" page: tick registered students or paste email addresses. People without an account are invited and get the course when they register. Optional email notice; see who has access and how (paid, assigned, free), remove or restore access |
-| **Courses** | Categories, levels, training hours, search and category filter, free or paid, free-preview lessons, instructor profiles |
+| **Courses** | Categories, levels, training hours, free or paid, free-preview lessons, instructor profiles. Course pages show what you'll learn, what's included, a syllabus with durations, who it is for, prerequisites and the instructor. The course finder filters by topic, level, length and price, searches, and sorts by newest, popularity, rating or length |
+| **Ratings and feedback** | Enrolled students who have completed a lesson can rate a course (1-5 stars) and leave feedback. Averages and a breakdown show on course cards and pages; reviewers appear as "Hana T."; admins and the course's instructor can hide or delete reviews |
 | **Lessons** | Video, text and external-link lessons. Each lesson can have downloadable files (PDF, slides, spreadsheets…) and links (another site, a free course elsewhere). Videos: upload to your video host, paste a YouTube or Vimeo link, or store on your server. Progress tracking |
 | **Contact** | A Contact page with your details (email, phone, WhatsApp, Telegram, address, hours) and a message form. Messages are saved in an admin inbox with an unread badge, and also emailed to you. Spam protection: hidden field and a per-IP hourly limit |
 | **Video** | Upload from the lesson editor straight to a video host, and play it in the lesson with a per-student signed link: **Bunny Stream** or **VdoCipher** (DRM). Hosts are pluggable. Videos can also be stored on your own server (expiring per-student links, served by nginx) |
@@ -109,7 +110,7 @@ You can set an academy up in three layers, none of which touch the core code.
 | Group | Settings |
 |---|---|
 | Branding | `SITE_NAME`, `SITE_SHORT_NAME`, `SITE_TAGLINE`, `SITE_HEADLINE`, `SITE_INTRO`, `BRAND_COLOR`, `TX_PREFIX`, `CONTACT_EMAIL`, `CONTACT_PHONE` |
-| Modules on/off | `FEATURE_DISCUSSION`, `FEATURE_ANNOUNCEMENTS`, `FEATURE_CERTIFICATES` |
+| Modules on/off | `FEATURE_DISCUSSION`, `FEATURE_ANNOUNCEMENTS`, `FEATURE_CERTIFICATES`, `FEATURE_REVIEWS` |
 | Content protection | `PROTECT_LESSON_TEXT` (block copying lesson text), `VIDEO_WATERMARK`, `ALLOW_VIDEO_DOWNLOAD`, `ALLOW_MATERIAL_DOWNLOAD` |
 | Video hosting | `BUNNY_LIBRARY_ID`, `BUNNY_API_KEY`, `BUNNY_TOKEN_KEY`, `VDOCIPHER_API_SECRET` |
 | Payments | `CURRENCY`, `CHAPA_SECRET_KEY`, `MANUAL_PAYMENT_ENABLED`, `MANUAL_PAYMENT_INSTRUCTIONS` |
@@ -171,6 +172,7 @@ academy/
   payments.py        Chapa integration       videohosts/  Bunny Stream and VdoCipher providers
   mail.py            SMTP email              utils.py   CSRF, access checks, progress
   enrollment.py      assigning courses, invitations
+  reviews.py         ratings summaries, who may review
   seed.py            JSON course loader      sample_data/demo_courses.json
   migrations/        database migrations (Flask-Migrate / Alembic)
   templates/ static/ built-in pages and styles (override with a theme folder)

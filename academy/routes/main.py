@@ -6,7 +6,8 @@ from flask_login import current_user, login_required
 
 from ..enrollment import EMAIL_RE
 from ..mail import send_email
-from ..models import Certificate, ContactMessage, Course, Enrollment, Payment, db, utcnow
+from ..models import Certificate, ContactMessage, Course, Enrollment, Payment, Review, db, utcnow
+from ..reviews import can_review, distribution, popularity, rating_summary
 from ..utils import course_progress
 
 bp = Blueprint("main", __name__)
@@ -15,23 +16,60 @@ bp = Blueprint("main", __name__)
 @bp.route("/")
 def index():
     courses = Course.query.filter_by(is_published=True).order_by(Course.created_at.desc()).limit(6).all()
-    return render_template("index.html", courses=courses)
+    return render_template("index.html", courses=courses, ratings=rating_summary([c.id for c in courses]))
+
+
+LENGTHS = (("short", "Short (under 2 hours)"), ("medium", "Medium (2 to 6 hours)"), ("long", "Long (over 6 hours)"))
+SORTS = (("newest", "Newest"), ("popular", "Most popular"), ("rating", "Highest rated"),
+         ("shortest", "Shortest first"), ("title", "Title A-Z"))
 
 
 @bp.route("/courses")
 def catalog():
-    published = Course.query.filter_by(is_published=True)
+    published = Course.query.filter_by(is_published=True).all()
     categories = sorted({c.category for c in published if c.category})
+    levels = sorted({c.level for c in published if c.level})
     category = request.args.get("category", "")
+    level = request.args.get("level", "")
+    length = request.args.get("length", "")
+    price = request.args.get("price", "")
+    sort = request.args.get("sort", "newest")
     q = request.args.get("q", "").strip()
-    query = published
+
+    courses = published
     if category:
-        query = query.filter_by(category=category)
+        courses = [c for c in courses if c.category == category]
+    if level:
+        courses = [c for c in courses if c.level == level]
+    if length in dict(LENGTHS):
+        courses = [c for c in courses if c.length_band == length]
+    if price == "free":
+        courses = [c for c in courses if c.is_free]
+    elif price == "paid":
+        courses = [c for c in courses if not c.is_free]
     if q:
-        like = f"%{q}%"
-        query = query.filter(Course.title.ilike(like) | Course.summary.ilike(like))
-    return render_template("courses/catalog.html", courses=query.order_by(Course.title).all(),
-                           categories=categories, category=category, q=q)
+        needle = q.lower()
+        courses = [c for c in courses if needle in " ".join(
+            filter(None, [c.title, c.summary, c.category, c.description])).lower()]
+
+    ratings = rating_summary([c.id for c in courses])
+    if sort == "popular":
+        students = popularity([c.id for c in courses])
+        courses.sort(key=lambda c: (-students.get(c.id, 0), c.title.lower()))
+    elif sort == "rating":
+        courses.sort(key=lambda c: (-ratings.get(c.id, (0, 0))[0], -ratings.get(c.id, (0, 0))[1], c.title.lower()))
+    elif sort == "shortest":
+        courses.sort(key=lambda c: (c.length_hours is None, c.length_hours or 0, c.title.lower()))
+    elif sort == "title":
+        courses.sort(key=lambda c: c.title.lower())
+    else:
+        sort = "newest"
+        courses.sort(key=lambda c: c.created_at, reverse=True)
+    filtered = bool(category or level or length or price or q)
+    return render_template(
+        "courses/catalog.html", courses=courses, ratings=ratings, categories=categories, levels=levels,
+        lengths=LENGTHS, sorts=SORTS, category=category, level=level, length=length, price=price, sort=sort,
+        q=q, filtered=filtered)
 
 
 @bp.route("/healthz")
@@ -54,10 +92,58 @@ def course_detail(slug):
         pending_payment = Payment.query.filter_by(
             user_id=current_user.id, course_id=course.id, status="submitted"
         ).first()
+    ctx = {}
+    if current_app.config["FEATURE_REVIEWS"]:
+        visible = [r for r in course.reviews if not r.is_hidden]
+        summary = rating_summary([course.id]).get(course.id, (0.0, 0))
+        mine = None
+        if current_user.is_authenticated:
+            mine = Review.query.filter_by(user_id=current_user.id, course_id=course.id).first()
+        ctx = dict(reviews=[r for r in visible if r.comment][:20], rating=summary, dist=distribution(course),
+                   can_review=can_review(current_user, course), my_review=mine)
     return render_template(
         "courses/detail.html", course=course, enrollment=enrollment,
-        progress=progress, pending_payment=pending_payment,
+        progress=progress, pending_payment=pending_payment, **ctx,
     )
+
+
+@bp.route("/courses/<slug>/review", methods=["POST"])
+@login_required
+def review_save(slug):
+    course = Course.query.filter_by(slug=slug, is_published=True).first_or_404()
+    if not current_app.config["FEATURE_REVIEWS"]:
+        abort(404)
+    if not can_review(current_user, course):
+        flash("You can rate a course once you are enrolled and have completed a lesson.", "error")
+        return redirect(url_for("main.course_detail", slug=slug) + "#reviews")
+    try:
+        rating = int(request.form.get("rating", ""))
+    except ValueError:
+        rating = 0
+    if not 1 <= rating <= 5:
+        flash("Please choose a rating from 1 to 5 stars.", "error")
+        return redirect(url_for("main.course_detail", slug=slug) + "#reviews")
+    review = Review.query.filter_by(user_id=current_user.id, course_id=course.id).first()
+    if not review:
+        review = Review(user_id=current_user.id, course_id=course.id)
+        db.session.add(review)
+    review.rating = rating
+    review.comment = request.form.get("comment", "").strip()[:2000] or None
+    db.session.commit()
+    flash("Thank you for your feedback!", "success")
+    return redirect(url_for("main.course_detail", slug=slug) + "#reviews")
+
+
+@bp.route("/courses/<slug>/review/delete", methods=["POST"])
+@login_required
+def review_delete(slug):
+    course = Course.query.filter_by(slug=slug).first_or_404()
+    review = Review.query.filter_by(user_id=current_user.id, course_id=course.id).first()
+    if review:
+        db.session.delete(review)
+        db.session.commit()
+        flash("Your review was removed.", "info")
+    return redirect(url_for("main.course_detail", slug=slug) + "#reviews")
 
 
 @bp.route("/dashboard")

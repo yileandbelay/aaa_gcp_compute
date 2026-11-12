@@ -28,6 +28,7 @@ class Config:
     FEATURE_DISCUSSION = _bool("FEATURE_DISCUSSION", True)  # per-lesson Q&A
     FEATURE_ANNOUNCEMENTS = _bool("FEATURE_ANNOUNCEMENTS", True)
     FEATURE_CERTIFICATES = _bool("FEATURE_CERTIFICATES", True)
+    FEATURE_REVIEWS = _bool("FEATURE_REVIEWS", True)  # star ratings and feedback on courses
 
     # Content protection (tune to how strict you want to be) ----------------
     # Block right-click / copy on lesson text.

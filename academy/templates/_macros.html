@@ -1,12 +1,15 @@
 {% macro csrf() %}<input type="hidden" name="_csrf" value="{{ csrf_token() }}">{% endmacro %}
 {% macro progress_bar(pct) %}<div class="progress" title="{{ pct }}%"><div style="width:{{ pct }}%"></div></div>{% endmacro %}
 {% macro price(course) %}{% if course.is_free %}Free{% else %}{{ course.price|money }} {{ currency }}{% endif %}{% endmacro %}
-{% macro hours(course) %}{% if course.hours %}{{ '%g'|format(course.hours|float) }} h{% endif %}{% endmacro %}
-{% macro course_card(c) %}
+{% macro hours(course) %}{% if course.length_hours %}{{ '%g'|format(course.length_hours|round(1)) }} h{% endif %}{% endmacro %}
+{% macro stars(avg, count=none) %}<span class="rating"><span class="stars" role="img" aria-label="{{ '%.1f'|format(avg) }} out of 5 stars"><span style="width:{{ (avg / 5 * 100)|round(0)|int }}%">★★★★★</span>★★★★★</span> <b>{{ '%.1f'|format(avg) }}</b>{% if count is not none %} <span class="muted small">({{ count }})</span>{% endif %}</span>{% endmacro %}
+{% macro course_card(c, ratings=none) %}
+{% set r = ratings.get(c.id) if ratings else none %}
 <div class="card course-card">
   <div class="cover">{{ c.category or c.level }}</div>
-  <div class="meta"><span class="badge">{{ c.level }}</span>{% if c.hours %}<span>{{ hours(c) }}</span>{% endif %}</div>
+  <div class="meta"><span class="badge">{{ c.level }}</span>{% if c.length_hours %}<span>{{ hours(c) }}</span>{% endif %}</div>
   <h3><a href="{{ url_for('main.course_detail', slug=c.slug) }}">{{ c.title }}</a></h3>
+  {% if r and r[1] and config.FEATURE_REVIEWS %}<div>{{ stars(r[0], r[1]) }}</div>{% endif %}
   <p class="muted">{{ c.summary }}</p>
   {% set nl, na = c.lessons|length, c.assessments|length %}
   <p class="small muted">{{ nl }} lesson{{ 's' if nl != 1 }}{% if na %} · {{ na }} assessment{{ 's' if na != 1 }}{% endif %}</p>

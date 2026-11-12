@@ -29,7 +29,13 @@
 <form method="post" class="stack" action="{{ url_for('admin.course_edit', course_id=course.id) if course else url_for('admin.course_new') }}">{{ csrf() }}
   <label for="title">Title</label><input type="text" id="title" name="title" value="{{ course.title if course }}" required>
   <label for="summary">Short summary (one line, shown on course cards)</label><input type="text" id="summary" name="summary" maxlength="300" value="{{ course.summary if course and course.summary }}">
-  <label for="description">Description (Markdown)</label><textarea id="description" name="description" rows="8">{{ course.description if course and course.description }}</textarea>
+  <label for="description">Description (Markdown)</label><textarea id="description" name="description" rows="6">{{ course.description if course and course.description }}</textarea>
+  <label for="learn_points">What students will learn <span class="small muted">(one point per line, shown as a checklist on the course page)</span></label>
+  <textarea id="learn_points" name="learn_points" rows="5" placeholder="Build a realistic project schedule&#10;Identify and manage risks&#10;Report progress clearly to managers">{{ course.learn_points if course and course.learn_points }}</textarea>
+  <div class="row">
+    <div style="flex:1;min-width:240px"><label for="audience">Who this course is for</label><textarea id="audience" name="audience" rows="4" placeholder="Team leaders, new project coordinators, anyone who plans work for others">{{ course.audience if course and course.audience }}</textarea></div>
+    <div style="flex:1;min-width:240px"><label for="prerequisites">Before you start (prerequisites)</label><textarea id="prerequisites" name="prerequisites" rows="4" placeholder="No experience needed. A computer with internet access.">{{ course.prerequisites if course and course.prerequisites }}</textarea></div>
+  </div>
   <div class="row">
     <div style="flex:1;min-width:160px"><label for="level">Level</label><select id="level" name="level">{% for lv in ['Beginner','Intermediate','Advanced','Business'] %}<option {{ 'selected' if course and course.level == lv }}>{{ lv }}</option>{% endfor %}</select></div>
     <div style="flex:1;min-width:160px"><label for="category">Category</label><input type="text" id="category" name="category" list="cats" value="{{ course.category or '' if course }}" placeholder="e.g. Business">
@@ -81,6 +87,19 @@
   <div class="row spread"><h2>Quizzes and exams</h2><a class="btn small" href="{{ url_for('admin.assessment_form', course_id=course.id) }}">+ Add assessment</a></div>
   <ul>{% for a in course.assessments %}<li><a href="{{ url_for('admin.assessment_form', aid=a.id) }}">{{ a.title }}</a> · {{ a.questions|length }} questions · <a href="{{ url_for('admin.assessment_results', aid=a.id) }}">results</a></li>{% else %}<li class="muted">No assessments yet.</li>{% endfor %}</ul>
 </div>
+
+{% if config.FEATURE_REVIEWS %}<div class="card" id="reviews">
+  <div class="row spread"><h2>Ratings and feedback</h2>{% if rating %}<span class="muted">Average {{ '%.1f'|format(rating[0]) }} from {{ rating[1] }} rating{{ 's' if rating[1] != 1 }}</span>{% endif %}</div>
+  {% for r in course.reviews %}
+  <div class="review">
+    <div class="row spread"><div><b>{{ r.user.full_name }}</b> <span class="small muted">{{ r.user.email }}</span> · {{ r.rating }} ★ {% if r.is_hidden %}<span class="badge failed">hidden</span>{% endif %}</div>
+      <form method="post" action="{{ url_for('admin.review_moderate', review_id=r.id) }}" class="row">{{ csrf() }}
+        {% if r.is_hidden %}<button class="linkbtn" name="action" value="show">show again</button>{% else %}<button class="linkbtn" name="action" value="hide">hide</button>{% endif %}
+        <button class="linkbtn" name="action" value="delete" style="color:var(--err)" onclick="return confirm('Delete this review permanently?')">delete</button></form></div>
+    {% if r.comment %}<p style="white-space:pre-wrap;margin:6px 0 0">{{ r.comment }}</p>{% endif %}
+  </div>
+  {% else %}<p class="muted">No ratings yet. Enrolled students can rate the course after completing a lesson.</p>{% endfor %}
+</div>{% endif %}
 
 <div class="card" id="students">
   <div class="row spread"><h2>Students</h2><a class="btn small" href="{{ url_for('admin.course_students', course_id=course.id) }}">Enroll and manage students</a></div>

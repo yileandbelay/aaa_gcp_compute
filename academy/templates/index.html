@@ -12,5 +12,5 @@
   <div class="card"><h3>Simple payment</h3><p class="muted">Pay online or by bank transfer, and get access as soon as payment is confirmed.</p></div>
   {% if config.FEATURE_CERTIFICATES %}<div class="card"><h3>Certificates</h3><p class="muted">Earn a verifiable certificate showing your training hours.</p></div>{% endif %}
 </div>
-{% if courses %}<h2>Latest courses</h2><div class="grid">{% for c in courses %}{{ course_card(c) }}{% endfor %}</div>{% endif %}
+{% if courses %}<h2>Latest courses</h2><div class="grid">{% for c in courses %}{{ course_card(c, ratings) }}{% endfor %}</div>{% endif %}
 {% endblock %}
