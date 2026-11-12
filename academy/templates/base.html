@@ -55,6 +55,10 @@
       <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
       <input type="search" name="q" placeholder="{{ _('Search courses') }}" aria-label="{{ _('Search courses') }}">
     </form>
+    {% set langs = available_languages() %}
+    {% if langs|length > 1 %}
+    <span class="langs" role="group" aria-label="{{ _('Language') }}">{% for code in langs %}<a href="{{ url_for('main.set_language', code=code, next=request.full_path.rstrip('?')) }}" lang="{{ code }}" hreflang="{{ code }}" aria-label="{{ language_names.get(code, code) }}" title="{{ language_names.get(code, code) }}" {% if code == current_lang() %}aria-current="true" class="on"{% endif %}>{{ language_short.get(code, code[:2]|upper) }}</a>{% endfor %}</span>
+    {% endif %}
     <button type="button" class="nav-toggle" data-toggle="#site-nav #header-search" aria-controls="site-nav" aria-expanded="false" aria-label="{{ _('Menu') }}">
       <svg class="i" aria-hidden="true"><use href="#i-menu"/></svg>
     </button>
@@ -62,8 +66,8 @@
       <a href="{{ url_for('main.catalog') }}" {% if ep == 'main.catalog' %}aria-current="page"{% endif %}>{{ _('Courses') }}</a>
       <a href="{{ url_for('main.contact') }}" {% if ep == 'main.contact' %}aria-current="page"{% endif %}>{{ _('Contact') }}</a>
       {% if current_user.is_authenticated %}
-        <a href="{{ url_for('main.dashboard') }}" {% if ep == 'main.dashboard' %}aria-current="page"{% endif %}>{{ _('My learning') }}</a>
-        {% if current_user.is_staff %}<a href="{{ url_for('admin.dashboard') }}">{{ _('Admin') }}</a>{% endif %}
+        {% if current_user.can_study %}<a href="{{ url_for('main.dashboard') }}" {% if ep == 'main.dashboard' %}aria-current="page"{% endif %}>{{ _('My learning') }}</a>{% endif %}
+        {% if current_user.is_staff %}<a href="{{ url_for('admin.dashboard') }}" {% if ep.startswith('admin.') %}aria-current="page"{% endif %}>{{ _('Admin') if current_user.is_admin else _('Teaching') }}</a>{% endif %}
         <a href="{{ url_for('auth.profile') }}" {% if ep == 'auth.profile' %}aria-current="page"{% endif %}>{{ current_user.full_name.split(' ')[0] }}</a>
         <form method="post" action="{{ url_for('auth.logout') }}">
           <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
@@ -71,10 +75,6 @@
         </form>
       {% else %}
         <a class="btn small" href="{{ url_for('auth.login') }}">{{ _('Log in') }}</a>
-      {% endif %}
-      {% set langs = available_languages() %}
-      {% if langs|length > 1 %}
-      <span class="langs" role="group" aria-label="{{ _('Language') }}">{% for code in langs %}<a href="{{ url_for('main.set_language', code=code, next=request.full_path.rstrip('?')) }}" lang="{{ code }}" {% if code == current_lang() %}aria-current="true" class="on"{% endif %}>{{ language_names.get(code, code) }}</a>{% endfor %}</span>
       {% endif %}
     </nav>
   </div>
@@ -112,7 +112,7 @@
 <nav class="tabbar" aria-label="{{ _('Main navigation') }}">
   <a href="{{ url_for('main.index') }}" {% if ep == 'main.index' %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-home"/></svg>{{ _('Home') }}</a>
   <a href="{{ url_for('main.catalog') }}" {% if ep == 'main.catalog' %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-search"/></svg>{{ _('Courses') }}</a>
-  {% if current_user.is_staff %}<a href="{{ url_for('admin.dashboard') }}" {% if ep.startswith('admin.') %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-grid"/></svg>{{ _('Admin') }}</a>
+  {% if current_user.is_staff %}<a href="{{ url_for('admin.dashboard') }}" {% if ep.startswith('admin.') %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-grid"/></svg>{{ _('Admin') if current_user.is_admin else _('Teaching') }}</a>
   {% else %}<a href="{{ url_for('main.dashboard') }}" {% if ep == 'main.dashboard' %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-book"/></svg>{{ _('My learning') }}</a>{% endif %}
   <a href="{{ url_for('auth.profile') }}" {% if ep == 'auth.profile' %}aria-current="page"{% endif %}><svg class="i" aria-hidden="true"><use href="#i-user"/></svg>{{ _('Profile') }}</a>
 </nav>

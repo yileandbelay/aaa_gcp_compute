@@ -2,24 +2,34 @@
 {% block title %}{{ user.full_name }} · Admin{% endblock %}
 {% block content %}
 <p class="small"><a href="{{ url_for('admin.staff') if user.is_staff else url_for('admin.students') }}">← {{ 'Staff' if user.is_staff else 'Students' }}</a></p>
-<h1>{{ user.full_name }} <span class="badge {{ 'active' if user.role == 'admin' else '' }}">{{ user.role }}</span></h1>
+<h1>{{ user.full_name }} {% for r in user.role_names %}<span class="badge {{ 'active' if r == 'Admin' else '' }}">{{ r }}</span> {% endfor %}</h1>
 <div class="card">
   <p>{{ user.email }} · {{ user.phone or 'no phone' }} · {{ user.city or '' }} · joined {{ user.created_at.strftime('%d %b %Y') }}{% if not user.is_active_account %} · <span class="badge failed">suspended</span>{% endif %}</p>
+  <form method="post" class="stack">{{ csrf() }}<input type="hidden" name="action" value="roles">
+    <fieldset class="roles">
+      <legend>Roles</legend>
+      <label class="check"><input type="checkbox" name="student" value="1" {{ 'checked' if user.can_study }}> <b>Student</b> <span class="small muted">can enroll in and take courses</span></label>
+      {% if user.id != current_user.id %}
+      <p class="small muted" style="margin:var(--s3) 0 var(--s1)">Staff access</p>
+      <label class="check"><input type="radio" name="level" value="student" {{ 'checked' if user.role == 'student' }}> None</label>
+      <label class="check"><input type="radio" name="level" value="instructor" {{ 'checked' if user.role == 'instructor' }}> <b>Teacher</b> <span class="small muted">manages only their own courses and those courses' students</span></label>
+      <label class="check"><input type="radio" name="level" value="admin" {{ 'checked' if user.role == 'admin' }}> <b>Admin</b> <span class="small muted">everything, including payments, people and settings</span></label>
+      {% else %}<p class="small muted">This is your own account: you can add or remove your student role, but another admin must change your staff access.</p>{% endif %}
+    </fieldset>
+    <p><button class="btn small">Save roles</button></p>
+  </form>
   {% if user.id != current_user.id %}
-  <div class="row">
-    <form method="post" class="row">{{ csrf() }}<input type="hidden" name="action" value="role">
-      <select name="role" aria-label="Role" style="width:auto">{% for r in ['student','instructor','admin'] %}<option value="{{ r }}" {{ 'selected' if user.role == r }}>{{ 'instructor (course admin)' if r == 'instructor' else r }}</option>{% endfor %}</select><button class="btn small secondary">Change role</button></form>
-    <form method="post">{{ csrf() }}<input type="hidden" name="action" value="toggle_active"><button class="btn small {{ 'danger' if user.is_active_account else 'ok' }}">{{ 'Suspend account' if user.is_active_account else 'Reactivate account' }}</button></form>
-  </div>
-  <p class="small muted">Changing a student to instructor or admin moves them from Students to Staff. A suspended account cannot log in.</p>
-  {% else %}<p class="small muted">This is your own account. Ask another admin to change your role or suspend you.</p>{% endif %}
+  <form method="post">{{ csrf() }}<input type="hidden" name="action" value="toggle_active"><button class="btn small {{ 'danger' if user.is_active_account else 'ok' }}">{{ 'Suspend account' if user.is_active_account else 'Reactivate account' }}</button></form>
+  {% endif %}
+  <p class="small muted">An email address can hold several roles at once. A suspended account cannot log in.</p>
 </div>
 
 {% if user.is_staff %}
 <div class="card"><h2>Courses taught</h2>
   <ul>{% for c in teaching %}<li><a href="{{ url_for('admin.course_edit', course_id=c.id) }}">{{ c.title }}</a></li>{% else %}<li class="muted">None. {{ 'Admins can edit every course.' if user.role == 'admin' else 'Assign courses to this instructor from the course page (Instructor field).' }}</li>{% endfor %}</ul>
 </div>
-{% else %}
+{% endif %}
+{% if user.can_study %}
 <div class="card"><h2>Courses</h2><table>
 {% for e, p in rows %}<tr><td><a href="{{ url_for('admin.course_students', course_id=e.course.id) }}">{{ e.course.title }}</a></td><td><span class="badge {{ e.status }}">{{ e.status }}</span></td><td class="small">{{ e.source_label }}{% if e.source == 'assigned' and e.assigned_by %} by {{ e.assigned_by.full_name }}{% endif %}</td><td style="width:26%">{{ progress_bar(p.percent) }}</td>
 <td>{% if e.status == 'active' %}<form method="post">{{ csrf() }}<input type="hidden" name="action" value="revoke"><input type="hidden" name="enrollment_id" value="{{ e.id }}"><button class="linkbtn">remove access</button></form>{% endif %}</td></tr>

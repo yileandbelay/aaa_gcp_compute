@@ -4,10 +4,12 @@
 {% block title %}{{ _('Log in') if mode == 'login' else _('Create account') }} · {{ site_name }}{% endblock %}
 {% block content %}
 <div class="card auth-card {{ 'wide' if mode == 'register' }}">
+  {% if area|default('student') != 'staff' %}
   <div class="auth-tabs" role="tablist" aria-label="{{ _('Log in or create an account') }}">
     <a href="{{ url_for('auth.login', next=request.args.get('next')) }}" role="tab" aria-selected="{{ 'true' if mode == 'login' else 'false' }}">{{ _('Log in') }}</a>
     <a href="{{ url_for('auth.register', next=request.args.get('next')) }}" role="tab" aria-selected="{{ 'true' if mode == 'register' else 'false' }}">{{ _('Create account') }}</a>
   </div>
+  {% endif %}
   {% block form %}{% endblock %}
 </div>
 {% endblock %}

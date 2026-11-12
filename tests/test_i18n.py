@@ -330,3 +330,34 @@ def test_staff_area_stays_in_english(app):
     page = c.get("/admin/students").data.decode()
     assert "Students" in page and "Search name, email or phone" in page
     assert "ኮርሶች" in page  # the shared header is translated
+
+
+# --- Academy name and compact language switch --------------------------------------------------
+
+def test_academy_name_follows_the_language(app):
+    en = app.test_client().get("/").data.decode()
+    am = am_client(app).get("/").data.decode()
+    assert "Mek Academy" in en and "Online Academy" not in en
+    assert "ሜክ አካዳሚ" in am and "Mek Academy" not in am.split("<body")[1].split("<main")[0]
+    assert "<title>ሜክ አካዳሚ" in am or "· ሜክ አካዳሚ</title>" in am
+
+
+def test_old_default_name_in_settings_file_becomes_the_new_name(monkeypatch):
+    import importlib
+
+    from academy import config
+
+    monkeypatch.setenv("SITE_NAME", "Mek Online Academy")
+    assert importlib.reload(config).Config.SITE_NAME == "Mek Academy"
+    monkeypatch.setenv("SITE_NAME", "Another School")
+    assert importlib.reload(config).Config.SITE_NAME == "Another School"
+    monkeypatch.delenv("SITE_NAME")
+    importlib.reload(config)
+
+
+def test_language_switch_sits_in_the_top_bar_with_short_labels(app):
+    html = app.test_client().get("/").data.decode()
+    bar = html.split('<nav class="site-nav"')[0]
+    assert 'class="langs"' in bar and ">EN<" in bar and ">አማ<" in bar
+    assert 'aria-label="አማርኛ"' in bar and 'aria-label="English"' in bar
+    assert 'class="langs"' not in html.split('<nav class="site-nav"')[1].split("</nav>")[0]

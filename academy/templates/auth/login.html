@@ -1,14 +1,28 @@
 {% extends "auth/_access.html" %}
 {% set mode = 'login' %}
 {% block form %}
+  <nav class="who" aria-label="{{ _('Who is signing in?') }}">
+    <a href="{{ url_for('auth.login', area='student', next=request.args.get('next')) }}" {% if area != 'staff' %}aria-current="page"{% endif %}>{{ _('Student') }}</a>
+    <a href="{{ url_for('auth.login', area='staff', next=request.args.get('next')) }}" {% if area == 'staff' %}aria-current="page"{% endif %}>{{ _('Teacher / Admin') }}</a>
+  </nav>
+  {% if area == 'staff' %}
+  <h1>{{ _('Teacher and admin sign in') }}</h1>
+  <p class="lead">{{ _('Manage your courses and students.') }}</p>
+  {% else %}
   <h1>{{ _('Welcome back') }}</h1>
   <p class="lead">{{ _('Log in to continue learning.') }}</p>
-  <form method="post" class="stack" action="{{ url_for('auth.login', next=request.args.get('next')) }}">{{ csrf() }}
+  {% endif %}
+  <form method="post" class="stack" action="{{ url_for('auth.login', area=area, next=request.args.get('next')) }}">{{ csrf() }}
+    <input type="hidden" name="area" value="{{ area }}">
     <label for="email">{{ _('Email') }}</label><input type="email" id="email" name="email" required autofocus autocomplete="email">
     <label for="password">{{ _('Password') }}</label><input type="password" id="password" name="password" required autocomplete="current-password">
     <label class="check"><input type="checkbox" name="remember" value="1"> {{ _('Remember me') }}</label>
     <p style="margin-top:var(--s4)"><button class="btn block">{{ _('Log in') }}</button></p>
   </form>
   <p class="small" style="text-align:center;margin-bottom:0"><a href="{{ url_for('auth.forgot_password') }}">{{ _('Forgot your password?') }}</a></p>
+  {% if area == 'staff' %}
+  <p class="auth-switch">{{ _('Teacher and admin accounts are created by the academy admin.') }}</p>
+  {% else %}
   <p class="auth-switch">{{ _('New here?') }} <a href="{{ url_for('auth.register', next=request.args.get('next')) }}">{{ _('Create an account') }}</a></p>
+  {% endif %}
 {% endblock %}

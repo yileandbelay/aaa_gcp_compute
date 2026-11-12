@@ -1,4 +1,4 @@
-"""Mek Online Academy - an online learning platform for professional training."""
+"""Mek Academy - an online learning platform for professional training."""
 import os
 from datetime import datetime, timezone
 
@@ -88,7 +88,9 @@ def create_app(config_object=Config):
     def security_headers(resp):
         resp.headers.setdefault("X-Content-Type-Options", "nosniff")
         resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
-        resp.headers.setdefault("Referrer-Policy", "same-origin")
+        # Other sites get only our domain name (no page address). Video hosts such as Bunny need
+        # that to check their "allowed domains" list; "same-origin" sent them nothing, so they refused.
+        resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         return resp
 
     for code in (400, 403, 404, 413):
@@ -134,7 +136,7 @@ def register_cli(app):
         """Create (or promote) an admin account."""
         user = User.query.filter_by(email=email.lower()).first()
         if not user:
-            user = User(email=email.lower(), full_name=name)
+            user = User(email=email.lower(), full_name=name, role="admin")
             db.session.add(user)
         user.role = "admin"
         user.set_password(password)

@@ -49,7 +49,8 @@ class Config:
     DEFAULT_LANGUAGE = os.environ.get("DEFAULT_LANGUAGE", "en")
     # Use the visitor's browser language on their first visit (they can always switch).
     LANGUAGE_AUTODETECT = _bool("LANGUAGE_AUTODETECT", True)
-    SITE_NAME = os.environ.get("SITE_NAME", "Mek Online Academy")
+    # The first default was "Mek Online Academy"; servers installed then still carry it in their settings file.
+    SITE_NAME = os.environ.get("SITE_NAME") if os.environ.get("SITE_NAME") not in (None, "", "Mek Online Academy") else "Mek Academy"
     # Short name (max 16 characters) used where space is limited, e.g. the Chapa checkout title.
     SITE_SHORT_NAME = os.environ.get("SITE_SHORT_NAME", "Mek Academy")[:16]
     SITE_TAGLINE = os.environ.get("SITE_TAGLINE", "Professional training you can take anywhere.")
@@ -116,7 +117,7 @@ class Config:
     MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "")
     MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
     MAIL_USE_TLS = _bool("MAIL_USE_TLS", True)
-    MAIL_FROM = os.environ.get("MAIL_FROM", "Mek Online Academy <no-reply@localhost>")
+    MAIL_FROM = os.environ.get("MAIL_FROM", "Mek Academy <no-reply@localhost>")
     PASSWORD_RESET_TTL = int(os.environ.get("PASSWORD_RESET_TTL", "3600"))
 
     # Login throttling: block after this many failures in the window.
