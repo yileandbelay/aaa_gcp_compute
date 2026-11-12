@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% from "_macros.html" import course_card, icon with context %}
+{% extends "base.html" %}{% from "_macros.html" import course_card, empty_panel, icon with context %}
 {% block title %}{{ _('Courses') }} · {{ site_name }}{% endblock %}
 {% block content %}
 <div class="page-head"><h1>{{ _('Courses') }}</h1></div>
@@ -25,7 +25,8 @@
       <label class="sort">{{ _('Sort by') }}<select name="sort" form="finder" onchange="this.form.submit()">{% for k, label in sorts %}{% if k != 'rating' or config.FEATURE_REVIEWS %}<option value="{{ k }}" {{ 'selected' if k == sort }}>{{ _(label) }}</option>{% endif %}{% endfor %}</select></label>
     </div>
     {% if courses %}<div class="grid">{% for c in courses %}{{ course_card(c, ratings, mine) }}{% endfor %}</div>
-    {% else %}<div class="card"><p class="muted" style="margin:0">{% if filtered %}{{ _('No course matches these filters.') }} <a href="{{ url_for('main.catalog') }}">{{ _('Show all courses') }}</a>.{% else %}{{ _('No courses are published yet. Check back soon!') }}{% endif %}</p></div>{% endif %}
+    {% elif has_courses %}<div class="card"><p class="muted" style="margin:0">{{ _('No course matches these filters.') }} <a href="{{ url_for('main.catalog') }}">{{ _('Show all courses') }}</a>.</p></div>
+    {% else %}{{ empty_panel() }}{% endif %}
   </section>
 </div>
 {% endblock %}

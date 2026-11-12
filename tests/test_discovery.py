@@ -488,3 +488,17 @@ def test_course_without_summary_falls_back_to_site_description(app):
     add_course(app, "Plain Course")
     html = app.test_client().get("/courses/plain-course").get_data(as_text=True)
     assert meta(html, "description")
+
+
+def test_catalog_empty_state_without_published_courses(app):
+    unpublish_all(app)
+    add_course(app, "Secret Draft", published=False)
+    html = app.test_client().get("/courses").get_data(as_text=True)
+    assert 'class="empty-panel"' in html and "Secret Draft" not in html
+
+
+def test_catalog_empty_state_hidden_when_courses_exist(catalog):
+    c = catalog.test_client()
+    assert 'class="empty-panel"' not in c.get("/courses").get_data(as_text=True)
+    no_match = c.get("/courses?q=zzzznothing").get_data(as_text=True)
+    assert 'class="empty-panel"' not in no_match and "No course matches these filters." in no_match

@@ -95,7 +95,7 @@ def catalog():
     return render_template(
         "courses/catalog.html", courses=courses, ratings=ratings, categories=categories, levels=levels,
         lengths=LENGTHS, sorts=SORTS, category=category, level=level, length=length, price=price, sort=sort,
-        q=q, filtered=filtered, mine=_my_course_ids())
+        q=q, filtered=filtered, mine=_my_course_ids(), has_courses=bool(published))
 
 
 @bp.route("/lang/<code>")
