@@ -1,7 +1,6 @@
 {
   "%(date)s UTC": "%(date)s (UTC)",
   "%(hours)s of training": "%(hours)s ስልጠና",
-  "%(link)s to watch this free preview video.": "ይህን ነጻ የቅድመ እይታ ቪዲዮ ለመመልከት %(link)s።",
   "%(n)s assessment": "%(n)s ምዘና",
   "%(n)s assessments": "%(n)s ምዘናዎች",
   "%(n)s course": "%(n)s ኮርስ",
@@ -108,6 +107,7 @@
   "Enroll in %(course)s": "በ%(course)s ኮርስ ይመዝገቡ",
   "Enroll in this course to unlock this lesson.": "ይህን ትምህርት ለመክፈት በኮርሱ ይመዝገቡ።",
   "Enroll now": "አሁን ይመዝገቡ",
+  "Enroll to unlock the rest of the course.": "የቀረውን የኮርሱን ክፍል ለመክፈት ይመዝገቡ።",
   "Enter the email you registered with and we will send you a link to choose a new password.": "የተመዘገቡበትን ኢሜይል ያስገቡ፤ አዲስ የይለፍ ቃል ለመምረጥ የሚያስችል አገናኝ እንልክልዎታለን።",
   "Explore": "ያስሱ",
   "Failed": "አልተሳካም",
@@ -285,6 +285,7 @@
   "This assessment has no questions yet.": "ይህ ምዘና እስካሁን ጥያቄ የለውም።",
   "This certifies that": "ይህ የምስክር ወረቀት የሚያረጋግጠው",
   "This course includes": "ይህ ኮርስ የሚያካትተው",
+  "This is a free preview lesson.": "ይህ ነጻ የቅድመ እይታ ትምህርት ነው።",
   "This reset link is invalid or has expired. Please request a new one.": "ይህ የማስጀመሪያ አገናኝ ልክ አይደለም ወይም ጊዜው አልፏል። እባክዎ አዲስ ይጠይቁ።",
   "Time left": "የቀረ ጊዜ",
   "Time limit exceeded - the attempt was submitted with no answers counted.": "የጊዜ ገደቡ አልፏል - ሙከራው ያለ ምንም የተቆጠረ መልስ ገብቷል።",

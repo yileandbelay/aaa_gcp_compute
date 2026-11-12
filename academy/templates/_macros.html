@@ -36,7 +36,7 @@
       {% if current_user.is_authenticated and mine is not none and c.id in mine %}
         <a class="btn small secondary" href="{{ url_for('main.course_detail', slug=c.slug) }}">{{ _('Continue learning') }}</a>
       {% elif not current_user.is_authenticated %}
-        <a class="btn small" href="{{ url_for('auth.register', next=(url_for('main.course_detail', slug=c.slug) if c.is_free else url_for('pay.checkout', course_id=c.id))) }}">{{ _('Enroll') }}</a>
+        <a class="btn small" href="{{ url_for('auth.login', area='student', next=(url_for('main.course_detail', slug=c.slug) if c.is_free else url_for('pay.checkout', course_id=c.id))) }}">{{ _('Enroll') }}</a>
       {% elif c.is_free %}
         <form method="post" action="{{ url_for('pay.checkout', course_id=c.id) }}">{{ csrf() }}<button class="btn small">{{ _('Enroll') }}</button></form>
       {% else %}

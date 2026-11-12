@@ -539,6 +539,18 @@ def lesson_delete(lesson_id):
     return redirect(url_for("admin.course_edit", course_id=cid) + "#lessons")
 
 
+@bp.route("/lessons/<int:lesson_id>/public", methods=["POST"])
+@staff_required
+def lesson_public(lesson_id):
+    """Switch one lesson between public (anyone may watch) and locked (enrolled students only)."""
+    lesson = _lesson(lesson_id)
+    lesson.is_preview = not lesson.is_preview
+    db.session.commit()
+    flash(f"\"{lesson.title}\" is now {'public: anyone can watch it' if lesson.is_preview else 'locked: enrolled students only'}.",
+          "success")
+    return redirect(url_for("admin.course_edit", course_id=lesson.course_id) + "#lessons")
+
+
 @bp.route("/lessons/<int:lesson_id>/move/<direction>", methods=["POST"])
 @staff_required
 def lesson_move(lesson_id, direction):
