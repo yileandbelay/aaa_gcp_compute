@@ -82,13 +82,13 @@
       <h3>{{ _('Questions and discussion') }}</h3>
       {% for c in lesson.comments %}
         <div style="border-bottom:1px solid var(--line);padding:8px 0">
-          <b>{{ c.user.full_name }}</b> {% if c.user.is_staff %}<span class="badge">{{ _('Instructor') }}</span>{% endif %}
+          <b>{{ c.user.full_name }}</b> {% if c.user.is_staff %}<span class="badge">{{ _('Teacher') }}</span>{% endif %}
           <span class="small muted">{{ c.created_at|localdate('%d %b %Y %H:%M') }}</span>
           <div style="white-space:pre-wrap">{{ c.body }}</div>
           {% if c.user_id == current_user.id or current_user.is_staff %}
           <form method="post" action="{{ url_for('learn.delete_comment', comment_id=c.id) }}">{{ csrf() }}<button class="linkbtn small">{{ _('delete') }}</button></form>{% endif %}
         </div>
-      {% else %}<p class="muted small">{{ _('No questions yet. Ask the instructor anything about this lesson.') }}</p>{% endfor %}
+      {% else %}<p class="muted small">{{ _('No questions yet. Ask the teacher anything about this lesson.') }}</p>{% endfor %}
       <form method="post" action="{{ url_for('learn.comment', lesson_id=lesson.id) }}" class="stack">{{ csrf() }}
         <textarea name="body" placeholder="{{ _('Ask a question or share your result…') }}" aria-label="{{ _('Your question') }}" required></textarea>
         <p><button class="btn small">{{ _('Post') }}</button></p>

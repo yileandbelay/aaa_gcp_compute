@@ -55,9 +55,9 @@
     {% endif %}
   </fieldset>
   {% if current_user.is_admin %}
-  <label for="instructor_id">Instructor (course admin)</label>
+  <label for="instructor_id">Teacher (course admin)</label>
   <select id="instructor_id" name="instructor_id">{% for s in staff %}<option value="{{ s.id }}" {{ 'selected' if (course and course.instructor_id == s.id) or (not course and s.id == current_user.id) }}>{{ s.full_name }} ({{ s.role }})</option>{% endfor %}</select>
-  <p class="small muted">The instructor can edit this course and manage its students. Admins can manage every course.</p>
+  <p class="small muted">The teacher can edit this course and manage its students. Admins can manage every course.</p>
   {% endif %}
   <label class="check"><input type="checkbox" name="is_published" value="1" {{ 'checked' if course and course.is_published }}> Published (visible in the course list)</label>
   <p><button class="btn">{{ 'Save course' if course else 'Create course and add lessons' }}</button></p>

@@ -83,7 +83,7 @@
 </div>{% endif %}
 
 {% if course.instructor %}
-<div class="card"><h2>{{ _('Your instructor') }}</h2>
+<div class="card"><h2>{{ _('Your teacher') }}</h2>
   <div class="instructor"><div class="avatar">{{ course.instructor.full_name[:1] }}</div>
     <div><b>{{ course.instructor.full_name }}</b>{% if course.instructor.headline %}<div class="muted small">{{ course.instructor.headline }}</div>{% endif %}
     {% if course.instructor.bio %}<div>{{ course.instructor.bio|markdown }}</div>{% endif %}</div></div>

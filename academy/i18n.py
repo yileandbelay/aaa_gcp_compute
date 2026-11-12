@@ -184,7 +184,7 @@ def dynamic_strings():
 
     fixed = {"Beginner", "Intermediate", "Advanced", "Business",
              "Paid", "Submitted", "Initiated", "Failed", "Rejected",
-             "Manual", "Chapa", "Demo", "Student", "Instructor", "Admin"}
+             "Manual", "Chapa", "Demo", "Student", "Teacher", "Admin"}
     fixed |= {label for _key, label in LENGTHS} | {label for _key, label in SORTS}
     fixed |= {label for _key, label in Payment.CHANNELS}
     fixed |= {Config.SITE_NAME, Config.SITE_TAGLINE, Config.SITE_HEADLINE, Config.SITE_INTRO, Config.MANUAL_PAYMENT_INSTRUCTIONS}

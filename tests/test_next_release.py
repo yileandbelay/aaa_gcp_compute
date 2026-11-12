@@ -278,3 +278,65 @@ def test_a_course_created_by_a_teacher_starts_free(app):
 def test_older_forms_without_the_pricing_choice_still_save_the_price(app):
     admin_client(app).post("/admin/courses/new", data=course_form_data(price="320"))
     assert price_of(app, "priced-course") == Decimal("320")
+
+
+# --- NX-8: "Teacher" wording ------------------------------------------------------------------
+
+def visible_text(html):
+    """Page text without tags, attributes and class names (CSS class names may still say instructor)."""
+    return re.sub(r"<[^>]+>", " ", re.sub(r"<(script|style)[^>]*>.*?</\\1>", "", html, flags=re.S))
+
+
+def test_no_instructor_wording_on_student_facing_pages(app):
+    with app.app_context():
+        course = Course.query.first()
+        course.instructor_id = User.query.filter_by(email="instructor@example.com").one().id
+        slug, cid = course.slug, course.id
+        db.session.commit()
+    lesson_id = add_lesson(app, cid, "Intro", 5, is_preview=True)
+    guest = app.test_client()
+    for path in ("/", "/courses", f"/courses/{slug}", f"/learn/lesson/{lesson_id}", "/contact", "/login",
+                 "/policies/terms", "/policies/privacy", "/policies/refunds"):
+        response = guest.get(path)
+        assert response.status_code == 200, path
+        assert "nstructor" not in visible_text(response.data.decode()), path
+    course_page = guest.get(f"/courses/{slug}").data.decode()
+    assert "Your teacher" in course_page and "Taught by" in course_page
+    with app.app_context():
+        paid_id = Course.query.filter(Course.price > 0).first().id
+    stu = student_client(app)
+    for path in ("/profile", "/dashboard", f"/pay/course/{paid_id}"):
+        assert "nstructor" not in visible_text(stu.get(path).data.decode()), path
+
+
+def test_default_site_intro_says_teachers_and_an_old_settings_value_is_replaced(monkeypatch):
+    import importlib
+
+    from academy import config
+
+    old = ("Practical, professional training taught by experienced instructors. Watch lessons, download "
+           "materials, test yourself and earn a certificate - on your phone or computer.")
+    monkeypatch.setenv("SITE_INTRO", old)
+    assert "experienced teachers" in importlib.reload(config).Config.SITE_INTRO
+    monkeypatch.setenv("SITE_INTRO", "Our own words.")
+    assert importlib.reload(config).Config.SITE_INTRO == "Our own words."
+    monkeypatch.delenv("SITE_INTRO")
+    importlib.reload(config)
+
+
+def test_a_teachers_profile_and_comment_badge_say_teacher(app):
+    t = teacher_client(app)
+    profile = t.get("/profile").data.decode()
+    assert "Teacher profile" in profile and "Teacher" in profile.split("joined")[0]
+
+
+def test_teacher_wording_in_amharic_uses_the_glossary_term(app):
+    c = student_client(app)
+    c.set_cookie("lang", "am")
+    with app.app_context():
+        course = Course.query.first()
+        course.instructor_id = User.query.filter_by(email="instructor@example.com").one().id
+        slug = course.slug
+        db.session.commit()
+    page = c.get(f"/courses/{slug}").data.decode()
+    assert "መምህርዎ" in page and "አስተማሪ" not in page
