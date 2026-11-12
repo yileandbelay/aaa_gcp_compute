@@ -21,6 +21,7 @@ from flask import current_app, has_request_context, request
 from markupsafe import Markup
 
 LANGUAGE_NAMES = {"en": "English", "am": "አማርኛ"}  # each language written in itself
+LANGUAGE_SHORT = {"en": "EN", "am": "አማ"}  # the compact switcher in the header
 COOKIE = "lang"
 
 # Gregorian month names in Amharic, for dates shown to students.
@@ -100,8 +101,13 @@ def init_app(app):
     app.extensions["i18n"] = load_catalogs(app)
     app.jinja_env.globals.update(
         _=gettext, _n=ngettext, current_lang=current_language,
-        language_names=LANGUAGE_NAMES, available_languages=lambda: app.config["LANGUAGES"])
+        language_names=LANGUAGE_NAMES, language_short=LANGUAGE_SHORT, available_languages=lambda: app.config["LANGUAGES"])
     app.jinja_env.filters["localdate"] = localdate
+
+    @app.context_processor
+    def translated_site_name():
+        """The academy's name in the visitor's language (the catalog key is the English name)."""
+        return {"site_name": gettext(app.config["SITE_NAME"])}
 
 
 # --- Finding the strings that need translating -------------------------------------------------
@@ -162,7 +168,7 @@ def dynamic_strings():
              "Paid", "Submitted", "Initiated", "Failed", "Rejected",
              "Manual", "Chapa", "Demo", "Student", "Instructor", "Admin"}
     fixed |= {label for _key, label in LENGTHS} | {label for _key, label in SORTS}
-    fixed |= {Config.SITE_TAGLINE, Config.SITE_HEADLINE, Config.SITE_INTRO, Config.MANUAL_PAYMENT_INSTRUCTIONS}
+    fixed |= {Config.SITE_NAME, Config.SITE_TAGLINE, Config.SITE_HEADLINE, Config.SITE_INTRO, Config.MANUAL_PAYMENT_INSTRUCTIONS}
     return fixed
 
 

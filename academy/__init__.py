@@ -1,4 +1,4 @@
-"""Mek Online Academy - an online learning platform for professional training."""
+"""Mek Academy - an online learning platform for professional training."""
 import os
 from datetime import datetime, timezone
 

@@ -1,4 +1,4 @@
-# Mek Online Academy
+# Mek Academy
 
 An online learning platform for professional training. Students register, pay for courses, follow video and text lessons, download course materials, take auto-graded assessments and earn verifiable certificates.
 

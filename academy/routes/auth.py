@@ -53,7 +53,7 @@ def register():
         db.session.add(user)
         db.session.commit()
         login_user(user)
-        flash(_("Welcome to %(site)s, %(name)s!", site=current_app.config["SITE_NAME"], name=name), "success")
+        flash(_("Welcome to %(site)s, %(name)s!", site=_(current_app.config["SITE_NAME"]), name=name), "success")
         for course in apply_invitations(user):
             flash(_("You have been enrolled in %(course)s.", course=course.title), "success")
         return redirect(_safe_next(request.args.get("next")) or url_for("main.catalog"))

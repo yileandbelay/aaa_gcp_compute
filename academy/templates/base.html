@@ -55,6 +55,10 @@
       <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
       <input type="search" name="q" placeholder="{{ _('Search courses') }}" aria-label="{{ _('Search courses') }}">
     </form>
+    {% set langs = available_languages() %}
+    {% if langs|length > 1 %}
+    <span class="langs" role="group" aria-label="{{ _('Language') }}">{% for code in langs %}<a href="{{ url_for('main.set_language', code=code, next=request.full_path.rstrip('?')) }}" lang="{{ code }}" hreflang="{{ code }}" aria-label="{{ language_names.get(code, code) }}" title="{{ language_names.get(code, code) }}" {% if code == current_lang() %}aria-current="true" class="on"{% endif %}>{{ language_short.get(code, code[:2]|upper) }}</a>{% endfor %}</span>
+    {% endif %}
     <button type="button" class="nav-toggle" data-toggle="#site-nav #header-search" aria-controls="site-nav" aria-expanded="false" aria-label="{{ _('Menu') }}">
       <svg class="i" aria-hidden="true"><use href="#i-menu"/></svg>
     </button>
@@ -71,10 +75,6 @@
         </form>
       {% else %}
         <a class="btn small" href="{{ url_for('auth.login') }}">{{ _('Log in') }}</a>
-      {% endif %}
-      {% set langs = available_languages() %}
-      {% if langs|length > 1 %}
-      <span class="langs" role="group" aria-label="{{ _('Language') }}">{% for code in langs %}<a href="{{ url_for('main.set_language', code=code, next=request.full_path.rstrip('?')) }}" lang="{{ code }}" {% if code == current_lang() %}aria-current="true" class="on"{% endif %}>{{ language_names.get(code, code) }}</a>{% endfor %}</span>
       {% endif %}
     </nav>
   </div>
