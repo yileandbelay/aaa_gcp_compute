@@ -24,9 +24,11 @@ from ..settings import (PAYMENT_INSTRUCTIONS, PAYMENT_INSTRUCTIONS_AM, get_setti
                         set_setting)
 from ..mail import send_email
 from ..reports import monthly_report, report_years
+from ..sections import normalize as normalize_sections
 from ..reviews import rating_summary
 from ..models import (Announcement, Assessment, Attachment, Attempt, Certificate, ContactMessage, Course,
-                      Enrollment, Invitation, Lesson, LessonProgress, Payment, Question, Review, User, db, utcnow)
+                      Enrollment, Invitation, Lesson, LessonProgress, Payment, Question, Review, Section, User, db,
+                      utcnow)
 from ..utils import (admin_required, course_progress, delete_cover, save_cover, save_upload, slugify,
                      staff_required)
 
@@ -489,6 +491,12 @@ def lesson_form(course_id=None, lesson_id=None):
             lesson.duration_min = _int(f.get("duration_min")) or None
         if "title" in f and "is_preview_present" in f and current_user.is_admin:
             lesson.is_preview = bool(f.get("is_preview"))   # only admins decide what is public
+        if "section_id" in f:   # "" means no section; a section of another course is ignored
+            chosen = db.session.get(Section, _int(f.get("section_id")))
+            new_section = chosen.id if chosen and chosen.course_id == course.id else None
+            if new_section != lesson.section_id:       # moved to another group: it goes to the end of that group
+                lesson.section_id = new_section
+                lesson.position = 1_000_000
         if lesson.kind == "video":
             _save_video_choice(lesson, f)
         for f_upload in request.files.getlist("materials"):
@@ -506,6 +514,8 @@ def lesson_form(course_id=None, lesson_id=None):
             lesson.video_file = new_name
         if lesson.kind == "video" and not lesson.has_video:
             flash("Video lesson saved without a video - add one to make it playable.", "info")
+        db.session.flush()
+        normalize_sections(course.id)   # keep the lesson order equal to the displayed (sectioned) order
         db.session.commit()
         flash("Lesson saved.", "success")
         action = f.get("action")
@@ -631,8 +641,7 @@ def lessons_bulk(course_id):
         for lesson in chosen:
             _delete_lesson(lesson)
         db.session.flush()
-        for pos, lesson in enumerate(Lesson.query.filter_by(course_id=course.id).order_by(Lesson.position), start=1):
-            lesson.position = pos
+        normalize_sections(course.id)
         flash(f"Deleted {len(chosen)} lesson{'s' if len(chosen) != 1 else ''}: {names}.", "info")
     else:
         for lesson in chosen:
@@ -659,16 +668,68 @@ def lesson_public(lesson_id):
 @bp.route("/lessons/<int:lesson_id>/move/<direction>", methods=["POST"])
 @staff_required
 def lesson_move(lesson_id, direction):
+    """Move a lesson up or down inside its own section (or among the unsectioned lessons)."""
     lesson = _lesson(lesson_id)
-    lessons = list(lesson.course.lessons)
+    lessons = Lesson.query.filter_by(course_id=lesson.course_id).order_by(Lesson.position, Lesson.id).all()
     i = lessons.index(lesson)
     j = i - 1 if direction == "up" else i + 1
-    if 0 <= j < len(lessons):
+    if 0 <= j < len(lessons) and lessons[j].section_id == lesson.section_id:
         lessons[i], lessons[j] = lessons[j], lessons[i]
         for pos, l in enumerate(lessons, start=1):
             l.position = pos
         db.session.commit()
     return redirect(url_for("admin.course_edit", course_id=lesson.course_id) + "#lessons")
+
+
+# --- Sections (optional groups of lessons) -----------------------------------------
+
+@bp.route("/courses/<int:course_id>/sections", methods=["POST"])
+@staff_required
+def section_new(course_id):
+    course = _course(course_id)
+    title = " ".join(request.form.get("title", "").split())[:160]
+    if not title:
+        flash("Enter a name for the section.", "error")
+    else:
+        db.session.add(Section(course_id=course.id, title=title, position=len(course.sections) + 1))
+        db.session.commit()
+        flash(f"Section \"{title}\" added. Choose it in a lesson's form to put lessons in it.", "success")
+    return redirect(url_for("admin.course_edit", course_id=course.id) + "#lessons")
+
+
+@bp.route("/sections/<int:section_id>", methods=["POST"])
+@staff_required
+def section_update(section_id):
+    """Rename, move up or down, or delete a section. Deleting only removes the heading: its lessons
+    stay in the course (they move to the top group, without a heading)."""
+    section = db.get_or_404(Section, section_id)
+    course = _manage(section.course)
+    action = request.form.get("action")
+    if action == "rename":
+        title = " ".join(request.form.get("title", "").split())[:160]
+        if title:
+            section.title = title
+            flash("Section renamed.", "success")
+        else:
+            flash("Enter a name for the section.", "error")
+    elif action in ("up", "down"):
+        order = list(course.sections)
+        i = order.index(section)
+        j = i - 1 if action == "up" else i + 1
+        if 0 <= j < len(order):
+            order[i], order[j] = order[j], order[i]
+            for pos, sec in enumerate(order, start=1):
+                sec.position = pos
+    elif action == "delete":
+        for lesson in Lesson.query.filter_by(section_id=section.id):
+            lesson.section_id = None
+        db.session.flush()
+        db.session.delete(section)
+        flash("Section removed. Its lessons are still in the course.", "info")
+    db.session.flush()
+    normalize_sections(course.id)
+    db.session.commit()
+    return redirect(url_for("admin.course_edit", course_id=course.id) + "#lessons")
 
 
 # --- Assessments ------------------------------------------------------------------

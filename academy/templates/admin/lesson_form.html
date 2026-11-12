@@ -7,6 +7,10 @@
 <form method="post" enctype="multipart/form-data" class="stack" id="lessonForm">{{ csrf() }}
   <input type="hidden" name="is_preview_present" value="1">
   <label for="title">Lesson title</label><input type="text" id="title" name="title" value="{{ lesson.title if lesson }}" required>
+  {% if course.sections %}
+  <label for="section_id">Section</label>
+  <select id="section_id" name="section_id"><option value="">No section</option>{% for sec in course.sections %}<option value="{{ sec.id }}" {{ 'selected' if (lesson and lesson.section_id == sec.id) or (not lesson and loop.last) }}>{{ sec.title }}</option>{% endfor %}</select>
+  {% endif %}
 
   <label>What kind of lesson is this?</label>
   {% set kind = lesson.kind if lesson else 'video' %}

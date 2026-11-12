@@ -7,7 +7,9 @@
     <summary>{{ _('Course content') }}</summary><div class="sidebar-body">
     {% if progress %}<p class="small"><b>{{ _('%(n)s%% complete', n=progress.percent) }}</b></p>{{ progress_bar(progress.percent) }}<br>{% endif %}
     <ol>
+    {% set titles = course.section_titles %}{% set ns = namespace(sec=none) %}
     {% for l in lessons %}
+      {% if titles and l.section_id != ns.sec %}{% set ns.sec = l.section_id %}{% if l.section_id in titles %}<li class="section-heading">{{ titles[l.section_id] }}</li>{% endif %}{% endif %}
       {% if progress is not none or l.is_preview %}
       <li><a href="{{ url_for('learn.lesson', lesson_id=l.id) }}" class="{{ 'current' if l.id == lesson.id }}">
         <span class="tick">{% if progress and l.id in progress.done_lessons %}✓{% elif l.kind == 'video' %}▶{% elif l.kind == 'link' %}↗{% else %}≡{% endif %}</span>{{ loop.index }}. {{ l.title }}</a></li>

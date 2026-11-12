@@ -56,8 +56,10 @@
 
 <div class="card" id="syllabus">
   <div class="row spread"><h2>{{ _('Syllabus') }}</h2>{% if course.total_minutes %}<span class="muted small">{{ _n('%(n)s lesson', '%(n)s lessons', course.lessons|length) }} · {{ course.total_minutes|duration }}</span>{% endif %}</div>
+  {% set titles = course.section_titles %}{% set ns = namespace(sec=none) %}
   <ol class="syllabus">
   {% for l in course.lessons %}
+    {% if titles and l.section_id != ns.sec %}{% set ns.sec = l.section_id %}{% if l.section_id in titles %}<li class="section-heading"><b>{{ titles[l.section_id] }}</b></li>{% endif %}{% endif %}
     <li>
       <span class="kind" aria-hidden="true">{% if l.kind == 'video' %}▶{% elif l.kind == 'link' %}↗{% else %}≡{% endif %}</span>
       <span class="grow">{% if progress is not none or l.is_preview %}<a href="{{ url_for('learn.lesson', lesson_id=l.id) }}">{{ l.title }}</a>{% else %}{{ l.title }} <span class="small muted locked">{{ icon('lock') }} {{ _('locked') }}</span>{% endif %}

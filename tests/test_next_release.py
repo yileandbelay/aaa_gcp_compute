@@ -1190,3 +1190,222 @@ def test_privacy_page_states_data_location_and_the_self_service_choices(app):
     assert "European Union" in page and "Bunny Stream" in page and "Frankfurt" in page
     assert "download a copy of your data" in page and "delete your account yourself" in page
     assert "contact us to delete" not in page.lower()
+
+
+# --- NX-18: course sections -------------------------------------------------------------------
+
+def sectioned_course(app):
+    """Five lessons; two sections. Returns (course id, [lesson ids], [section ids])."""
+    from academy.models import Section
+    cid = add_course(app, "Sectioned Course", published=True)
+    lids = [add_lesson(app, cid, f"L{i}", 10, is_preview=(i == 1)) for i in range(1, 6)]
+    admin = admin_client(app)
+    admin.post(f"/admin/courses/{cid}/sections", data={"title": "Part One"})
+    admin.post(f"/admin/courses/{cid}/sections", data={"title": "Part Two"})
+    with app.app_context():
+        sids = [s.id for s in Section.query.filter_by(course_id=cid).order_by(Section.position)]
+    return cid, lids, sids
+
+
+def order_of(app, cid):
+    with app.app_context():
+        return [(l.title, l.section_id, l.position) for l in Lesson.query.filter_by(course_id=cid).order_by(Lesson.position)]
+
+
+def put_in(admin, lid, sid):
+    """Put a lesson in a section (or take it out), keeping its own title."""
+    with admin.application.app_context():
+        title = db.session.get(Lesson, lid).title
+    return admin.post(f"/admin/lessons/{lid}", data={"title": title, "kind": "text", "section_id": sid or ""})
+
+
+def test_a_course_without_sections_looks_exactly_as_before(app):
+    cid = add_course(app, "Plain Sections")
+    for i in range(3):
+        add_lesson(app, cid, f"P{i}", 5)
+    guest = app.test_client()
+    page = guest.get("/courses/plain-sections").data.decode()
+    assert "section-heading" not in page and page.count('<li class="section') == 0
+    assert [m for m in re.findall(r"<li>\s*<span class=\"kind\"", page)] and "P0" in page and "P2" in page
+
+
+def test_syllabus_and_lesson_list_show_section_headings_in_order(app):
+    cid, lids, sids = sectioned_course(app)
+    admin = admin_client(app)
+    for lid, sid in ((lids[0], None), (lids[1], sids[0]), (lids[2], sids[0]), (lids[3], sids[1]), (lids[4], sids[1])):
+        put_in(admin, lid, sid)
+    guest = app.test_client()
+    syllabus = guest.get("/courses/sectioned-course").data.decode().split('id="syllabus"')[1].split("</ol>")[0]
+    headings = re.findall(r'<li class="section-heading"><b>([^<]+)</b></li>', syllabus)
+    assert headings == ["Part One", "Part Two"]
+    assert syllabus.index("L1") < syllabus.index("Part One") < syllabus.index("L2") < syllabus.index("L3") < syllabus.index("Part Two") < syllabus.index("L4")
+    sidebar = guest.get(f"/learn/lesson/{lids[0]}").data.decode().split("sidebar-body")[1].split("</ol>")[0]
+    assert re.findall(r'<li class="section-heading">([^<]+)</li>', sidebar) == ["Part One", "Part Two"]
+
+
+def test_lessons_without_a_section_come_first_and_positions_follow_the_display_order(app):
+    cid, lids, sids = sectioned_course(app)
+    admin = admin_client(app)
+    put_in(admin, lids[0], sids[1])           # L1 -> Part Two
+    put_in(admin, lids[1], sids[0])           # L2 -> Part One
+    put_in(admin, lids[2], sids[1])           # L3 -> Part Two
+    rows = order_of(app, cid)
+    assert [t for t, _s, _p in rows] == ["L4", "L5", "L2", "L1", "L3"]      # no section first, then Part One, then Part Two
+    assert [p for _t, _s, p in rows] == [1, 2, 3, 4, 5]
+
+
+def test_moving_a_lesson_never_takes_it_out_of_its_section(app):
+    cid, lids, sids = sectioned_course(app)
+    admin = admin_client(app)
+    put_in(admin, lids[0], sids[0]); put_in(admin, lids[1], sids[0]); put_in(admin, lids[2], sids[1])
+    before = order_of(app, cid)
+    admin.post(f"/admin/lessons/{lids[2]}/move/up")             # first of Part Two: nothing to swap inside its section
+    assert order_of(app, cid) == before
+    admin.post(f"/admin/lessons/{lids[1]}/move/down")           # last of Part One: must not cross into Part Two
+    assert order_of(app, cid) == before
+    admin.post(f"/admin/lessons/{lids[1]}/move/up")             # inside Part One: works
+    after = order_of(app, cid)
+    sec_of = {t: s for t, s, _p in after}
+    assert [t for t, *_ in after].index("L2") < [t for t, *_ in after].index("L1")
+    assert sec_of["L1"] == sec_of["L2"] == sids[0] and sec_of["L3"] == sids[1]
+
+
+def test_unsectioned_courses_still_reorder_as_before(app):
+    cid = add_course(app, "Plain Order")
+    ids_ = [add_lesson(app, cid, f"Q{i}", 5) for i in range(1, 4)]
+    admin = admin_client(app)
+    admin.post(f"/admin/lessons/{ids_[2]}/move/up")
+    assert [t for t, *_ in order_of(app, cid)] == ["Q1", "Q3", "Q2"]
+    admin.post(f"/admin/lessons/{ids_[0]}/move/up")
+    assert [t for t, *_ in order_of(app, cid)] == ["Q1", "Q3", "Q2"]
+
+
+def test_sections_can_be_renamed_reordered_and_removed_without_losing_lessons(app):
+    from academy.models import Section
+    cid, lids, sids = sectioned_course(app)
+    admin = admin_client(app)
+    put_in(admin, lids[0], sids[0]); put_in(admin, lids[1], sids[1])
+    admin.post(f"/admin/sections/{sids[0]}", data={"action": "rename", "title": "  Renamed   part "})
+    admin.post(f"/admin/sections/{sids[1]}", data={"action": "up"})
+    with app.app_context():
+        assert [s.title for s in Section.query.filter_by(course_id=cid).order_by(Section.position)] == ["Part Two", "Renamed part"]
+    assert [t for t, *_ in order_of(app, cid)].index("L2") < [t for t, *_ in order_of(app, cid)].index("L1")   # follows the new section order
+    admin.post(f"/admin/sections/{sids[1]}", data={"action": "delete"})
+    with app.app_context():
+        assert db.session.get(Section, sids[1]) is None and Lesson.query.filter_by(course_id=cid).count() == 5
+        assert db.session.get(Lesson, lids[1]).section_id is None
+    assert [p for *_x, p in order_of(app, cid)] == [1, 2, 3, 4, 5]
+
+
+def test_section_name_validation_and_scope(app):
+    from academy.models import Section
+    cid, lids, sids = sectioned_course(app)
+    other = add_course(app, "Other Sections")
+    foreign_lesson = add_lesson(app, other, "F", 5)
+    admin = admin_client(app)
+    r = admin.post(f"/admin/courses/{cid}/sections", data={"title": "   "}, follow_redirects=True)
+    assert b"Enter a name for the section" in r.data
+    admin.post(f"/admin/courses/{cid}/sections", data={"title": "x" * 300})
+    with app.app_context():
+        assert max(len(s.title) for s in Section.query.filter_by(course_id=cid)) == 160
+    put_in(admin, foreign_lesson, sids[0])                      # a section of another course is ignored
+    with app.app_context():
+        assert db.session.get(Lesson, foreign_lesson).section_id is None
+
+
+def test_sections_are_for_the_courses_teacher_and_admins_only(app):
+    cid, lids, sids = sectioned_course(app)
+    with app.app_context():
+        db.session.get(Course, cid).instructor_id = User.query.filter_by(email="instructor@example.com").one().id
+        db.session.commit()
+    t = teacher_client(app)
+    assert t.post(f"/admin/courses/{cid}/sections", data={"title": "By teacher"}).status_code == 302
+    other_course = add_course(app, "Not Mine")
+    assert t.post(f"/admin/courses/{other_course}/sections", data={"title": "Nope"}).status_code == 403
+    with app.app_context():
+        from academy.models import Section
+        foreign = Section(course_id=other_course, title="F", position=1)
+        db.session.add(foreign); db.session.commit()
+        fid = foreign.id
+    assert t.post(f"/admin/sections/{fid}", data={"action": "delete"}).status_code == 403
+    assert student_client(app).post(f"/admin/sections/{sids[0]}", data={"action": "delete"}).status_code == 403
+    assert app.test_client().post(f"/admin/sections/{sids[0]}", data={"action": "delete"}).status_code in (302, 400, 401, 403)
+
+
+def test_progress_next_lesson_and_certificate_are_unchanged_by_sections(app):
+    from academy.models import Certificate
+    cid, lids, sids = sectioned_course(app)
+    admin = admin_client(app)
+    for lid, sid in ((lids[0], sids[1]), (lids[1], sids[0]), (lids[2], sids[1]), (lids[3], sids[0]), (lids[4], None)):
+        put_in(admin, lid, sid)
+    with app.app_context():
+        first_id = Lesson.query.filter_by(course_id=cid).order_by(Lesson.position).first().id
+        assert first_id == lids[4]
+    stu = student_client(app, "sec@example.com")
+    with app.app_context():
+        from academy.enrollment import enroll_student
+        enroll_student(User.query.filter_by(email="sec@example.com").one(), db.session.get(Course, cid))
+        db.session.commit()
+    with app.app_context():
+        ordered = [l.id for l in Lesson.query.filter_by(course_id=cid).order_by(Lesson.position)]
+    page = stu.get(f"/learn/lesson/{ordered[0]}").data.decode()
+    assert f'name="next_lesson" value="{ordered[1]}"' in page                 # "next" follows the displayed order
+    for lid in ordered[:-1]:
+        stu.post(f"/learn/lesson/{lid}/complete", data={"next_lesson": ""})
+    with app.app_context():
+        assert Certificate.query.filter_by(course_id=cid).count() == 0          # not finished yet
+    stu.post(f"/learn/lesson/{ordered[-1]}/complete", data={})
+    with app.app_context():
+        assert Certificate.query.filter_by(course_id=cid).count() == 1
+    assert "100%" in stu.get("/dashboard").data.decode()
+
+
+def test_deleting_a_course_with_sections_works(app):
+    cid, lids, sids = sectioned_course(app)
+    put_in(admin_client(app), lids[0], sids[0])
+    admin_client(app).post(f"/admin/courses/{cid}/delete")
+    from academy.models import Section
+    with app.app_context():
+        assert db.session.get(Course, cid) is None and Section.query.filter_by(course_id=cid).count() == 0
+
+
+def test_lesson_form_and_quick_add_offer_sections_only_when_they_exist(app):
+    cid = add_course(app, "No Sections Yet")
+    lid = add_lesson(app, cid, "A", 5)
+    admin = admin_client(app)
+    assert 'name="section_id"' not in admin.get(f"/admin/lessons/{lid}").data.decode()
+    assert 'name="section_id"' not in admin.get(f"/admin/courses/{cid}").data.decode()
+    admin.post(f"/admin/courses/{cid}/sections", data={"title": "Only Section"})
+    assert 'name="section_id"' in admin.get(f"/admin/lessons/{lid}").data.decode()
+    quick = admin.get(f"/admin/courses/{cid}").data.decode().split("Quick add")[1]
+    assert 'name="section_id"' in quick and "Only Section" in quick
+    put_in(admin, lid, None)
+    with app.app_context():
+        from academy.models import Section
+        section_id = Section.query.filter_by(course_id=cid).one().id
+    put_in(admin, lid, section_id)                                        # A now sits in the section
+    admin.post(f"/admin/courses/{cid}/lessons/new", data={"title": "New one", "kind": "text", "section_id": ""})
+    assert [t for t, *_ in order_of(app, cid)] == ["New one", "A"]       # no section -> the top group, before sections
+
+
+def test_sections_migration_up_and_down_keeps_lessons(tmp_path):
+    import sqlite3
+    import subprocess
+    import sys
+    db_file = tmp_path / "m.db"
+    env = {**os.environ, "FLASK_APP": "wsgi.py", "SECRET_KEY": "x", "DATABASE_URL": f"sqlite:///{db_file}"}
+    run = lambda *a: subprocess.run([sys.executable, "-m", "flask", *a], env=env, capture_output=True, text=True)
+    assert run("db", "upgrade", "f1a5b7c9d4e6").returncode == 0
+    con = sqlite3.connect(db_file)
+    con.execute("insert into course (slug, title, level, price, is_published, created_at) values ('c', 'C', 'Beginner', 0, 1, '2026-01-01')")
+    con.execute("insert into lesson (course_id, title, kind, video_provider, position, is_preview, created_at) values (1, 'Keep me', 'text', 'local', 1, 0, '2026-01-01')")
+    con.commit(); con.close()
+    assert run("db", "upgrade", "a2b6c8d0e5f7").returncode == 0
+    con = sqlite3.connect(db_file)
+    assert con.execute("select title, section_id from lesson").fetchall() == [("Keep me", None)]
+    con.execute("insert into section (course_id, title, position) values (1, 'S', 1)"); con.commit(); con.close()
+    assert run("db", "downgrade", "f1a5b7c9d4e6").returncode == 0
+    con = sqlite3.connect(db_file)
+    assert "section_id" not in [r[1] for r in con.execute("pragma table_info(lesson)")]
+    assert con.execute("select title from lesson").fetchall() == [("Keep me",)]
+    assert not con.execute("select name from sqlite_master where name='section'").fetchall()

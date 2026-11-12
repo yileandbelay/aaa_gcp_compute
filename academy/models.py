@@ -113,6 +113,8 @@ class Course(db.Model):
     lessons = db.relationship(
         "Lesson", back_populates="course", order_by="Lesson.position", cascade="all, delete-orphan"
     )
+    sections = db.relationship("Section", back_populates="course", order_by="Section.position",
+                               cascade="all, delete-orphan")
     assessments = db.relationship("Assessment", back_populates="course", cascade="all, delete-orphan")
     enrollments = db.relationship("Enrollment", back_populates="course", cascade="all, delete-orphan")
     reviews = db.relationship("Review", back_populates="course", order_by="Review.created_at.desc()",
@@ -121,6 +123,11 @@ class Course(db.Model):
         "Announcement", back_populates="course", order_by="Announcement.created_at.desc()",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def section_titles(self):
+        """{section_id: title}; empty for a course without sections, which then shows no headings."""
+        return {sec.id: sec.title for sec in self.sections}
 
     @property
     def is_free(self):
@@ -171,6 +178,9 @@ class Lesson(db.Model):
     video_ref = db.Column(db.String(64))
     duration_min = db.Column(db.Integer)
     position = db.Column(db.Integer, default=0)
+    # Optional group heading. Lessons without a section come first. ``position`` always follows the
+    # displayed order (see sections.normalize), so progress, "next lesson" and certificates need no changes.
+    section_id = db.Column(db.Integer, db.ForeignKey("section.id"))
     is_preview = db.Column(db.Boolean, default=False)  # free sample visible to anyone
     created_at = db.Column(db.DateTime, default=utcnow)
 
@@ -271,6 +281,17 @@ class Payment(db.Model):
             enr = Enrollment(user_id=self.user_id, course_id=self.course_id)
             db.session.add(enr)
         enr.activate(source="purchase")
+
+
+class Section(db.Model):
+    """An optional heading that groups a course's lessons on the syllabus and in the lesson list."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    course_id = db.Column(db.Integer, db.ForeignKey("course.id"), nullable=False)
+    title = db.Column(db.String(160), nullable=False)
+    position = db.Column(db.Integer, default=0)
+
+    course = db.relationship("Course", back_populates="sections")
 
 
 class LessonProgress(db.Model):
