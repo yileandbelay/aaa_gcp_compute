@@ -11,8 +11,10 @@ It's built with Python / Flask and runs on SQLite by default (PostgreSQL is supp
 | **Students and staff** | Students register (name, email, phone, city), log in, reset passwords by email. **Staff** (admins and instructors) are kept apart from students: separate lists, never counted as students. Admins add staff by email; the new person sets their own password. Suspended accounts are locked out at once |
 | **Roles** | **Admin:** everything. **Instructor (course admin):** manages only the courses assigned to them, including their lessons, quizzes, announcements and students |
 | **Enrolling students** | Each course has an "Enroll students" page: tick registered students or paste email addresses. People without an account are invited and get the course when they register. Optional email notice; see who has access and how (paid, assigned, free), remove or restore access |
-| **Courses** | Categories, levels, training hours, search and category filter, free or paid, free-preview lessons, instructor profiles |
+| **Courses** | Categories, levels, training hours, free or paid, free-preview lessons, instructor profiles. Course pages show what you'll learn, what's included, a syllabus with durations, who it is for, prerequisites and the instructor. The course finder filters by topic, level, length and price, searches, and sorts by newest, popularity, rating or length |
+| **Ratings and feedback** | Enrolled students who have completed a lesson can rate a course (1-5 stars) and leave feedback. Averages and a breakdown show on course cards and pages; reviewers appear as "Hana T."; admins and the course's instructor can hide or delete reviews |
 | **Lessons** | Video, text and external-link lessons. Each lesson can have downloadable files (PDF, slides, spreadsheets…) and links (another site, a free course elsewhere). Videos: upload to your video host, paste a YouTube or Vimeo link, or store on your server. Progress tracking |
+| **Languages** | English and **Amharic** (አማርኛ) for everything students see, with a language switch in the header. The choice is remembered, and first-time visitors get their browser's language. Other languages can be added with one JSON file |
 | **Contact** | A Contact page with your details (email, phone, WhatsApp, Telegram, address, hours) and a message form. Messages are saved in an admin inbox with an unread badge, and also emailed to you. Spam protection: hidden field and a per-IP hourly limit |
 | **Video** | Upload from the lesson editor straight to a video host, and play it in the lesson with a per-student signed link: **Bunny Stream** or **VdoCipher** (DRM). Hosts are pluggable. Videos can also be stored on your own server (expiring per-student links, served by nginx) |
 | **Assessments** | Multiple-choice quizzes and exams with pass mark, attempt limit, server-enforced timer, explanations; answers revealed only after passing or using all attempts |
@@ -109,7 +111,7 @@ You can set an academy up in three layers, none of which touch the core code.
 | Group | Settings |
 |---|---|
 | Branding | `SITE_NAME`, `SITE_SHORT_NAME`, `SITE_TAGLINE`, `SITE_HEADLINE`, `SITE_INTRO`, `BRAND_COLOR`, `TX_PREFIX`, `CONTACT_EMAIL`, `CONTACT_PHONE` |
-| Modules on/off | `FEATURE_DISCUSSION`, `FEATURE_ANNOUNCEMENTS`, `FEATURE_CERTIFICATES` |
+| Modules on/off | `FEATURE_DISCUSSION`, `FEATURE_ANNOUNCEMENTS`, `FEATURE_CERTIFICATES`, `FEATURE_REVIEWS` |
 | Content protection | `PROTECT_LESSON_TEXT` (block copying lesson text), `VIDEO_WATERMARK`, `ALLOW_VIDEO_DOWNLOAD`, `ALLOW_MATERIAL_DOWNLOAD` |
 | Video hosting | `BUNNY_LIBRARY_ID`, `BUNNY_API_KEY`, `BUNNY_TOKEN_KEY`, `VDOCIPHER_API_SECRET` |
 | Payments | `CURRENCY`, `CHAPA_SECRET_KEY`, `MANUAL_PAYMENT_ENABLED`, `MANUAL_PAYMENT_INSTRUCTIONS` |
@@ -130,6 +132,23 @@ my-theme/
 Copy a template from `academy/templates/` into the theme folder and edit the copy. Keep themes in their own folder or repository so updates to the core code don't overwrite them.
 
 **3. Starter courses (`flask seed-demo --file my_courses.json`).** This loads courses, lessons and quizzes from a JSON file in the format of [`academy/sample_data/demo_courses.json`](academy/sample_data/demo_courses.json). Quiz answers are numbered from 1. The command also creates the demo admin account, so on a live site use it only on a test copy, or change that account's password afterwards.
+
+## Languages
+
+The public site, sign-up, courses, lessons, quizzes, payment pages, certificates and the contact page are available in **English and Amharic**. Visitors switch with the buttons in the header, and the choice is remembered. A visitor whose browser prefers Amharic sees it on their first visit (`LANGUAGE_AUTODETECT`).
+
+What is translated: the site's own wording, messages and buttons. What is not: the text you write (course titles, descriptions, lessons, quiz questions, announcements), the staff area (it stays in English), the long Terms, Privacy and Refund pages, and the emails the site sends. Dates keep Western numerals; month names are shown in Amharic. Ethiopian-calendar dates are not used.
+
+**Please have a native speaker read the Amharic.** It was written with AI assistance and has not been reviewed by a person. To change any wording, edit `academy/translations/am.json` (English text on the left, translation on the right) and keep placeholders such as `%(n)s` exactly as they are. If a translation is missing the English text is shown instead, so nothing breaks.
+
+**Add another language:**
+1. Add its code to `LANGUAGES` in the settings (for example `en,am,om`) and its name to `LANGUAGE_NAMES` in `academy/i18n.py`.
+2. Run `flask i18n-update om`. This creates `academy/translations/om.json` listing every English string with an empty value.
+3. Fill in the values. `flask i18n-missing om` lists what is left. Anything left empty shows in English.
+
+Wording can also be changed per academy without editing the code: put a `translations/<code>.json` file in your theme folder (`THEME_DIR`). Its entries override the built-in ones, and new entries are added. This is also how to translate your own site name, tagline and welcome text, which are settings: add the English text as the key.
+
+When you change wording in a template, write it as `{{ _('English text') }}`; in Python use `_("English text")`. A test fails if a student-facing string has no Amharic translation.
 
 ## Running the academy day to day
 
@@ -171,6 +190,8 @@ academy/
   payments.py        Chapa integration       videohosts/  Bunny Stream and VdoCipher providers
   mail.py            SMTP email              utils.py   CSRF, access checks, progress
   enrollment.py      assigning courses, invitations
+  reviews.py         ratings summaries, who may review
+  i18n.py            translations   translations/  am.json (Amharic) and other languages
   seed.py            JSON course loader      sample_data/demo_courses.json
   migrations/        database migrations (Flask-Migrate / Alembic)
   templates/ static/ built-in pages and styles (override with a theme folder)

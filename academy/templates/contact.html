@@ -1,31 +1,31 @@
 {% extends "base.html" %}{% from "_macros.html" import csrf %}
-{% block title %}Contact us · {{ site_name }}{% endblock %}
+{% block title %}{{ _('Contact us') }} · {{ site_name }}{% endblock %}
 {% block content %}
-<h1>Contact us</h1>
-<p class="muted" style="max-width:60ch">Questions about a course, payment or your account? Send us a message and we will reply by email, or reach us directly.</p>
+<h1>{{ _('Contact us') }}</h1>
+<p class="muted" style="max-width:60ch">{{ _('Questions about a course, payment or your account? Send us a message and we will reply by email, or reach us directly.') }}</p>
 <div class="contact-grid">
   <div class="card">
-    <h2>Get in touch</h2>
+    <h2>{{ _('Get in touch') }}</h2>
     <dl class="contact-list">
-      {% if config.CONTACT_EMAIL %}<dt>Email</dt><dd><a href="mailto:{{ config.CONTACT_EMAIL }}">{{ config.CONTACT_EMAIL }}</a></dd>{% endif %}
-      {% if config.CONTACT_PHONE %}<dt>Phone</dt><dd>{{ config.CONTACT_PHONE }}</dd>{% endif %}
-      {% if config.CONTACT_WHATSAPP %}<dt>WhatsApp</dt><dd><a href="https://wa.me/{{ config.CONTACT_WHATSAPP|replace('+','')|replace(' ','') }}" target="_blank" rel="noopener noreferrer">Message us on WhatsApp</a></dd>{% endif %}
+      {% if config.CONTACT_EMAIL %}<dt>{{ _('Email') }}</dt><dd><a href="mailto:{{ config.CONTACT_EMAIL }}">{{ config.CONTACT_EMAIL }}</a></dd>{% endif %}
+      {% if config.CONTACT_PHONE %}<dt>{{ _('Phone') }}</dt><dd>{{ config.CONTACT_PHONE }}</dd>{% endif %}
+      {% if config.CONTACT_WHATSAPP %}<dt>WhatsApp</dt><dd><a href="https://wa.me/{{ config.CONTACT_WHATSAPP|replace('+','')|replace(' ','') }}" target="_blank" rel="noopener noreferrer">{{ _('Message us on WhatsApp') }}</a></dd>{% endif %}
       {% if config.CONTACT_TELEGRAM %}<dt>Telegram</dt><dd><a href="https://t.me/{{ config.CONTACT_TELEGRAM|replace('@','') }}" target="_blank" rel="noopener noreferrer">@{{ config.CONTACT_TELEGRAM|replace('@','') }}</a></dd>{% endif %}
-      {% if config.CONTACT_ADDRESS %}<dt>Address</dt><dd style="white-space:pre-line">{{ config.CONTACT_ADDRESS }}</dd>{% endif %}
-      {% if config.CONTACT_HOURS %}<dt>Hours</dt><dd style="white-space:pre-line">{{ config.CONTACT_HOURS }}</dd>{% endif %}
+      {% if config.CONTACT_ADDRESS %}<dt>{{ _('Address') }}</dt><dd style="white-space:pre-line">{{ config.CONTACT_ADDRESS }}</dd>{% endif %}
+      {% if config.CONTACT_HOURS %}<dt>{{ _('Hours') }}</dt><dd style="white-space:pre-line">{{ config.CONTACT_HOURS }}</dd>{% endif %}
     </dl>
-    <p class="small muted">Payment questions: include the reference shown on your receipt (it starts with {{ config.TX_PREFIX }}-).</p>
+    <p class="small muted">{{ _('Payment questions: include the reference shown on your receipt (it starts with %(prefix)s-).', prefix=config.TX_PREFIX) }}</p>
   </div>
   {% if config.CONTACT_FORM %}
   <div class="card">
-    <h2>Send a message</h2>
+    <h2>{{ _('Send a message') }}</h2>
     <form method="post" class="stack">{{ csrf() }}
-      <label for="name">Your name</label><input type="text" id="name" name="name" value="{{ form.get('name', current_user.full_name if current_user.is_authenticated else '') }}" required maxlength="120">
-      <label for="email">Your email</label><input type="email" id="email" name="email" value="{{ form.get('email', current_user.email if current_user.is_authenticated else '') }}" required>
-      <label for="subject">Subject (optional)</label><input type="text" id="subject" name="subject" value="{{ form.get('subject', '') }}" maxlength="200">
-      <label for="message">Message</label><textarea id="message" name="message" rows="6" required minlength="10" maxlength="4000">{{ form.get('message', '') }}</textarea>
+      <label for="name">{{ _('Your name') }}</label><input type="text" id="name" name="name" value="{{ form.get('name', current_user.full_name if current_user.is_authenticated else '') }}" required maxlength="120">
+      <label for="email">{{ _('Your email') }}</label><input type="email" id="email" name="email" value="{{ form.get('email', current_user.email if current_user.is_authenticated else '') }}" required>
+      <label for="subject">{{ _('Subject (optional)') }}</label><input type="text" id="subject" name="subject" value="{{ form.get('subject', '') }}" maxlength="200">
+      <label for="message">{{ _('Message') }}</label><textarea id="message" name="message" rows="6" required minlength="10" maxlength="4000">{{ form.get('message', '') }}</textarea>
       <div class="hp" aria-hidden="true"><label>Leave this field empty<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
-      <p><button class="btn">Send message</button></p>
+      <p><button class="btn">{{ _('Send message') }}</button></p>
     </form>
   </div>
   {% endif %}

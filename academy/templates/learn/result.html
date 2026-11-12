@@ -1,17 +1,18 @@
 {% extends "base.html" %}
+{% block title %}{{ a.title }} · {{ a.course.title }}{% endblock %}
 {% block content %}
 <p class="small"><a href="{{ url_for('assess.overview', aid=a.id) }}">← {{ a.title }}</a></p>
 <div class="card">
-  <h1>{% if attempt.passed %}You passed!{% else %}Not quite there yet{% endif %}</h1>
-  <p style="font-size:1.5rem"><b>{{ attempt.score }}%</b> <span class="muted">(pass mark {{ a.pass_mark }}%)</span></p>
-  {% if not reveal %}<p class="muted small">Correct answers are shown after you pass or use all attempts. Review the lessons and try again!</p>{% endif %}
+  <h1>{% if attempt.passed %}{{ _('You passed!') }}{% else %}{{ _('Not quite there yet') }}{% endif %}</h1>
+  <p style="font-size:1.5rem"><b>{{ attempt.score }}%</b> <span class="muted">({{ _('pass mark %(n)s%%', n=a.pass_mark) }})</span></p>
+  {% if not reveal %}<p class="muted small">{{ _('Correct answers are shown after you pass or use all attempts. Review the lessons and try again!') }}</p>{% endif %}
 </div>
 {% set answers = attempt.answers %}
 {% for q in a.questions %}
   {% set chosen = answers.get(q.id) %}
   <div class="card question">
     <p><b>{{ loop.index }}.</b> {{ q.text }}
-      {% if chosen == q.correct_index %}<span class="badge passed">correct</span>{% else %}<span class="badge failed">incorrect</span>{% endif %}</p>
+      {% if chosen == q.correct_index %}<span class="badge passed">{{ _('correct') }}</span>{% else %}<span class="badge failed">{{ _('incorrect') }}</span>{% endif %}</p>
     {% for opt in q.options %}
       <div class="opt {% if reveal and loop.index0 == q.correct_index %}correct{% elif loop.index0 == chosen and chosen != q.correct_index %}wrong{% endif %}">
         {% if loop.index0 == chosen %}➤{% endif %} {{ opt }}</div>

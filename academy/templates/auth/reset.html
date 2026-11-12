@@ -1,12 +1,12 @@
 {% extends "base.html" %}{% from "_macros.html" import csrf %}
-{% block title %}New password · {{ site_name }}{% endblock %}
+{% block title %}{{ _('Choose a new password') }} · {{ site_name }}{% endblock %}
 {% block content %}
 <div class="card" style="max-width:420px;margin:auto">
-  <h1>Choose a new password</h1>
+  <h1>{{ _('Choose a new password') }}</h1>
   <form method="post" class="stack">{{ csrf() }}
-    <label for="password">New password (min 8 characters)</label><input type="password" id="password" name="password" minlength="8" required>
-    <label for="password2">Confirm new password</label><input type="password" id="password2" name="password2" minlength="8" required>
-    <p><button class="btn">Save password</button></p>
+    <label for="password">{{ _('New password (at least 8 characters)') }}</label><input type="password" id="password" name="password" minlength="8" required>
+    <label for="password2">{{ _('Confirm new password') }}</label><input type="password" id="password2" name="password2" minlength="8" required>
+    <p><button class="btn">{{ _('Save password') }}</button></p>
   </form>
 </div>
 {% endblock %}

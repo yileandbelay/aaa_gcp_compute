@@ -20,8 +20,9 @@ from werkzeug.utils import secure_filename
 from .. import videohosts
 from ..enrollment import (create_invitation, enroll_student, notify_enrolled, parse_emails)
 from ..mail import send_email
+from ..reviews import rating_summary
 from ..models import (Announcement, Assessment, Attachment, Attempt, Certificate, ContactMessage, Course,
-                      Enrollment, Invitation, Lesson, LessonProgress, Payment, Question, User, db)
+                      Enrollment, Invitation, Lesson, LessonProgress, Payment, Question, Review, User, db)
 from ..utils import admin_required, course_progress, save_upload, slugify, staff_required
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -137,6 +138,9 @@ def _fill_course(course, form):
             raise InvalidOperation
     except InvalidOperation:
         abort(400, "Invalid price")
+    course.learn_points = form.get("learn_points", "").strip() or None
+    course.audience = form.get("audience", "").strip() or None
+    course.prerequisites = form.get("prerequisites", "").strip() or None
     course.is_published = bool(form.get("is_published"))
     if not course.title:
         abort(400, "Title is required")
@@ -179,7 +183,7 @@ def course_edit(course_id):
         return redirect(url_for("admin.course_edit", course_id=course.id))
     enrolled = Enrollment.query.filter_by(course_id=course.id, status="active").count()
     return render_template("admin/course_form.html", course=course, categories=_categories(),
-                           staff=_staff_users(), enrolled=enrolled)
+                           staff=_staff_users(), enrolled=enrolled, rating=rating_summary([course.id]).get(course.id))
 
 
 @bp.route("/courses/<int:course_id>/delete", methods=["POST"])
@@ -197,6 +201,7 @@ def course_delete(course_id):
     Payment.query.filter_by(course_id=course.id).delete()
     Certificate.query.filter_by(course_id=course.id).delete()
     Invitation.query.filter_by(course_id=course.id).delete()
+    Review.query.filter_by(course_id=course.id).delete()
     db.session.delete(course)
     db.session.commit()
     flash("Course deleted.", "info")
@@ -215,6 +220,23 @@ def announce(course_id):
         db.session.commit()
         flash("Announcement posted.", "success")
     return redirect(url_for("admin.course_edit", course_id=course.id) + "#announcements")
+
+
+@bp.route("/reviews/<int:review_id>", methods=["POST"])
+@staff_required
+def review_moderate(review_id):
+    """Hide, show or delete a student's review (admin or the course's instructor)."""
+    review = db.get_or_404(Review, review_id)
+    _manage(review.course)
+    action = request.form.get("action")
+    if action == "delete":
+        db.session.delete(review)
+    elif action == "hide":
+        review.is_hidden = True
+    elif action == "show":
+        review.is_hidden = False
+    db.session.commit()
+    return redirect(url_for("admin.course_edit", course_id=review.course_id) + "#reviews")
 
 
 @bp.route("/announcements/<int:ann_id>/delete", methods=["POST"])

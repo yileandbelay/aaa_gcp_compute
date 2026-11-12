@@ -1,17 +1,21 @@
 {% extends "base.html" %}{% from "_macros.html" import course_card %}
-{% block title %}Courses · {{ site_name }}{% endblock %}
+{% block title %}{{ _('Courses') }} · {{ site_name }}{% endblock %}
 {% block content %}
-<h1>Courses</h1>
-<form method="get" class="row" style="margin-bottom:14px">
-  {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
-  <input type="text" id="q" name="q" value="{{ q }}" placeholder="Search courses" style="max-width:320px">
-  <button class="btn small">Search</button>
+<h1>{{ _('Courses') }}</h1>
+<form method="get" class="finder" id="finder">
+  <div class="finder-search">
+    <input type="search" id="q" name="q" value="{{ q }}" placeholder="{{ _('Search courses, topics or skills') }}" aria-label="{{ _('Search courses') }}">
+    <button class="btn small">{{ _('Search') }}</button>
+  </div>
+  <div class="finder-filters">
+    {% if categories %}<label>{{ _('Topic') }}<select name="category" onchange="this.form.submit()"><option value="">{{ _('All topics') }}</option>{% for c in categories %}<option value="{{ c }}" {{ 'selected' if c == category }}>{{ c }}</option>{% endfor %}</select></label>{% endif %}
+    {% if levels|length > 1 or level %}<label>{{ _('Level') }}<select name="level" onchange="this.form.submit()"><option value="">{{ _('Any level') }}</option>{% for l in levels %}<option value="{{ l }}" {{ 'selected' if l == level }}>{{ _(l) }}</option>{% endfor %}</select></label>{% endif %}
+    <label>{{ _('Length') }}<select name="length" onchange="this.form.submit()"><option value="">{{ _('Any length') }}</option>{% for k, label in lengths %}<option value="{{ k }}" {{ 'selected' if k == length }}>{{ _(label) }}</option>{% endfor %}</select></label>
+    <label>{{ _('Price') }}<select name="price" onchange="this.form.submit()"><option value="">{{ _('Free and paid') }}</option><option value="free" {{ 'selected' if price == 'free' }}>{{ _('Free') }}</option><option value="paid" {{ 'selected' if price == 'paid' }}>{{ _('Paid') }}</option></select></label>
+    <label>{{ _('Sort by') }}<select name="sort" onchange="this.form.submit()">{% for k, label in sorts %}{% if k != 'rating' or config.FEATURE_REVIEWS %}<option value="{{ k }}" {{ 'selected' if k == sort }}>{{ _(label) }}</option>{% endif %}{% endfor %}</select></label>
+  </div>
 </form>
-{% if categories %}
-<div class="chips" style="margin-bottom:20px">
-  <a class="chip {{ 'on' if not category }}" href="{{ url_for('main.catalog', q=q or None) }}">All</a>
-  {% for cat in categories %}<a class="chip {{ 'on' if cat == category }}" href="{{ url_for('main.catalog', category=cat, q=q or None) }}">{{ cat }}</a>{% endfor %}
-</div>{% endif %}
-{% if courses %}<div class="grid">{% for c in courses %}{{ course_card(c) }}{% endfor %}</div>
-{% else %}<p class="muted">No courses match. {% if q or category %}<a href="{{ url_for('main.catalog') }}">Show all courses</a>{% else %}Check back soon!{% endif %}</p>{% endif %}
+<p class="muted small" aria-live="polite">{{ _n('%(n)s course', '%(n)s courses', courses|length) }}{% if filtered %} {{ _('match your filters.') }} <a href="{{ url_for('main.catalog') }}">{{ _('Clear all filters') }}</a>{% endif %}</p>
+{% if courses %}<div class="grid">{% for c in courses %}{{ course_card(c, ratings) }}{% endfor %}</div>
+{% else %}<div class="card"><p class="muted" style="margin:0">{% if filtered %}{{ _('No course matches these filters.') }} <a href="{{ url_for('main.catalog') }}">{{ _('Show all courses') }}</a>.{% else %}{{ _('No courses are published yet. Check back soon!') }}{% endif %}</p></div>{% endif %}
 {% endblock %}

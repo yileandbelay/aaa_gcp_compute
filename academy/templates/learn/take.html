@@ -1,7 +1,8 @@
 {% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}{{ a.title }} · {{ a.course.title }}{% endblock %}
 {% block content %}
 <h1>{{ a.title }}</h1>
-{% if remaining is not none %}<div class="timer"><span id="t" data-remaining="{{ remaining }}"></span></div>{% endif %}
+{% if remaining is not none %}<div class="timer" role="timer" aria-label="{{ _('Time left') }}"><span id="t" data-remaining="{{ remaining }}"></span></div>{% endif %}
 <form method="post" id="quiz" class="protected" oncopy="return false">{{ csrf() }}
 {% for q in a.questions %}
   <div class="card question">
@@ -11,7 +12,7 @@
     {% endfor %}
   </div>
 {% endfor %}
-<button class="btn" onclick="return confirm('Submit your answers?')">Submit answers</button>
+<button class="btn" onclick="return confirm({{ _('Submit your answers?')|tojson }})">{{ _('Submit answers') }}</button>
 </form>
 {% endblock %}
 {% block scripts %}

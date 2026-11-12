@@ -77,6 +77,10 @@ class Course(db.Model):
     category = db.Column(db.String(60), index=True)
     hours = db.Column(db.Numeric(5, 1))  # training hours, printed on certificates
     price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    # Shown on the course page. One item per line (learn_points), or free text (the others).
+    learn_points = db.Column(db.Text)  # "What you'll learn"
+    audience = db.Column(db.Text)  # "Who this course is for"
+    prerequisites = db.Column(db.Text)
     is_published = db.Column(db.Boolean, default=False, nullable=False)
     instructor_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     created_at = db.Column(db.DateTime, default=utcnow)
@@ -87,6 +91,8 @@ class Course(db.Model):
     )
     assessments = db.relationship("Assessment", back_populates="course", cascade="all, delete-orphan")
     enrollments = db.relationship("Enrollment", back_populates="course", cascade="all, delete-orphan")
+    reviews = db.relationship("Review", back_populates="course", order_by="Review.created_at.desc()",
+                              cascade="all, delete-orphan")
     announcements = db.relationship(
         "Announcement", back_populates="course", order_by="Announcement.created_at.desc()",
         cascade="all, delete-orphan",
@@ -95,6 +101,35 @@ class Course(db.Model):
     @property
     def is_free(self):
         return float(self.price or 0) == 0
+
+    @property
+    def learn_list(self):
+        """The "what you'll learn" items, without list bullets."""
+        items = [line.strip().lstrip("-*\u2022 ").strip() for line in (self.learn_points or "").splitlines()]
+        return [i for i in items if i]
+
+    @property
+    def total_minutes(self):
+        return sum(l.duration_min or 0 for l in self.lessons)
+
+    @property
+    def length_hours(self):
+        """Stated training hours, or the sum of lesson durations if none were stated."""
+        if self.hours:
+            return float(self.hours)
+        return self.total_minutes / 60 if self.total_minutes else None
+
+    @property
+    def length_band(self):
+        """short (under 2 h), medium (2-6 h), long (over 6 h), or None if unknown."""
+        h = self.length_hours
+        if h is None:
+            return None
+        return "short" if h < 2 else ("medium" if h <= 6 else "long")
+
+    @property
+    def file_count(self):
+        return sum(1 for l in self.lessons for a in l.attachments if not a.is_link)
 
 
 class Lesson(db.Model):
@@ -369,3 +404,26 @@ class ContactMessage(db.Model):
     ip = db.Column(db.String(64), index=True)
     is_read = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=utcnow, index=True)
+
+
+class Review(db.Model):
+    """A student's rating (1-5 stars) and optional feedback for a course they take."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey("course.id"), nullable=False)
+    rating = db.Column(db.Integer, nullable=False)
+    comment = db.Column(db.Text)
+    is_hidden = db.Column(db.Boolean, default=False, nullable=False)  # hidden by a course admin
+    created_at = db.Column(db.DateTime, default=utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+
+    user = db.relationship("User")
+    course = db.relationship("Course", back_populates="reviews")
+    __table_args__ = (db.UniqueConstraint("user_id", "course_id"),)
+
+    @property
+    def author(self):
+        """First name and last initial, e.g. "Hana T." - full names are not shown publicly."""
+        parts = (self.user.full_name or "Student").split()
+        return parts[0] if len(parts) == 1 else f"{parts[0]} {parts[-1][0]}."

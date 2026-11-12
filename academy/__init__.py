@@ -59,6 +59,9 @@ def create_app(config_object=Config):
     app.before_request(check_csrf)
     app.jinja_env.globals.update(csrf_token=csrf_token, site_name=app.config["SITE_NAME"],
                                  currency=app.config["CURRENCY"])
+    from . import i18n
+
+    i18n.init_app(app)
     app.jinja_env.filters["markdown"] = render_markdown
     app.jinja_env.filters["money"] = lambda v: f"{float(v or 0):,.2f}"
 
@@ -91,6 +94,7 @@ def create_app(config_object=Config):
     # Otherwise the schema is managed by migrations: run `flask db upgrade`.
 
     register_cli(app)
+    i18n.register_cli(app)
     return app
 
 

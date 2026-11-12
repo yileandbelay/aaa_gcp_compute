@@ -5,6 +5,7 @@ from datetime import timedelta
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
+from ..i18n import gettext as _
 from ..models import Assessment, Attempt, db, utcnow
 from ..utils import attempts_used, can_attempt, maybe_issue_certificate
 
@@ -40,10 +41,10 @@ def overview(aid):
 def start(aid):
     a = _assessment_for_user(aid)
     if not a.questions:
-        flash("This assessment has no questions yet.", "info")
+        flash(_("This assessment has no questions yet."), "info")
         return redirect(url_for("assess.overview", aid=a.id))
     if not can_attempt(current_user, a):
-        flash("You have no attempts remaining for this assessment.", "error")
+        flash(_("You have no attempts remaining for this assessment."), "error")
         return redirect(url_for("assess.overview", aid=a.id))
     # Reuse an open attempt so refreshing does not burn attempts or reset the timer.
     attempt = Attempt.query.filter_by(user_id=current_user.id, assessment_id=a.id, submitted_at=None).first()
@@ -80,9 +81,9 @@ def take(attempt_id):
         attempt.submitted_at = utcnow()
         db.session.commit()
         if late:
-            flash("Time limit exceeded - the attempt was submitted with no answers counted.", "error")
+            flash(_("Time limit exceeded - the attempt was submitted with no answers counted."), "error")
         if attempt.passed and maybe_issue_certificate(current_user, a.course):
-            flash("Congratulations! You completed the course - your certificate is ready.", "success")
+            flash(_("Congratulations! You completed the course - your certificate is ready."), "success")
         return redirect(url_for("assess.result", attempt_id=attempt.id))
 
     remaining = int((deadline - utcnow()).total_seconds()) if deadline else None

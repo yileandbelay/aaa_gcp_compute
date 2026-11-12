@@ -102,7 +102,10 @@
             }
           ]
         }
-      ]
+      ],
+      "learn_points": "Define a project's scope, objectives and stakeholders\nBuild a work breakdown structure and a realistic schedule\nTrack progress, risks and budget\nReport status clearly to managers and clients",
+      "audience": "Team leaders, new project coordinators and anyone who plans work for other people.",
+      "prerequisites": "No experience needed. You only need a computer or phone with internet access."
     },
     {
       "slug": "excel-for-the-workplace",
@@ -121,7 +124,10 @@
           "body": "## Three formulas to start with\n\n- `=SUM(B2:B20)` adds a range\n- `=AVERAGE(B2:B20)` gives the mean\n- `=IF(C2>=50,\"Pass\",\"Fail\")` returns one of two values\n\nPractise with the attached workbook."
         }
       ],
-      "assessments": []
+      "assessments": [],
+      "learn_points": "Use SUM, AVERAGE and IF with confidence\nClean up messy data\nBuild a simple chart for a report",
+      "audience": "Office staff, students and job seekers who want practical spreadsheet skills.",
+      "prerequisites": "Basic computer skills. Microsoft Excel or a free alternative such as Google Sheets."
     }
   ]
 }

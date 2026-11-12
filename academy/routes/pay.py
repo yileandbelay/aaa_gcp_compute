@@ -5,6 +5,7 @@ from flask import (Blueprint, abort, current_app, flash, redirect, render_templa
                    send_from_directory, url_for)
 from flask_login import current_user, login_required
 
+from ..i18n import gettext as _
 from ..models import Course, Enrollment, Payment, db
 from ..payments import PaymentError, chapa_enabled, chapa_initialize, chapa_verify
 from ..utils import save_upload
@@ -39,7 +40,7 @@ def checkout(course_id):
     if course.is_free:
         enr.activate(source="free")
         db.session.commit()
-        flash(f"You are enrolled in {course.title}. Enjoy!", "success")
+        flash(_("You are enrolled in %(course)s. Enjoy!", course=course.title), "success")
         return redirect(url_for("main.course_detail", slug=course.slug))
     db.session.commit()
     return render_template(
@@ -75,7 +76,7 @@ def chapa_start(course_id):
         payment.status = "failed"
         payment.note = str(exc)[:500]
         db.session.commit()
-        flash(f"Payment could not be started: {exc}", "error")
+        flash(_("Payment could not be started: %(error)s", error=str(exc)), "error")
         return redirect(url_for("pay.checkout", course_id=course.id))
     return redirect(url)
 
@@ -98,10 +99,10 @@ def chapa_return(tx_ref):
     if payment.user_id != current_user.id:
         abort(403)
     if _verify_and_activate(payment):
-        flash("Payment received - your course is unlocked!", "success")
+        flash(_("Payment received - your course is unlocked!"), "success")
     else:
-        flash("We could not confirm your payment yet. If you were charged, it will "
-              "activate automatically shortly, or contact us with reference " + payment.tx_ref, "error")
+        flash(_("We could not confirm your payment yet. If you were charged, it will activate automatically "
+                "shortly, or contact us with reference %(ref)s", ref=payment.tx_ref), "error")
     return redirect(url_for("main.course_detail", slug=payment.course.slug))
 
 
@@ -126,14 +127,14 @@ def manual_submit(course_id):
     receipt = request.files.get("receipt")
     reference = request.form.get("reference", "").strip()
     if not receipt or not receipt.filename:
-        flash("Please attach a photo or PDF of your payment receipt.", "error")
+        flash(_("Please attach a photo or PDF of your payment receipt."), "error")
         return redirect(url_for("pay.checkout", course_id=course.id))
     payment = _new_payment(course, "manual")
     payment.receipt_file = save_upload(receipt, "receipts", current_app.config["ALLOWED_RECEIPT_EXT"])
     payment.provider_ref = reference[:128] or None
     payment.status = "submitted"
     db.session.commit()
-    flash("Receipt submitted. We will verify it and unlock your course shortly.", "success")
+    flash(_("Receipt submitted. We will verify it and unlock your course shortly."), "success")
     return redirect(url_for("main.course_detail", slug=course.slug))
 
 
@@ -147,7 +148,7 @@ def demo_pay(course_id):
     payment = _new_payment(course, "demo")
     payment.mark_paid(provider_ref="DEMO")
     db.session.commit()
-    flash("Demo payment complete - course unlocked.", "success")
+    flash(_("Demo payment complete - course unlocked."), "success")
     return redirect(url_for("main.course_detail", slug=course.slug))
 
 

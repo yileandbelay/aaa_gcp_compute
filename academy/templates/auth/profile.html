@@ -1,22 +1,23 @@
 {% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}{{ _('My profile') }} · {{ site_name }}{% endblock %}
 {% block content %}
 <div class="card" style="max-width:560px">
-  <h1>My profile</h1>
-  <p class="muted">{{ current_user.email }} · {{ current_user.role|capitalize }} · joined {{ current_user.created_at.strftime('%d %b %Y') }}</p>
+  <h1>{{ _('My profile') }}</h1>
+  <p class="muted">{{ current_user.email }} · {{ _(current_user.role|capitalize) }} · {{ _('joined %(date)s', date=current_user.created_at|localdate) }}</p>
   <form method="post" class="stack">{{ csrf() }}
-    <label>Full name</label><input type="text" name="full_name" value="{{ current_user.full_name }}" required>
-    <label>Phone</label><input type="tel" name="phone" value="{{ current_user.phone or '' }}">
-    <label>City</label><input type="text" name="city" value="{{ current_user.city or '' }}">
+    <label for="full_name">{{ _('Full name') }}</label><input type="text" id="full_name" name="full_name" value="{{ current_user.full_name }}" required>
+    <label for="phone">{{ _('Phone') }}</label><input type="tel" id="phone" name="phone" value="{{ current_user.phone or '' }}">
+    <label for="city">{{ _('City') }}</label><input type="text" id="city" name="city" value="{{ current_user.city or '' }}">
     {% if current_user.is_staff %}
-    <h3>Instructor profile</h3>
-    <p class="small muted">Shown to students on the pages of courses you teach.</p>
-    <label for="headline">Headline</label><input type="text" id="headline" name="headline" maxlength="160" value="{{ current_user.headline or '' }}" placeholder="e.g. PMP-certified project manager, 12 years in construction">
-    <label for="bio">About you (Markdown)</label><textarea id="bio" name="bio" rows="5">{{ current_user.bio or '' }}</textarea>
+    <h3>{{ _('Instructor profile') }}</h3>
+    <p class="small muted">{{ _('Shown to students on the pages of courses you teach.') }}</p>
+    <label for="headline">{{ _('Headline') }}</label><input type="text" id="headline" name="headline" maxlength="160" value="{{ current_user.headline or '' }}" placeholder="{{ _('e.g. PMP-certified project manager, 12 years in construction') }}">
+    <label for="bio">{{ _('About you (Markdown)') }}</label><textarea id="bio" name="bio" rows="5">{{ current_user.bio or '' }}</textarea>
     {% endif %}
-    <h3>Change password</h3>
-    <label>Current password</label><input type="password" name="current_password">
-    <label>New password</label><input type="password" name="new_password" minlength="8">
-    <p><button class="btn">Save</button></p>
+    <h3>{{ _('Change password') }}</h3>
+    <label for="current_password">{{ _('Current password') }}</label><input type="password" id="current_password" name="current_password">
+    <label for="new_password">{{ _('New password') }}</label><input type="password" id="new_password" name="new_password" minlength="8">
+    <p><button class="btn">{{ _('Save') }}</button></p>
   </form>
 </div>
 {% endblock %}
