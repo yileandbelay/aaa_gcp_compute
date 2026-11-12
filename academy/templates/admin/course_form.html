@@ -68,6 +68,7 @@
 <div class="card" id="lessons">
   <div class="row spread"><h2>Lessons</h2><a class="btn small" href="{{ url_for('admin.lesson_form', course_id=course.id) }}">+ Add lesson</a></div>
   <div class="table-wrap"><table>{% for l in course.lessons %}<tr>
+    {% if current_user.is_admin %}<td><input type="checkbox" name="lesson_ids" value="{{ l.id }}" form="bulk-lessons" aria-label="Select {{ l.title }}"></td>{% endif %}
     <td>{{ loop.index }}</td>
     <td><a href="{{ url_for('admin.lesson_form', lesson_id=l.id) }}"><b>{{ l.title }}</b></a>
       <div class="small muted">
@@ -85,6 +86,13 @@
       <form method="post" action="{{ url_for('admin.lesson_delete', lesson_id=l.id) }}" onsubmit="return confirm('Delete this lesson?')">{{ csrf() }}<button class="linkbtn" style="color:var(--err)">delete</button></form>
     </td></tr>{% else %}<tr><td class="muted">No lessons yet. Add the first one below.</td></tr>{% endfor %}</table></div>
 
+  {% if current_user.is_admin and course.lessons %}
+  <form method="post" id="bulk-lessons" action="{{ url_for('admin.lessons_bulk', course_id=course.id) }}" class="row">{{ csrf() }}
+    <label for="bulk-action" class="small muted">With the ticked lessons:</label>
+    <select id="bulk-action" name="action" style="width:auto"><option value="public">Make public</option><option value="lock">Lock</option><option value="delete">Delete…</option></select>
+    <button class="btn small secondary">Apply</button>
+  </form>
+  {% endif %}
   <h3>Quick add</h3>
   <form method="post" class="row" action="{{ url_for('admin.lesson_form', course_id=course.id) }}">{{ csrf() }}
     <input type="hidden" name="action" value="edit">

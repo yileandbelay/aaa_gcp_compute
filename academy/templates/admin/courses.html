@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Courses</h1>{% include "admin/_nav.html" %}
-<p><a class="btn" href="{{ url_for('admin.course_new') }}">+ New course</a></p>
+<p class="row"><a class="btn" href="{{ url_for('admin.course_new') }}">+ New course</a>{% if current_user.is_admin %} <a class="btn secondary" href="{{ url_for('admin.categories') }}">Manage categories</a>{% endif %}</p>
 <div class="table-wrap"><table>
-<tr><th>Title</th>{% if current_user.is_admin %}<th>Instructor</th>{% endif %}<th>Price</th><th>Lessons</th><th>Students</th><th>Status</th><th></th></tr>
+<tr><th>Title</th>{% if current_user.is_admin %}<th>Teacher</th>{% endif %}<th>Price</th><th>Lessons</th><th>Students</th><th>Status</th><th></th></tr>
 {% for c in courses %}<tr>
   <td><a href="{{ url_for('admin.course_edit', course_id=c.id) }}">{{ c.title }}</a></td>
   {% if current_user.is_admin %}<td>{{ c.instructor.full_name if c.instructor else '–' }}</td>{% endif %}

@@ -136,6 +136,36 @@ def _categories():
             .order_by(Course.category)]
 
 
+@bp.route("/categories", methods=["GET", "POST"])
+@admin_required
+def categories():
+    """Rename or merge course categories (a category is just the text on each course)."""
+    if request.method == "POST":
+        old = request.form.get("old", "")
+        new = " ".join(request.form.get("new", "").split())[:60]
+        names = {c for c in _categories()}
+        if old not in names:
+            flash("That category no longer exists.", "error")
+        elif not new:
+            flash("Enter the new name for the category.", "error")
+        else:
+            # A name that already exists (ignoring capitals) is a merge: use the existing spelling.
+            existing = next((n for n in names if n.lower() == new.lower() and n != old), None)
+            target = existing or new
+            if target == old:
+                flash("The name is unchanged.", "info")
+            else:
+                moved = Course.query.filter_by(category=old).update({"category": target})
+                db.session.commit()
+                flash(f"{moved} course{'s' if moved != 1 else ''} moved from \"{old}\" to \"{target}\""
+                      + (" (merged with the existing category)." if existing else "."), "success")
+        return redirect(url_for("admin.categories"))
+    counts = dict(db.session.query(Course.category, func.count(Course.id)).filter(Course.category.isnot(None))
+                  .group_by(Course.category).all())
+    return render_template("admin/categories.html", counts=sorted(counts.items(), key=lambda kv: kv[0].lower()),
+                           uncategorised=Course.query.filter(Course.category.is_(None)).count())
+
+
 def _fill_course(course, form):
     course.title = form.get("title", "").strip()
     course.summary = form.get("summary", "").strip()
@@ -545,19 +575,56 @@ def video_status(provider):
     return jsonify(status=host.status(ref))
 
 
-@bp.route("/lessons/<int:lesson_id>/delete", methods=["POST"])
-@staff_required
-def lesson_delete(lesson_id):
-    lesson = _lesson(lesson_id)
-    cid = lesson.course_id
+def _delete_lesson(lesson):
+    """Remove a lesson with its files, attachments and progress records. The caller commits."""
     _delete_video(lesson.video_file)
     for att in lesson.attachments:
         _delete_material(att.stored_name)
     LessonProgress.query.filter_by(lesson_id=lesson.id).delete()
     db.session.delete(lesson)
+
+
+@bp.route("/lessons/<int:lesson_id>/delete", methods=["POST"])
+@staff_required
+def lesson_delete(lesson_id):
+    lesson = _lesson(lesson_id)
+    cid = lesson.course_id
+    _delete_lesson(lesson)
     db.session.commit()
     flash("Lesson deleted.", "info")
     return redirect(url_for("admin.course_edit", course_id=cid) + "#lessons")
+
+
+@bp.route("/courses/<int:course_id>/lessons/bulk", methods=["POST"])
+@admin_required
+def lessons_bulk(course_id):
+    """Make several lessons public, lock them, or delete them in one action (admins only).
+    Deleting asks for confirmation on a separate page, so it also works without JavaScript."""
+    course = db.get_or_404(Course, course_id)
+    action = request.form.get("action")
+    ids = {_int(v) for v in request.form.getlist("lesson_ids")}
+    chosen = [l for l in course.lessons if l.id in ids]        # lessons of other courses are ignored
+    back = url_for("admin.course_edit", course_id=course.id) + "#lessons"
+    if action not in ("public", "lock", "delete") or not chosen:
+        flash("Tick at least one lesson and choose what to do with it.", "error")
+        return redirect(back)
+    if action == "delete" and not request.form.get("confirmed"):
+        return render_template("admin/lessons_bulk_confirm.html", course=course, lessons=chosen)
+    names = ", ".join(f"\"{l.title}\"" for l in chosen[:3]) + (f" and {len(chosen) - 3} more" if len(chosen) > 3 else "")
+    if action == "delete":
+        for lesson in chosen:
+            _delete_lesson(lesson)
+        db.session.flush()
+        for pos, lesson in enumerate(Lesson.query.filter_by(course_id=course.id).order_by(Lesson.position), start=1):
+            lesson.position = pos
+        flash(f"Deleted {len(chosen)} lesson{'s' if len(chosen) != 1 else ''}: {names}.", "info")
+    else:
+        for lesson in chosen:
+            lesson.is_preview = action == "public"
+        flash(f"{len(chosen)} lesson{'s are' if len(chosen) != 1 else ' is'} now "
+              f"{'public: anyone can watch' if action == 'public' else 'locked: enrolled students only'}: {names}.", "success")
+    db.session.commit()
+    return redirect(back)
 
 
 @bp.route("/lessons/<int:lesson_id>/public", methods=["POST"])

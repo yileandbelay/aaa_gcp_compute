@@ -601,3 +601,165 @@ def test_an_admin_can_make_a_new_lesson_public_from_the_form(app):
     admin_client(app).post(f"/admin/courses/{cid}/lessons/new", data={"title": "Admin made", "kind": "text", "is_preview_present": "1", "is_preview": "1"})
     with app.app_context():
         assert Lesson.query.filter_by(title="Admin made").one().is_preview is True
+
+
+# --- NX-19: category management and bulk lesson tools -----------------------------------------
+
+def categories_of(app):
+    with app.app_context():
+        return {c.slug: c.category for c in Course.query.all()}
+
+
+def test_categories_page_lists_names_with_course_counts(app):
+    add_course(app, "One", category="Business")
+    add_course(app, "Two", category="Business")
+    add_course(app, "Three", category="Health")
+    add_course(app, "Four")
+    page = admin_client(app).get("/admin/categories").data.decode()
+    assert re.search(r"<td><b>Business</b></td><td>2</td>", page)
+    assert re.search(r"<td><b>Health</b></td><td>1</td>", page) and "1 course has no category" in page
+
+
+def test_renaming_a_category_updates_every_course_and_the_catalog_filter(app):
+    add_course(app, "One", category="Busines")
+    add_course(app, "Two", category="Busines")
+    admin = admin_client(app)
+    r = admin.post("/admin/categories", data={"old": "Busines", "new": "Business Skills"}, follow_redirects=True)
+    assert b"2 courses moved" in r.data
+    cats = categories_of(app)
+    assert cats["one"] == cats["two"] == "Business Skills"
+    catalog = app.test_client().get("/courses?category=Business+Skills").data.decode()
+    assert "One" in catalog and "Two" in catalog
+    assert "0 courses" in app.test_client().get("/courses?category=Busines").data.decode()
+
+
+def test_giving_a_category_an_existing_name_merges_them_ignoring_capitals(app):
+    add_course(app, "A", category="Tech")
+    add_course(app, "B", category="Technology")
+    r = admin_client(app).post("/admin/categories", data={"old": "Tech", "new": "technology"}, follow_redirects=True)
+    assert b"merged with the existing category" in r.data
+    assert categories_of(app)["a"] == "Technology"                      # the existing spelling wins
+
+
+@pytest.mark.parametrize("old,new,message", [("Nope", "X", b"no longer exists"), ("Business", "   ", b"Enter the new name"),
+                                             ("Business", "Business", b"unchanged")])
+def test_category_rename_validation(app, old, new, message):
+    with app.app_context():
+        c = Course.query.first(); c.category = "Business"; db.session.commit()
+    before = categories_of(app)
+    r = admin_client(app).post("/admin/categories", data={"old": old, "new": new}, follow_redirects=True)
+    assert message in r.data and categories_of(app) == before
+
+
+def test_category_names_are_trimmed_and_limited(app):
+    add_course(app, "A", category="Old")
+    admin_client(app).post("/admin/categories", data={"old": "Old", "new": "  Spaced    out  " + "x" * 80})
+    assert categories_of(app)["a"].startswith("Spaced out xxx") and len(categories_of(app)["a"]) == 60
+
+
+def test_category_tools_are_admin_only_and_need_csrf(app):
+    add_course(app, "A", category="Old")
+    for client in (teacher_client(app), student_client(app)):
+        assert client.get("/admin/categories").status_code == 403
+        assert client.post("/admin/categories", data={"old": "Old", "new": "New"}).status_code == 403
+    assert categories_of(app)["a"] == "Old"
+    assert "Manage categories" in admin_client(app).get("/admin/courses").data.decode()
+    assert "Manage categories" not in teacher_client(app).get("/admin/courses").data.decode()
+    assert 'name="_csrf"' in admin_client(app).get("/admin/categories").data.decode()
+
+
+def bulk_setup(app):
+    cid = add_course(app, "Bulk Course")
+    ids_ = [add_lesson(app, cid, f"Lesson {i}", 5) for i in range(1, 5)]
+    return cid, ids_
+
+
+def test_bulk_make_public_and_lock(app):
+    cid, ids_ = bulk_setup(app)
+    admin = admin_client(app)
+    r = admin.post(f"/admin/courses/{cid}/lessons/bulk", data={"action": "public", "lesson_ids": ids_[:3]}, follow_redirects=True)
+    assert b"3 lessons are now public" in r.data
+    assert [flag(app, i) for i in ids_] == [True, True, True, False]
+    r = admin.post(f"/admin/courses/{cid}/lessons/bulk", data={"action": "lock", "lesson_ids": [ids_[0], ids_[2]]}, follow_redirects=True)
+    assert b"2 lessons are now locked" in r.data
+    assert [flag(app, i) for i in ids_] == [False, True, False, False]
+
+
+def test_bulk_delete_asks_for_confirmation_first_and_keeps_numbering(app):
+    cid, ids_ = bulk_setup(app)
+    admin = admin_client(app)
+    ask = admin.post(f"/admin/courses/{cid}/lessons/bulk", data={"action": "delete", "lesson_ids": ids_[1:3]})
+    assert ask.status_code == 200 and b"Yes, delete 2 lessons" in ask.data and b"Lesson 2" in ask.data
+    with app.app_context():
+        assert Lesson.query.filter_by(course_id=cid).count() == 4          # nothing deleted yet
+    done = admin.post(f"/admin/courses/{cid}/lessons/bulk", data={"action": "delete", "confirmed": "1", "lesson_ids": ids_[1:3]}, follow_redirects=True)
+    assert b"Deleted 2 lessons" in done.data
+    with app.app_context():
+        left = Lesson.query.filter_by(course_id=cid).order_by(Lesson.position).all()
+        assert [l.title for l in left] == ["Lesson 1", "Lesson 4"] and [l.position for l in left] == [1, 2]
+
+
+def test_bulk_ignores_lessons_of_other_courses_and_requires_a_choice(app):
+    cid, ids_ = bulk_setup(app)
+    other = add_course(app, "Other Course")
+    foreign = add_lesson(app, other, "Foreign", 5)
+    admin = admin_client(app)
+    admin.post(f"/admin/courses/{cid}/lessons/bulk", data={"action": "public", "lesson_ids": [foreign, ids_[0]]})
+    assert flag(app, foreign) is False and flag(app, ids_[0]) is True
+    none = admin.post(f"/admin/courses/{cid}/lessons/bulk", data={"action": "public"}, follow_redirects=True)
+    assert b"Tick at least one lesson" in none.data
+    bad = admin.post(f"/admin/courses/{cid}/lessons/bulk", data={"action": "explode", "lesson_ids": ids_}, follow_redirects=True)
+    assert b"Tick at least one lesson" in bad.data
+    only_foreign = admin.post(f"/admin/courses/{cid}/lessons/bulk", data={"action": "delete", "confirmed": "1", "lesson_ids": [foreign]}, follow_redirects=True)
+    with app.app_context():
+        assert db.session.get(Lesson, foreign) is not None
+
+
+def test_bulk_tools_are_admin_only_even_for_the_courses_teacher(app):
+    cid, ids_ = bulk_setup(app)
+    with app.app_context():
+        db.session.get(Course, cid).instructor_id = User.query.filter_by(email="instructor@example.com").one().id
+        db.session.commit()
+    t = teacher_client(app)
+    for action in ("public", "lock", "delete"):
+        assert t.post(f"/admin/courses/{cid}/lessons/bulk", data={"action": action, "confirmed": "1", "lesson_ids": ids_}).status_code == 403
+    assert app.test_client().post(f"/admin/courses/{cid}/lessons/bulk", data={"action": "delete", "confirmed": "1", "lesson_ids": ids_}).status_code in (302, 400, 401, 403)
+    with app.app_context():
+        assert Lesson.query.filter_by(course_id=cid).count() == 4 and not any(flag(app, i) for i in ids_)
+    page = t.get(f"/admin/courses/{cid}").data.decode()
+    assert 'name="lesson_ids"' not in page and "With the ticked lessons" not in page
+    admin_page = admin_client(app).get(f"/admin/courses/{cid}").data.decode()
+    assert admin_page.count('name="lesson_ids"') == 4 and 'id="bulk-lessons"' in admin_page
+
+
+def test_single_lesson_delete_still_works_for_the_teacher(app):
+    cid, ids_ = bulk_setup(app)
+    with app.app_context():
+        db.session.get(Course, cid).instructor_id = User.query.filter_by(email="instructor@example.com").one().id
+        db.session.commit()
+    assert teacher_client(app).post(f"/admin/lessons/{ids_[0]}/delete").status_code == 302
+    with app.app_context():
+        assert db.session.get(Lesson, ids_[0]) is None
+
+
+def test_new_admin_actions_need_a_csrf_token_when_csrf_is_on(tmp_path):
+    """With CSRF on, a login that carries the page's own token works; posts without one are refused."""
+    class Cfg(TestConfig):
+        CSRF_ENABLED = True
+        UPLOAD_DIR = str(tmp_path / "u")
+
+    app = create_app(Cfg)
+    with app.app_context():
+        seed()
+    c = app.test_client()
+    token = re.search(r'name="_csrf" value="([^"]+)"', c.get("/login?area=staff").data.decode()).group(1)
+    assert c.post("/login", data={"email": "admin@example.com", "password": "admin12345", "area": "staff", "_csrf": token}).status_code == 302
+    with app.app_context():
+        cid = Course.query.first().id
+        lid = Course.query.first().lessons[0].id
+    for path, data in (("/admin/categories", {"old": "Business & Management", "new": "X"}),
+                       (f"/admin/courses/{cid}/lessons/bulk", {"action": "public", "lesson_ids": [lid]}),
+                       (f"/admin/lessons/{lid}/public", {}), ("/admin/payments/details", {"instructions": "x"})):
+        assert c.post(path, data=data).status_code == 400, path
+    with app.app_context():
+        assert db.session.get(Lesson, lid).is_preview is False
