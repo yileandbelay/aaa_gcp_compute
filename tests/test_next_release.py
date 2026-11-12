@@ -757,9 +757,10 @@ def test_new_admin_actions_need_a_csrf_token_when_csrf_is_on(tmp_path):
     with app.app_context():
         cid = Course.query.first().id
         lid = Course.query.first().lessons[0].id
+        before = db.session.get(Lesson, lid).is_preview
     for path, data in (("/admin/categories", {"old": "Business & Management", "new": "X"}),
                        (f"/admin/courses/{cid}/lessons/bulk", {"action": "public", "lesson_ids": [lid]}),
                        (f"/admin/lessons/{lid}/public", {}), ("/admin/payments/details", {"instructions": "x"})):
         assert c.post(path, data=data).status_code == 400, path
     with app.app_context():
-        assert db.session.get(Lesson, lid).is_preview is False
+        assert db.session.get(Lesson, lid).is_preview is before
