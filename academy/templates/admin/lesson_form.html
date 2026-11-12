@@ -7,6 +7,10 @@
 <form method="post" enctype="multipart/form-data" class="stack" id="lessonForm">{{ csrf() }}
   <input type="hidden" name="is_preview_present" value="1">
   <label for="title">Lesson title</label><input type="text" id="title" name="title" value="{{ lesson.title if lesson }}" required>
+  {% if course.sections %}
+  <label for="section_id">Section</label>
+  <select id="section_id" name="section_id"><option value="">No section</option>{% for sec in course.sections %}<option value="{{ sec.id }}" {{ 'selected' if (lesson and lesson.section_id == sec.id) or (not lesson and loop.last) }}>{{ sec.title }}</option>{% endfor %}</select>
+  {% endif %}
 
   <label>What kind of lesson is this?</label>
   {% set kind = lesson.kind if lesson else 'video' %}
@@ -67,7 +71,11 @@
   <div class="row">
     <div style="flex:1;min-width:160px"><label for="duration_min">Duration (minutes)</label><input type="number" id="duration_min" name="duration_min" min="0" value="{{ lesson.duration_min if lesson and lesson.duration_min }}"></div>
   </div>
+  {% if current_user.is_admin %}
   <label class="check"><input type="checkbox" name="is_preview" value="1" {{ 'checked' if lesson and lesson.is_preview }}> <b>Public</b>: anyone can watch this lesson without enrolling (good for an introduction). Leave it unticked to lock it for enrolled students only.</label>
+  {% else %}
+  <p class="small muted"><b>{{ 'Public' if lesson and lesson.is_preview else 'Locked' }}</b>: only an admin can make a lesson public. New lessons start locked, so only enrolled students can open them.</p>
+  {% endif %}
   <div class="row">
     <button class="btn" id="saveBtn" name="action" value="save">Save lesson</button>
     <button class="btn secondary" id="saveAddBtn" name="action" value="save_add">Save and add another</button>

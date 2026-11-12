@@ -23,10 +23,14 @@ from ..ledger import paid_total, paid_totals, record_payment
 from ..settings import (PAYMENT_INSTRUCTIONS, PAYMENT_INSTRUCTIONS_AM, get_setting, payment_instructions,
                         set_setting)
 from ..mail import send_email
+from ..reports import monthly_report, report_years
+from ..sections import normalize as normalize_sections
 from ..reviews import rating_summary
 from ..models import (Announcement, Assessment, Attachment, Attempt, Certificate, ContactMessage, Course,
-                      Enrollment, Invitation, Lesson, LessonProgress, Payment, Question, Review, User, db)
-from ..utils import admin_required, course_progress, save_upload, slugify, staff_required
+                      Enrollment, Invitation, Lesson, LessonProgress, Payment, Question, Review, Section, User, db,
+                      utcnow)
+from ..utils import (admin_required, course_progress, delete_cover, save_cover, save_upload, slugify,
+                     staff_required)
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -135,6 +139,48 @@ def _categories():
             .order_by(Course.category)]
 
 
+@bp.route("/categories", methods=["GET", "POST"])
+@admin_required
+def categories():
+    """Rename or merge course categories (a category is just the text on each course)."""
+    if request.method == "POST":
+        old = request.form.get("old", "")
+        new = " ".join(request.form.get("new", "").split())[:60]
+        names = {c for c in _categories()}
+        if old not in names:
+            flash("That category no longer exists.", "error")
+        elif not new:
+            flash("Enter the new name for the category.", "error")
+        else:
+            # A name that already exists (ignoring capitals) is a merge: use the existing spelling.
+            existing = next((n for n in names if n.lower() == new.lower() and n != old), None)
+            target = existing or new
+            if target == old:
+                flash("The name is unchanged.", "info")
+            else:
+                moved = Course.query.filter_by(category=old).update({"category": target})
+                db.session.commit()
+                flash(f"{moved} course{'s' if moved != 1 else ''} moved from \"{old}\" to \"{target}\""
+                      + (" (merged with the existing category)." if existing else "."), "success")
+        return redirect(url_for("admin.categories"))
+    counts = dict(db.session.query(Course.category, func.count(Course.id)).filter(Course.category.isnot(None))
+                  .group_by(Course.category).all())
+    return render_template("admin/categories.html", counts=sorted(counts.items(), key=lambda kv: kv[0].lower()),
+                           uncategorised=Course.query.filter(Course.category.is_(None)).count())
+
+
+def _apply_cover(course):
+    """Replace or remove the course's optional cover image from the submitted form."""
+    upload = request.files.get("cover")
+    if upload and upload.filename:
+        new_name = save_cover(upload)            # aborts with a clear message if it is not a good image
+        delete_cover(course.cover_image)
+        course.cover_image = new_name
+    elif request.form.get("remove_cover") and course.cover_image:
+        delete_cover(course.cover_image)
+        course.cover_image = None
+
+
 def _fill_course(course, form):
     course.title = form.get("title", "").strip()
     course.summary = form.get("summary", "").strip()
@@ -147,12 +193,23 @@ def _fill_course(course, form):
             raise InvalidOperation
     except InvalidOperation:
         abort(400, "Invalid number of training hours")
-    try:
-        course.price = Decimal(form.get("price") or "0")
-        if course.price < 0:
-            raise InvalidOperation
-    except InvalidOperation:
-        abort(400, "Invalid price")
+    # Only admins set the price. A teacher's submission never changes it, and a course a teacher
+    # creates starts free until an admin prices it.
+    if current_user.is_admin:
+        try:
+            price = Decimal(form.get("price") or "0")
+            if price < 0:
+                raise InvalidOperation
+        except InvalidOperation:
+            abort(400, "Invalid price")
+        pricing = form.get("pricing")  # "free", "paid", or absent for older forms
+        if pricing == "free":
+            price = Decimal("0")
+        elif pricing == "paid" and price <= 0:
+            abort(400, "A paid course needs a price above 0.")
+        course.price = price
+    elif course.price is None:
+        course.price = Decimal("0")
     course.learn_points = form.get("learn_points", "").strip() or None
     course.audience = form.get("audience", "").strip() or None
     course.prerequisites = form.get("prerequisites", "").strip() or None
@@ -179,6 +236,7 @@ def course_new():
     if request.method == "POST":
         course = Course(instructor_id=current_user.id)
         _fill_course(course, request.form)
+        _apply_cover(course)
         db.session.add(course)
         db.session.commit()
         flash("Course created. Next, add its lessons below.", "success")
@@ -193,6 +251,7 @@ def course_edit(course_id):
     course = _course(course_id)
     if request.method == "POST":
         _fill_course(course, request.form)
+        _apply_cover(course)
         db.session.commit()
         flash("Course saved.", "success")
         return redirect(url_for("admin.course_edit", course_id=course.id))
@@ -217,6 +276,7 @@ def course_delete(course_id):
     Certificate.query.filter_by(course_id=course.id).delete()
     Invitation.query.filter_by(course_id=course.id).delete()
     Review.query.filter_by(course_id=course.id).delete()
+    delete_cover(course.cover_image)
     db.session.delete(course)
     db.session.commit()
     flash("Course deleted.", "info")
@@ -429,8 +489,14 @@ def lesson_form(course_id=None, lesson_id=None):
             lesson.body = f.get("body", "")
         if "duration_min" in f:
             lesson.duration_min = _int(f.get("duration_min")) or None
-        if "title" in f and "is_preview_present" in f:
-            lesson.is_preview = bool(f.get("is_preview"))
+        if "title" in f and "is_preview_present" in f and current_user.is_admin:
+            lesson.is_preview = bool(f.get("is_preview"))   # only admins decide what is public
+        if "section_id" in f:   # "" means no section; a section of another course is ignored
+            chosen = db.session.get(Section, _int(f.get("section_id")))
+            new_section = chosen.id if chosen and chosen.course_id == course.id else None
+            if new_section != lesson.section_id:       # moved to another group: it goes to the end of that group
+                lesson.section_id = new_section
+                lesson.position = 1_000_000
         if lesson.kind == "video":
             _save_video_choice(lesson, f)
         for f_upload in request.files.getlist("materials"):
@@ -448,6 +514,8 @@ def lesson_form(course_id=None, lesson_id=None):
             lesson.video_file = new_name
         if lesson.kind == "video" and not lesson.has_video:
             flash("Video lesson saved without a video - add one to make it playable.", "info")
+        db.session.flush()
+        normalize_sections(course.id)   # keep the lesson order equal to the displayed (sectioned) order
         db.session.commit()
         flash("Lesson saved.", "success")
         action = f.get("action")
@@ -533,26 +601,63 @@ def video_status(provider):
     return jsonify(status=host.status(ref))
 
 
-@bp.route("/lessons/<int:lesson_id>/delete", methods=["POST"])
-@staff_required
-def lesson_delete(lesson_id):
-    lesson = _lesson(lesson_id)
-    cid = lesson.course_id
+def _delete_lesson(lesson):
+    """Remove a lesson with its files, attachments and progress records. The caller commits."""
     _delete_video(lesson.video_file)
     for att in lesson.attachments:
         _delete_material(att.stored_name)
     LessonProgress.query.filter_by(lesson_id=lesson.id).delete()
     db.session.delete(lesson)
+
+
+@bp.route("/lessons/<int:lesson_id>/delete", methods=["POST"])
+@staff_required
+def lesson_delete(lesson_id):
+    lesson = _lesson(lesson_id)
+    cid = lesson.course_id
+    _delete_lesson(lesson)
     db.session.commit()
     flash("Lesson deleted.", "info")
     return redirect(url_for("admin.course_edit", course_id=cid) + "#lessons")
 
 
+@bp.route("/courses/<int:course_id>/lessons/bulk", methods=["POST"])
+@admin_required
+def lessons_bulk(course_id):
+    """Make several lessons public, lock them, or delete them in one action (admins only).
+    Deleting asks for confirmation on a separate page, so it also works without JavaScript."""
+    course = db.get_or_404(Course, course_id)
+    action = request.form.get("action")
+    ids = {_int(v) for v in request.form.getlist("lesson_ids")}
+    chosen = [l for l in course.lessons if l.id in ids]        # lessons of other courses are ignored
+    back = url_for("admin.course_edit", course_id=course.id) + "#lessons"
+    if action not in ("public", "lock", "delete") or not chosen:
+        flash("Tick at least one lesson and choose what to do with it.", "error")
+        return redirect(back)
+    if action == "delete" and not request.form.get("confirmed"):
+        return render_template("admin/lessons_bulk_confirm.html", course=course, lessons=chosen)
+    names = ", ".join(f"\"{l.title}\"" for l in chosen[:3]) + (f" and {len(chosen) - 3} more" if len(chosen) > 3 else "")
+    if action == "delete":
+        for lesson in chosen:
+            _delete_lesson(lesson)
+        db.session.flush()
+        normalize_sections(course.id)
+        flash(f"Deleted {len(chosen)} lesson{'s' if len(chosen) != 1 else ''}: {names}.", "info")
+    else:
+        for lesson in chosen:
+            lesson.is_preview = action == "public"
+        flash(f"{len(chosen)} lesson{'s are' if len(chosen) != 1 else ' is'} now "
+              f"{'public: anyone can watch' if action == 'public' else 'locked: enrolled students only'}: {names}.", "success")
+    db.session.commit()
+    return redirect(back)
+
+
 @bp.route("/lessons/<int:lesson_id>/public", methods=["POST"])
-@staff_required
+@admin_required
 def lesson_public(lesson_id):
-    """Switch one lesson between public (anyone may watch) and locked (enrolled students only)."""
-    lesson = _lesson(lesson_id)
+    """Switch one lesson between public (anyone may watch) and locked (enrolled students only).
+    Admin only: a teacher does not decide what is free."""
+    lesson = db.get_or_404(Lesson, lesson_id)
     lesson.is_preview = not lesson.is_preview
     db.session.commit()
     flash(f"\"{lesson.title}\" is now {'public: anyone can watch it' if lesson.is_preview else 'locked: enrolled students only'}.",
@@ -563,16 +668,68 @@ def lesson_public(lesson_id):
 @bp.route("/lessons/<int:lesson_id>/move/<direction>", methods=["POST"])
 @staff_required
 def lesson_move(lesson_id, direction):
+    """Move a lesson up or down inside its own section (or among the unsectioned lessons)."""
     lesson = _lesson(lesson_id)
-    lessons = list(lesson.course.lessons)
+    lessons = Lesson.query.filter_by(course_id=lesson.course_id).order_by(Lesson.position, Lesson.id).all()
     i = lessons.index(lesson)
     j = i - 1 if direction == "up" else i + 1
-    if 0 <= j < len(lessons):
+    if 0 <= j < len(lessons) and lessons[j].section_id == lesson.section_id:
         lessons[i], lessons[j] = lessons[j], lessons[i]
         for pos, l in enumerate(lessons, start=1):
             l.position = pos
         db.session.commit()
     return redirect(url_for("admin.course_edit", course_id=lesson.course_id) + "#lessons")
+
+
+# --- Sections (optional groups of lessons) -----------------------------------------
+
+@bp.route("/courses/<int:course_id>/sections", methods=["POST"])
+@staff_required
+def section_new(course_id):
+    course = _course(course_id)
+    title = " ".join(request.form.get("title", "").split())[:160]
+    if not title:
+        flash("Enter a name for the section.", "error")
+    else:
+        db.session.add(Section(course_id=course.id, title=title, position=len(course.sections) + 1))
+        db.session.commit()
+        flash(f"Section \"{title}\" added. Choose it in a lesson's form to put lessons in it.", "success")
+    return redirect(url_for("admin.course_edit", course_id=course.id) + "#lessons")
+
+
+@bp.route("/sections/<int:section_id>", methods=["POST"])
+@staff_required
+def section_update(section_id):
+    """Rename, move up or down, or delete a section. Deleting only removes the heading: its lessons
+    stay in the course (they move to the top group, without a heading)."""
+    section = db.get_or_404(Section, section_id)
+    course = _manage(section.course)
+    action = request.form.get("action")
+    if action == "rename":
+        title = " ".join(request.form.get("title", "").split())[:160]
+        if title:
+            section.title = title
+            flash("Section renamed.", "success")
+        else:
+            flash("Enter a name for the section.", "error")
+    elif action in ("up", "down"):
+        order = list(course.sections)
+        i = order.index(section)
+        j = i - 1 if action == "up" else i + 1
+        if 0 <= j < len(order):
+            order[i], order[j] = order[j], order[i]
+            for pos, sec in enumerate(order, start=1):
+                sec.position = pos
+    elif action == "delete":
+        for lesson in Lesson.query.filter_by(section_id=section.id):
+            lesson.section_id = None
+        db.session.flush()
+        db.session.delete(section)
+        flash("Section removed. Its lessons are still in the course.", "info")
+    db.session.flush()
+    normalize_sections(course.id)
+    db.session.commit()
+    return redirect(url_for("admin.course_edit", course_id=course.id) + "#lessons")
 
 
 # --- Assessments ------------------------------------------------------------------
@@ -916,6 +1073,38 @@ def payment_review(payment_id):
                    f"{' Reason: ' + p.note if p.note else ''}\n\nYou can submit a new receipt here:\n{course_link}\n"
                    f"\n{site}\n")
     return redirect(url_for("admin.payments", status=request.form.get("back_status", "")))
+
+
+# --- Revenue and enrolment report (admin) -----------------------------------------
+
+def _report_year():
+    year = _int(request.args.get("year"), 0)
+    return year if 2000 <= year <= 2100 else utcnow().year
+
+
+@bp.route("/reports")
+@admin_required
+def reports():
+    year = _report_year()
+    rows, totals = monthly_report(year)
+    return render_template("admin/reports.html", year=year, years=report_years(), rows=rows, totals=totals)
+
+
+@bp.route("/reports.csv")
+@admin_required
+def reports_csv():
+    year = _report_year()
+    rows, totals = monthly_report(year)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["year", "month", "course", "confirmed_payments", "revenue", "currency", "new_enrolments"])
+    for r in rows:
+        w.writerow([year, r["month_name"], r["course"], r["payments"], f"{r['revenue']:.2f}",
+                    current_app.config["CURRENCY"], r["enrolments"]])
+    w.writerow([year, "TOTAL", "", totals["payments"], f"{totals['revenue']:.2f}", current_app.config["CURRENCY"],
+                totals["enrolments"]])
+    return Response(buf.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition": f"attachment; filename=report-{year}.csv"})
 
 
 # --- Contact messages (admin) -------------------------------------------------

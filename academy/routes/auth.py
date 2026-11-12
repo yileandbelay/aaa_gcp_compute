@@ -1,4 +1,5 @@
 """Student registration, login and profile."""
+import json
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -10,6 +11,7 @@ from ..enrollment import apply_invitations
 from ..mail import send_email
 from ..i18n import gettext as _
 from ..models import LoginAttempt, User, db, utcnow
+from ..privacy import erase_account, export_user_data
 
 bp = Blueprint("auth", __name__)
 
@@ -82,9 +84,9 @@ def _area():
 def _area_error(user, area):
     """Why this account may not enter the chosen area, or None. Accounts with both roles use either."""
     if area == "staff" and not user.is_staff:
-        return _("This account does not have teacher or admin access. Use the Student tab.")
+        return _("This account does not have teacher or admin access. Sign in as a student instead.")
     if area == "student" and not user.can_study:
-        return _("This account is for teachers and admins. Use the Teacher / Admin tab.")
+        return _("This account is for teachers and admins. Use the teacher and admin sign-in.")
     return None
 
 
@@ -197,6 +199,37 @@ def reset_password(token):
 def logout():
     logout_user()
     flash(_("You have been logged out."), "info")
+    return redirect(url_for("main.index"))
+
+
+@bp.route("/profile/data.json")
+@login_required
+def download_data():
+    """A copy of the person's own data as a JSON file."""
+    resp = current_app.response_class(json.dumps(export_user_data(current_user), ensure_ascii=False, indent=2),
+                                      mimetype="application/json")
+    resp.headers["Content-Disposition"] = "attachment; filename=my-data.json"
+    resp.headers["Cache-Control"] = "private, no-store"
+    return resp
+
+
+@bp.route("/profile/delete", methods=["POST"])
+@login_required
+def delete_account():
+    if current_user.is_staff:
+        flash(_("Teacher and admin accounts cannot be deleted here. Ask an admin to remove your staff access first."), "error")
+        return redirect(url_for("auth.profile"))
+    if not current_user.check_password(request.form.get("password", "")):
+        flash(_("Current password is incorrect."), "error")
+        return redirect(url_for("auth.profile"))
+    if not request.form.get("confirm"):
+        flash(_("Please confirm that you understand this cannot be undone."), "error")
+        return redirect(url_for("auth.profile"))
+    user = db.session.get(User, current_user.id)
+    erase_account(user)
+    db.session.commit()
+    logout_user()
+    flash(_("Your account was deleted and your personal details were removed."), "success")
     return redirect(url_for("main.index"))
 
 

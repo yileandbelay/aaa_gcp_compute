@@ -3,21 +3,36 @@
 {% block content %}
 <div class="card auth-card wide">
   <h1>{{ _('My profile') }}</h1>
-  <p class="muted">{{ current_user.email }} · {{ _(current_user.role|capitalize) }} · {{ _('joined %(date)s', date=current_user.created_at|localdate) }}</p>
+  <p class="muted">{{ current_user.email }} · {% for r in current_user.role_names %}{{ _(r) }}{% if not loop.last %} + {% endif %}{% endfor %} · {{ _('joined %(date)s', date=current_user.created_at|localdate) }}</p>
   <form method="post" class="stack">{{ csrf() }}
     <label for="full_name">{{ _('Full name') }}</label><input type="text" id="full_name" name="full_name" value="{{ current_user.full_name }}" required>
     <label for="phone">{{ _('Phone') }}</label><input type="tel" id="phone" name="phone" value="{{ current_user.phone or '' }}">
     <label for="city">{{ _('City') }}</label><input type="text" id="city" name="city" value="{{ current_user.city or '' }}">
     {% if current_user.is_staff %}
-    <h3>{{ _('Instructor profile') }}</h3>
+    <h2 class="subhead">{{ _('Teacher profile') }}</h2>
     <p class="small muted">{{ _('Shown to students on the pages of courses you teach.') }}</p>
     <label for="headline">{{ _('Headline') }}</label><input type="text" id="headline" name="headline" maxlength="160" value="{{ current_user.headline or '' }}" placeholder="{{ _('e.g. PMP-certified project manager, 12 years in construction') }}">
     <label for="bio">{{ _('About you (Markdown)') }}</label><textarea id="bio" name="bio" rows="5">{{ current_user.bio or '' }}</textarea>
     {% endif %}
-    <h3>{{ _('Change password') }}</h3>
+    <h2 class="subhead">{{ _('Change password') }}</h2>
     <label for="current_password">{{ _('Current password') }}</label><input type="password" id="current_password" name="current_password">
     <label for="new_password">{{ _('New password') }}</label><input type="password" id="new_password" name="new_password" minlength="8">
     <p><button class="btn">{{ _('Save') }}</button></p>
   </form>
+  <hr>
+  <h2 class="subhead">{{ _('Your data') }}</h2>
+  <p class="small muted">{{ _('Get a copy of your profile, enrolments, payments and certificates as a file.') }}</p>
+  <p><a class="btn secondary" href="{{ url_for('auth.download_data') }}">{{ _('Download my data') }}</a></p>
+  <h2 class="subhead">{{ _('Delete my account') }}</h2>
+  {% if current_user.is_staff %}
+  <p class="small muted">{{ _('Teacher and admin accounts cannot be deleted here. Ask an admin to remove your staff access first.') }}</p>
+  {% else %}
+  <p class="small muted">{{ _('This removes your name, email, phone and uploaded receipts. Payment records are kept for accounting, and your certificates stay verifiable without your name. This cannot be undone.') }}</p>
+  <form method="post" action="{{ url_for('auth.delete_account') }}" class="stack">{{ csrf() }}
+    <label for="delete_password">{{ _('Confirm with your password') }}</label><input type="password" id="delete_password" name="password" required autocomplete="current-password">
+    <label class="check"><input type="checkbox" name="confirm" value="1" required> {{ _('I understand this cannot be undone') }}</label>
+    <p><button class="btn danger">{{ _('Delete my account') }}</button></p>
+  </form>
+  {% endif %}
 </div>
 {% endblock %}

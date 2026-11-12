@@ -15,6 +15,9 @@
 </ul>
 <h2>Who we share it with</h2>
 <p>Only service providers needed to run the academy{% if config.CHAPA_SECRET_KEY %}: our payment provider (Chapa){% endif %}{% if config.VDOCIPHER_API_SECRET or config.BUNNY_API_KEY %}, our video hosting provider{% endif %}, our email provider and our hosting provider. We do not sell your data.</p>
+<h2>Where your data is kept</h2>
+<p>Student accounts, payment records and uploaded files are stored on our server in the European Union.{% if config.BUNNY_API_KEY %} Lecture videos are stored and streamed by Bunny Stream, in the storage region we chose for our video library (Frankfurt, Germany, unless stated otherwise at the time you enroll).{% endif %}</p>
 <h2>Your choices</h2>
-<p>You can update your details on your profile page. To delete your account and data, contact us using the details below.</p>
+<p>You can update your details on your profile page. From the same page you can <b>download a copy of your data</b> and <b>delete your account yourself</b>, with your password. Deleting removes your name, email address, phone number and uploaded receipts and closes the account. We keep payment records for accounting, without your personal details attached to the account, and certificates stay verifiable but no longer show your name. Staff accounts must have their staff access removed by an admin first.</p>
+<p>For anything else, contact us using the details below.</p>
 {% endblock %}

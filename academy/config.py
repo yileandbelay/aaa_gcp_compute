@@ -55,10 +55,13 @@ class Config:
     SITE_SHORT_NAME = os.environ.get("SITE_SHORT_NAME", "Mek Academy")[:16]
     SITE_TAGLINE = os.environ.get("SITE_TAGLINE", "Professional training you can take anywhere.")
     SITE_HEADLINE = os.environ.get("SITE_HEADLINE", "Build skills that move your career forward.")
-    SITE_INTRO = os.environ.get(
-        "SITE_INTRO",
+    # The first default said "instructors"; servers installed then still carry it in their settings file.
+    SITE_INTRO = {
         "Practical, professional training taught by experienced instructors. Watch lessons, download "
-        "materials, test yourself and earn a certificate - on your phone or computer.",
+        "materials, test yourself and earn a certificate - on your phone or computer.": None,
+    }.get(os.environ.get("SITE_INTRO", ""), os.environ.get("SITE_INTRO")) or (
+        "Practical, professional training taught by experienced teachers. Watch lessons, download "
+        "materials, test yourself and earn a certificate - on your phone or computer."
     )
     # Main colour of buttons, links and highlights (any CSS colour).
     # Optional override of the main colour (buttons, links). Empty = the built-in emerald.

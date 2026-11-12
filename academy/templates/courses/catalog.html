@@ -20,6 +20,7 @@
     </div>
   </aside>
   <section aria-label="{{ _('Courses') }}">
+    <h2 class="sr">{{ _('Courses') }}</h2>
     <div class="results-head">
       <p class="muted small" style="margin:0" aria-live="polite">{{ _n('%(n)s course', '%(n)s courses', courses|length) }}{% if filtered %} {{ _('match your filters.') }}{% endif %}</p>
       <label class="sort">{{ _('Sort by') }}<select name="sort" form="finder" onchange="this.form.submit()">{% for k, label in sorts %}<option value="{{ k }}" {{ 'selected' if k == sort }}>{{ _(label) }}</option>{% endfor %}</select></label>

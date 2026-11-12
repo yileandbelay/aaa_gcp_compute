@@ -1,4 +1,6 @@
 """Student, teacher and admin roles: one email can hold several, and only admins hand them out."""
+import re
+
 import pytest
 
 from academy import create_app
@@ -118,12 +120,15 @@ def test_teacher_is_separate_from_admin_everywhere_that_matters(app):
 
 # --- Login: separate student and teacher / admin doors ----------------------------------------
 
-def test_login_page_offers_student_and_teacher_admin_tabs(app):
+def test_login_page_is_student_first_with_a_link_to_the_staff_sign_in(app):
     c = app.test_client()
     page = c.get("/login").data.decode()
-    assert "Student" in page and "Teacher / Admin" in page and 'name="area" value="student"' in page
+    assert 'name="area" value="student"' in page and "Welcome back" in page
+    assert re.search(r'href="/login\?area=staff[^"]*"[^>]*>Teacher or admin\? Sign in here<', page)
+    assert 'class="who"' not in page                                      # no tab pair any more
     staff = c.get("/login?area=staff").data.decode()
     assert "Teacher and admin sign in" in staff and 'name="area" value="staff"' in staff
+    assert re.search(r'href="/login\?area=student[^"]*"[^>]*>Student\? Log in here<', staff)
     assert "Create an account" not in staff.split("auth-switch")[1]  # staff are added by the admin, not self-registered
 
 

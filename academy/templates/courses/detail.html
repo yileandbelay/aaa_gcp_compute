@@ -19,6 +19,7 @@
 
 <div class="course-layout">
   <aside class="course-side">
+    {% if course.cover_image %}<img class="course-cover" src="{{ url_for('main.cover', name=course.cover_image) }}" alt="" width="800" height="450" loading="lazy" decoding="async">{% endif %}
     <div class="card enroll-card">
       {% if progress is not none %}
         <p><b>{{ _('Your progress: %(n)s%%', n=progress.percent) }}</b></p>{{ progress_bar(progress.percent) }}
@@ -32,7 +33,7 @@
       {% endif %}
       <ul class="includes" aria-label="{{ _('This course includes') }}">
         {% if course.lessons %}<li>{{ _n('%(n)s lesson', '%(n)s lessons', course.lessons|length) }}{% if videos %} ({{ _n('%(n)s video', '%(n)s videos', videos) }}){% endif %}</li>{% endif %}
-        {% if course.total_minutes %}<li>{{ _('%(n)s h of lessons', n='%g'|format((course.total_minutes / 60)|round(1))) }}</li>{% endif %}
+        {% if course.total_minutes %}<li>{{ _('%(time)s of lessons', time=course.total_minutes|duration) }}</li>{% endif %}
         {% if course.assessments %}<li>{{ _n('%(n)s quiz or exam', '%(n)s quizzes or exams', course.assessments|length) }}</li>{% endif %}
         {% if course.file_count %}<li>{{ _n('%(n)s downloadable file', '%(n)s downloadable files', course.file_count) }}</li>{% endif %}
         {% if config.FEATURE_CERTIFICATES %}<li>{{ _('Certificate of completion') }}</li>{% endif %}
@@ -54,16 +55,18 @@
 {% if course.description %}<div class="card"><h2>{{ _('About this course') }}</h2>{{ course.description|markdown }}</div>{% endif %}
 
 <div class="card" id="syllabus">
-  <div class="row spread"><h2>{{ _('Syllabus') }}</h2>{% if course.total_minutes %}<span class="muted small">{{ _n('%(n)s lesson', '%(n)s lessons', course.lessons|length) }} · {{ _('%(n)s h', n='%g'|format((course.total_minutes / 60)|round(1))) }}</span>{% endif %}</div>
+  <div class="row spread"><h2>{{ _('Syllabus') }}</h2>{% if course.total_minutes %}<span class="muted small">{{ _n('%(n)s lesson', '%(n)s lessons', course.lessons|length) }} · {{ course.total_minutes|duration }}</span>{% endif %}</div>
+  {% set titles = course.section_titles %}{% set ns = namespace(sec=none) %}
   <ol class="syllabus">
   {% for l in course.lessons %}
+    {% if titles and l.section_id != ns.sec %}{% set ns.sec = l.section_id %}{% if l.section_id in titles %}<li class="section-heading"><b>{{ titles[l.section_id] }}</b></li>{% endif %}{% endif %}
     <li>
       <span class="kind" aria-hidden="true">{% if l.kind == 'video' %}▶{% elif l.kind == 'link' %}↗{% else %}≡{% endif %}</span>
       <span class="grow">{% if progress is not none or l.is_preview %}<a href="{{ url_for('learn.lesson', lesson_id=l.id) }}">{{ l.title }}</a>{% else %}{{ l.title }} <span class="small muted locked">{{ icon('lock') }} {{ _('locked') }}</span>{% endif %}
         {% if l.is_preview and progress is none %}<span class="badge">{{ _('Free preview') }}</span>{% endif %}
         {% if l.attachments %}<span class="small muted"> · {{ _n('%(n)s file or link', '%(n)s files or links', l.attachments|length) }}</span>{% endif %}
         {% if progress and l.id in progress.done_lessons %}<span class="badge passed">✓ {{ _('done') }}</span>{% endif %}</span>
-      <span class="small muted dur">{% if l.duration_min %}{{ _('%(n)s min', n=l.duration_min) }}{% endif %}</span>
+      <span class="small muted dur">{{ l.duration_min|duration }}</span>
     </li>
   {% else %}<li class="muted">{{ _('Lessons coming soon.') }}</li>{% endfor %}
   </ol>
@@ -83,7 +86,7 @@
 </div>{% endif %}
 
 {% if course.instructor %}
-<div class="card"><h2>{{ _('Your instructor') }}</h2>
+<div class="card"><h2>{{ _('Your teacher') }}</h2>
   <div class="instructor"><div class="avatar">{{ course.instructor.full_name[:1] }}</div>
     <div><b>{{ course.instructor.full_name }}</b>{% if course.instructor.headline %}<div class="muted small">{{ course.instructor.headline }}</div>{% endif %}
     {% if course.instructor.bio %}<div>{{ course.instructor.bio|markdown }}</div>{% endif %}</div></div>

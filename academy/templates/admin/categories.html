@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}Categories · Admin{% endblock %}
+{% block content %}
+<p class="small"><a href="{{ url_for('admin.courses') }}">← Courses</a></p>
+<h1>Categories</h1>{% include "admin/_nav.html" %}
+<p class="muted">A category is the topic shown on a course and used by the catalog filter. Rename one to fix a spelling, or give it the name of another category to <b>merge</b> the two. Every course using it is updated.</p>
+<div class="table-wrap"><table><tr><th>Category</th><th>Courses</th><th>Rename or merge into</th></tr>
+{% for name, n in counts %}<tr>
+  <td><b>{{ name }}</b></td><td>{{ n }}</td>
+  <td><form method="post" class="row">{{ csrf() }}<input type="hidden" name="old" value="{{ name }}">
+    <label class="sr" for="new-{{ loop.index }}">New name for {{ name }}</label>
+    <input type="text" id="new-{{ loop.index }}" name="new" maxlength="60" placeholder="New name or an existing one" required style="min-width:200px">
+    <button class="btn small">Rename</button></form></td></tr>
+{% else %}<tr><td colspan="3" class="muted">No categories yet. They appear when you give a course a category.</td></tr>{% endfor %}
+</table></div>
+{% if uncategorised %}<p class="small muted">{{ uncategorised }} course{{ 's have' if uncategorised != 1 else ' has' }} no category.</p>{% endif %}
+{% endblock %}

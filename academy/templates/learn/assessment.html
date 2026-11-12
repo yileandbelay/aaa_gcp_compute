@@ -14,7 +14,7 @@
   {% if can_attempt %}
     <form method="post" action="{{ url_for('assess.start', aid=a.id) }}">{{ csrf() }}<button class="btn">{{ _('Start assessment') }}</button></form>
   {% elif attempts and attempts|selectattr('passed')|list %}<p class="badge passed">{{ _('You passed this assessment') }}</p>
-  {% else %}<p class="badge failed">{{ _('No attempts remaining - contact your instructor.') }}</p>{% endif %}
+  {% else %}<p class="badge failed">{{ _('No attempts remaining - contact your teacher.') }}</p>{% endif %}
 </div>
 {% if attempts %}<div class="card"><h2>{{ _('Your attempts') }}</h2><table>
 <tr><th>{{ _('Submitted') }}</th><th>{{ _('Score') }}</th><th>{{ _('Result') }}</th><th></th></tr>

@@ -26,7 +26,7 @@
 
 <div class="card" id="details">
 <h2>Course details</h2>
-<form method="post" class="stack" action="{{ url_for('admin.course_edit', course_id=course.id) if course else url_for('admin.course_new') }}">{{ csrf() }}
+<form method="post" enctype="multipart/form-data" class="stack" action="{{ url_for('admin.course_edit', course_id=course.id) if course else url_for('admin.course_new') }}">{{ csrf() }}
   <label for="title">Title</label><input type="text" id="title" name="title" value="{{ course.title if course }}" required>
   <label for="summary">Short summary (one line, shown on course cards)</label><input type="text" id="summary" name="summary" maxlength="300" value="{{ course.summary if course and course.summary }}">
   <label for="description">Description (Markdown)</label><textarea id="description" name="description" rows="6">{{ course.description if course and course.description }}</textarea>
@@ -41,12 +41,31 @@
     <div style="flex:1;min-width:160px"><label for="category">Category</label><input type="text" id="category" name="category" list="cats" value="{{ course.category or '' if course }}" placeholder="e.g. Business">
       <datalist id="cats">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist></div>
     <div style="flex:1;min-width:120px"><label for="hours">Training hours</label><input type="number" id="hours" name="hours" step="0.5" min="0" value="{{ '%g'|format(course.hours|float) if course and course.hours }}"></div>
-    <div style="flex:1;min-width:140px"><label for="price">Price ({{ currency }}, 0 = free)</label><input type="number" id="price" name="price" step="0.01" min="0" value="{{ course.price if course else 0 }}"></div>
   </div>
+  {% set is_paid = course and course.price and course.price > 0 %}
+  <fieldset class="cover-field">
+    <legend>Cover image <span class="small muted">(optional)</span></legend>
+    {% if course and course.cover_image %}<p><img class="cover-thumb" src="{{ url_for('main.cover', name=course.cover_image) }}" alt="Current cover image" width="160" height="70"></p>
+    <label class="check"><input type="checkbox" name="remove_cover" value="1"> Remove the current cover image</label>{% endif %}
+    <label for="cover">{{ 'Replace it with' if course and course.cover_image else 'Choose' }} a JPG, PNG or WebP picture, up to 1 MB</label>
+    <input type="file" id="cover" name="cover" accept="image/jpeg,image/png,image/webp">
+    <p class="small muted">Shown on the course card and the course page. A wide picture works best. Without one, a topic icon is shown.</p>
+  </fieldset>
+  <fieldset class="pricing">
+    <legend>Pricing</legend>
+    {% if current_user.is_admin %}
+    <label class="check"><input type="radio" name="pricing" value="free" {{ 'checked' if not is_paid }}> <b>Free</b> <span class="small muted">anyone can enroll straight away</span></label>
+    <label class="check"><input type="radio" name="pricing" value="paid" {{ 'checked' if is_paid }}> <b>Paid</b> <span class="small muted">students pay before they get access</span></label>
+    <div class="price-field"><label for="price">Price ({{ currency }})</label><input type="number" id="price" name="price" step="0.01" min="0" value="{{ course.price if is_paid }}" placeholder="e.g. 2500"></div>
+    {% else %}
+    <p><b>{{ (course.price|money ~ ' ' ~ currency) if is_paid else 'Free' }}</b></p>
+    <p class="small muted">Only an admin sets the price. Ask an admin if it should change.</p>
+    {% endif %}
+  </fieldset>
   {% if current_user.is_admin %}
-  <label for="instructor_id">Instructor (course admin)</label>
+  <label for="instructor_id">Teacher (course admin)</label>
   <select id="instructor_id" name="instructor_id">{% for s in staff %}<option value="{{ s.id }}" {{ 'selected' if (course and course.instructor_id == s.id) or (not course and s.id == current_user.id) }}>{{ s.full_name }} ({{ s.role }})</option>{% endfor %}</select>
-  <p class="small muted">The instructor can edit this course and manage its students. Admins can manage every course.</p>
+  <p class="small muted">The teacher can edit this course and manage its students. Admins can manage every course.</p>
   {% endif %}
   <label class="check"><input type="checkbox" name="is_published" value="1" {{ 'checked' if course and course.is_published }}> Published (visible in the course list)</label>
   <p><button class="btn">{{ 'Save course' if course else 'Create course and add lessons' }}</button></p>
@@ -56,7 +75,20 @@
 {% if course %}
 <div class="card" id="lessons">
   <div class="row spread"><h2>Lessons</h2><a class="btn small" href="{{ url_for('admin.lesson_form', course_id=course.id) }}">+ Add lesson</a></div>
-  <div class="table-wrap"><table>{% for l in course.lessons %}<tr>
+  {% set titles = course.section_titles %}{% set ns = namespace(sec=none) %}
+  <div class="table-wrap"><table>{% for l in course.lessons %}
+    {% if titles and l.section_id != ns.sec %}{% set ns.sec = l.section_id %}{% if l.section_id in titles %}
+    <tr class="section-row"><th colspan="{{ 6 if current_user.is_admin else 5 }}" scope="colgroup">
+      <form method="post" action="{{ url_for('admin.section_update', section_id=l.section_id) }}" class="row">{{ csrf() }}
+        <label class="sr" for="sec-{{ l.section_id }}">Section name</label>
+        <input type="text" id="sec-{{ l.section_id }}" name="title" value="{{ titles[l.section_id] }}" maxlength="160" style="flex:1;min-width:180px">
+        <button class="linkbtn" name="action" value="rename">Rename</button>
+        <button class="linkbtn" name="action" value="up" aria-label="Move section up">▲</button>
+        <button class="linkbtn" name="action" value="down" aria-label="Move section down">▼</button>
+        <button class="linkbtn" name="action" value="delete" style="color:var(--err)" onclick="return confirm('Remove this section heading? Its lessons stay in the course.')">Remove heading</button>
+      </form></th></tr>{% endif %}{% endif %}
+    <tr>
+    {% if current_user.is_admin %}<td><input type="checkbox" name="lesson_ids" value="{{ l.id }}" form="bulk-lessons" aria-label="Select {{ l.title }}"></td>{% endif %}
     <td>{{ loop.index }}</td>
     <td><a href="{{ url_for('admin.lesson_form', lesson_id=l.id) }}"><b>{{ l.title }}</b></a>
       <div class="small muted">
@@ -66,19 +98,47 @@
         {% if l.duration_min %}· {{ l.duration_min }} min{% endif %}
       </div></td>
     <td>{% if l.is_preview %}<span class="badge active">public</span>{% else %}<span class="badge">locked</span>{% endif %}{% if l.kind == 'video' and not l.has_video %} <span class="badge failed">no video yet</span>{% endif %}
-      <form method="post" action="{{ url_for('admin.lesson_public', lesson_id=l.id) }}" style="margin-top:4px">{{ csrf() }}<button class="linkbtn small">{{ 'Lock it' if l.is_preview else 'Make public' }}</button></form></td>
+      {% if current_user.is_admin %}<form method="post" action="{{ url_for('admin.lesson_public', lesson_id=l.id) }}" style="margin-top:4px">{{ csrf() }}<button class="linkbtn small">{{ 'Lock it' if l.is_preview else 'Make public' }}</button></form>{% endif %}</td>
     <td class="row">
       <form method="post" action="{{ url_for('admin.lesson_move', lesson_id=l.id, direction='up') }}">{{ csrf() }}<button class="linkbtn" aria-label="Move up">▲</button></form>
       <form method="post" action="{{ url_for('admin.lesson_move', lesson_id=l.id, direction='down') }}">{{ csrf() }}<button class="linkbtn" aria-label="Move down">▼</button></form>
       <a href="{{ url_for('learn.lesson', lesson_id=l.id) }}">preview</a>
       <form method="post" action="{{ url_for('admin.lesson_delete', lesson_id=l.id) }}" onsubmit="return confirm('Delete this lesson?')">{{ csrf() }}<button class="linkbtn" style="color:var(--err)">delete</button></form>
-    </td></tr>{% else %}<tr><td class="muted">No lessons yet. Add the first one below.</td></tr>{% endfor %}</table></div>
+    </td></tr>{% else %}<tr><td class="muted">No lessons yet. Add the first one below.</td></tr>{% endfor %}
+    {# sections that have no lessons yet #}
+    {% for sec in course.sections if not course.lessons|selectattr('section_id', 'equalto', sec.id)|list %}
+    <tr class="section-row"><th colspan="{{ 6 if current_user.is_admin else 5 }}" scope="colgroup">
+      <form method="post" action="{{ url_for('admin.section_update', section_id=sec.id) }}" class="row">{{ csrf() }}
+        <label class="sr" for="sec-{{ sec.id }}">Section name</label>
+        <input type="text" id="sec-{{ sec.id }}" name="title" value="{{ sec.title }}" maxlength="160" style="flex:1;min-width:180px">
+        <button class="linkbtn" name="action" value="rename">Rename</button>
+        <button class="linkbtn" name="action" value="up" aria-label="Move section up">▲</button>
+        <button class="linkbtn" name="action" value="down" aria-label="Move section down">▼</button>
+        <button class="linkbtn" name="action" value="delete" style="color:var(--err)" onclick="return confirm('Remove this section heading?')">Remove heading</button>
+        <span class="small muted">(empty)</span>
+      </form></th></tr>{% endfor %}
+  </table></div>
+  {% if current_user.is_admin and course.lessons %}
+  <form method="post" id="bulk-lessons" action="{{ url_for('admin.lessons_bulk', course_id=course.id) }}" class="row">{{ csrf() }}
+    <label for="bulk-action" class="small muted">With the ticked lessons:</label>
+    <select id="bulk-action" name="action" style="width:auto"><option value="public">Make public</option><option value="lock">Lock</option><option value="delete">Delete…</option></select>
+    <button class="btn small secondary">Apply</button>
+  </form>
+  {% endif %}
+  <h3>Sections <span class="small muted">(optional)</span></h3>
+  <p class="small muted">Sections group the lessons under headings on the course page and in the lesson list. Courses without sections look exactly as before. Pick a section in a lesson's form to put the lesson in it.</p>
+  <form method="post" class="row" action="{{ url_for('admin.section_new', course_id=course.id) }}">{{ csrf() }}
+    <label class="sr" for="new-section">New section name</label>
+    <input type="text" id="new-section" name="title" maxlength="160" placeholder="e.g. Week 1: Getting started" required style="flex:2;min-width:200px">
+    <button class="btn small secondary">Add section</button>
+  </form>
 
   <h3>Quick add</h3>
   <form method="post" class="row" action="{{ url_for('admin.lesson_form', course_id=course.id) }}">{{ csrf() }}
     <input type="hidden" name="action" value="edit">
     <input type="text" name="title" placeholder="Lesson title" required aria-label="Lesson title" style="flex:2;min-width:200px">
     <select name="kind" aria-label="Lesson format" style="flex:1;min-width:160px"><option value="video">Video</option><option value="text">Text</option><option value="link">External link</option></select>
+    {% if course.sections %}<select name="section_id" aria-label="Section" style="flex:1;min-width:160px"><option value="">No section</option>{% for sec in course.sections %}<option value="{{ sec.id }}" {{ 'selected' if loop.last }}>{{ sec.title }}</option>{% endfor %}</select>{% endif %}
     <button class="btn small">Add and edit</button>
   </form>
   <p class="small muted">Video lessons can be uploaded to your video host from the lesson editor. Every lesson can also have files (PDF, slides) and links (YouTube, another free course).</p>

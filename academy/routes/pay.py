@@ -6,7 +6,8 @@ from flask import (Blueprint, abort, current_app, flash, redirect, render_templa
 from flask_login import current_user, login_required
 
 from ..i18n import gettext as _
-from ..models import Course, Enrollment, Payment, db
+from ..mail import send_email
+from ..models import Course, Enrollment, Payment, User, db
 from ..payments import PaymentError, chapa_enabled, chapa_initialize, chapa_verify
 from ..settings import payment_instructions
 from ..utils import save_upload
@@ -132,6 +133,27 @@ def chapa_webhook():
     return {"ok": True}
 
 
+def _tell_admins_about_receipt(payment):
+    """Email every active admin that a receipt is waiting. Never raises: a mail problem must not
+    stop the student's upload, so failures are only logged."""
+    try:
+        link = url_for("admin.payments", status="submitted", _external=True)
+        site = current_app.config["SITE_NAME"]
+        body = (f"A payment receipt is waiting for review on {site}.\n\n"
+                f"Student: {payment.user.full_name} ({payment.user.email})\n"
+                f"Course: {payment.course.title}\n"
+                f"Amount: {payment.amount:,.2f} {payment.currency}\n"
+                f"Reference: {payment.provider_ref or payment.tx_ref}\n\n"
+                f"Review it here:\n{link}\n")
+        for admin in User.query.filter_by(role="admin", is_active_account=True).all():
+            try:
+                send_email(admin.email, f"Receipt to review: {payment.course.title}", body)
+            except Exception:  # noqa: BLE001 - one bad address must not skip the others
+                current_app.logger.exception("Could not email receipt notice to %s", admin.email)
+    except Exception:  # noqa: BLE001
+        current_app.logger.exception("Could not prepare the receipt notice for payment %s", payment.id)
+
+
 @bp.route("/course/<int:course_id>/manual", methods=["POST"])
 @login_required
 def manual_submit(course_id):
@@ -150,6 +172,7 @@ def manual_submit(course_id):
     payment.provider_ref = reference[:128] or None
     payment.status = "submitted"
     db.session.commit()
+    _tell_admins_about_receipt(payment)
     flash(_("Receipt submitted. We will verify it and unlock your course shortly."), "success")
     return redirect(url_for("main.course_detail", slug=course.slug))
 

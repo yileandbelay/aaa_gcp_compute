@@ -44,6 +44,7 @@ class User(UserMixin, db.Model):
     bio = db.Column(db.Text)
     is_active_account = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=utcnow)
+    deleted_at = db.Column(db.DateTime)  # set when the person deleted their account (details erased, see privacy.py)
 
     enrollments = db.relationship("Enrollment", foreign_keys="Enrollment.user_id", back_populates="user",
                                   cascade="all, delete-orphan")
@@ -69,7 +70,7 @@ class User(UserMixin, db.Model):
     @property
     def can_study(self):
         """May take courses (has the student role). Everyone without a staff level is a student."""
-        return bool(self.is_student or self.role == "student")
+        return bool(not self.deleted_at and (self.is_student or self.role == "student"))
 
     @property
     def role_names(self):
@@ -104,6 +105,7 @@ class Course(db.Model):
     audience = db.Column(db.Text)  # "Who this course is for"
     prerequisites = db.Column(db.Text)
     is_published = db.Column(db.Boolean, default=False, nullable=False)
+    cover_image = db.Column(db.String(255))  # file name under UPLOAD_DIR/covers, optional
     instructor_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     created_at = db.Column(db.DateTime, default=utcnow)
 
@@ -111,6 +113,8 @@ class Course(db.Model):
     lessons = db.relationship(
         "Lesson", back_populates="course", order_by="Lesson.position", cascade="all, delete-orphan"
     )
+    sections = db.relationship("Section", back_populates="course", order_by="Section.position",
+                               cascade="all, delete-orphan")
     assessments = db.relationship("Assessment", back_populates="course", cascade="all, delete-orphan")
     enrollments = db.relationship("Enrollment", back_populates="course", cascade="all, delete-orphan")
     reviews = db.relationship("Review", back_populates="course", order_by="Review.created_at.desc()",
@@ -119,6 +123,11 @@ class Course(db.Model):
         "Announcement", back_populates="course", order_by="Announcement.created_at.desc()",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def section_titles(self):
+        """{section_id: title}; empty for a course without sections, which then shows no headings."""
+        return {sec.id: sec.title for sec in self.sections}
 
     @property
     def is_free(self):
@@ -169,6 +178,9 @@ class Lesson(db.Model):
     video_ref = db.Column(db.String(64))
     duration_min = db.Column(db.Integer)
     position = db.Column(db.Integer, default=0)
+    # Optional group heading. Lessons without a section come first. ``position`` always follows the
+    # displayed order (see sections.normalize), so progress, "next lesson" and certificates need no changes.
+    section_id = db.Column(db.Integer, db.ForeignKey("section.id"))
     is_preview = db.Column(db.Boolean, default=False)  # free sample visible to anyone
     created_at = db.Column(db.DateTime, default=utcnow)
 
@@ -269,6 +281,17 @@ class Payment(db.Model):
             enr = Enrollment(user_id=self.user_id, course_id=self.course_id)
             db.session.add(enr)
         enr.activate(source="purchase")
+
+
+class Section(db.Model):
+    """An optional heading that groups a course's lessons on the syllabus and in the lesson list."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    course_id = db.Column(db.Integer, db.ForeignKey("course.id"), nullable=False)
+    title = db.Column(db.String(160), nullable=False)
+    position = db.Column(db.Integer, default=0)
+
+    course = db.relationship("Course", back_populates="sections")
 
 
 class LessonProgress(db.Model):

@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}Delete lessons · Admin{% endblock %}
+{% block content %}
+<p class="small"><a href="{{ url_for('admin.course_edit', course_id=course.id) }}#lessons">← {{ course.title }}</a></p>
+<h1>Delete {{ lessons|length }} lesson{{ 's' if lessons|length != 1 }}?</h1>
+<div class="card">
+  <p>This removes these lessons from <b>{{ course.title }}</b>, with their videos, files, links and every student's progress on them. It cannot be undone.</p>
+  <ul>{% for l in lessons %}<li>{{ l.title }}</li>{% endfor %}</ul>
+  <form method="post" action="{{ url_for('admin.lessons_bulk', course_id=course.id) }}" class="row">{{ csrf() }}
+    <input type="hidden" name="action" value="delete"><input type="hidden" name="confirmed" value="1">
+    {% for l in lessons %}<input type="hidden" name="lesson_ids" value="{{ l.id }}">{% endfor %}
+    <button class="btn danger">Yes, delete {{ lessons|length }} lesson{{ 's' if lessons|length != 1 }}</button>
+    <a class="btn secondary" href="{{ url_for('admin.course_edit', course_id=course.id) }}#lessons">Cancel</a>
+  </form>
+</div>
+{% endblock %}

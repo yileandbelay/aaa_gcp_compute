@@ -250,7 +250,7 @@ def test_public_pages_in_amharic(app):
 def test_course_page_details_in_amharic(app):
     page = am_client(app).get("/courses/project-management-fundamentals").data.decode()
     assert "5 ትምህርቶች" in page and "12 ሰዓት ስልጠና" in page and "(ተቆልፏል)" in page and "ነጻ ቅድመ እይታ" in page
-    assert "ጀማሪ" in page and "አስተማሪ፦ Meklit Haile" in page and "የማጠናቀቂያ የምስክር ወረቀት" in page
+    assert "ጀማሪ" in page and "መምህር፦ Meklit Haile" in page and "የማጠናቀቂያ የምስክር ወረቀት" in page
     assert "2,500.00 ETB" in page and "Project Management Fundamentals" in page  # content and numbers unchanged
 
 

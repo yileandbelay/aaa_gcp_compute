@@ -64,7 +64,7 @@ The installer sets everything up:
 - It writes `/etc/academy.env` with a random secret key.
 - It runs the database migrations.
 - It starts the app as a systemd service behind nginx.
-- It gets a free HTTPS certificate from Let's Encrypt.
+- It gets a free HTTPS certificate from Let's Encrypt. Re-running the installer waits for a running certbot, retries, reuses the existing certificate, and keeps the previous HTTPS configuration if certbot cannot be reached, so an update never leaves the site on plain HTTP.
 - It schedules a daily backup.
 
 Then:
@@ -72,7 +72,7 @@ Then:
 1. **Configure the academy.** Edit the settings with `sudo nano /etc/academy.env`. At minimum set:
    - `SITE_NAME`
    - `CONTACT_EMAIL` and `CONTACT_PHONE`
-   - `MANUAL_PAYMENT_INSTRUCTIONS` with your real account details
+   - Your bank and Telebirr details: enter them in the app (*Admin → Payments → Payment details*). Until you do, students see sample numbers and admins see a reminder.
    - `CHAPA_SECRET_KEY` if you use Chapa
    - the `MAIL_*` settings
 
@@ -202,8 +202,12 @@ deploy/
   install.sh         one-command install / update for Ubuntu & Debian
   gce-startup.sh     Google Compute Engine wrapper for install.sh
   academy.service    systemd unit template      nginx.conf   nginx site template
-  backup.sh          daily database + uploads backup
+  backup.sh          daily database + uploads backup, with an optional off-server copy
+  restore.sh         restore a backup (local folder or the off-server copy)
+  https.sh           certbot helpers used by install.sh (wait, retry, keep HTTPS)
 tests/               pytest suite (run by GitHub Actions on every push)
 ```
+
+**Off-server backups.** Run `rclone config` once on the server, then set `RCLONE_REMOTE="remote:bucket/folder"` in `/etc/academy.env` (and optionally `OFFSITE_RETENTION_DAYS`, default 30). The nightly backup copies itself there and removes copies older than the retention. To restore on a new server: install the app, then `sudo bash deploy/restore.sh --env /etc/academy.env --from remote:bucket/folder --force`, and start the app. Test a restore once per quarter.
 
 When you change `academy/models.py`, create a migration with `flask db migrate -m "what changed"` and review the generated file in `academy/migrations/versions/`. Commit it with your change. `install.sh` applies it on the next update.

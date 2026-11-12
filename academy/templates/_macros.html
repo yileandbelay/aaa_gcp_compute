@@ -1,7 +1,7 @@
 {% macro csrf() %}<input type="hidden" name="_csrf" value="{{ csrf_token() }}">{% endmacro %}
 {% macro progress_bar(pct) %}<div class="progress" role="progressbar" aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100" title="{{ pct }}%"><div style="width:{{ pct }}%"></div></div>{% endmacro %}
 {% macro price(course) %}{% if course.is_free %}{{ _('Free') }}{% else %}{{ course.price|money }} {{ currency }}{% endif %}{% endmacro %}
-{% macro hours(course) %}{% if course.length_hours %}{{ _('%(n)s h', n='%g'|format(course.length_hours|round(1))) }}{% endif %}{% endmacro %}
+{% macro hours(course) %}{% if course.length_hours %}{{ (course.length_hours * 60)|duration }}{% endif %}{% endmacro %}
 {% macro icon(name) %}<svg class="i" aria-hidden="true"><use href="#i-{{ name }}"/></svg>{% endmacro %}
 {# Shown instead of a course list while no course is published. #}
 {% macro empty_panel() %}
@@ -22,7 +22,8 @@
 {% macro course_card(c, ratings=none, mine=none) %}
 {% set r = ratings.get(c.id) if ratings else none %}
 <article class="card course-card">
-  <div class="cover" aria-hidden="true">{{ c.category or _(c.level) }}</div>
+  {% if c.cover_image %}<div class="cover has-image" aria-hidden="true"><img src="{{ url_for('main.cover', name=c.cover_image) }}" alt="" width="640" height="280" loading="lazy" decoding="async"></div>
+  {% else %}<div class="cover" aria-hidden="true"><span class="cover-icon">{{ icon(topic_icon(c.category)) }}</span><span class="cover-text">{{ c.category or _(c.level) }}</span></div>{% endif %}
   <div class="body">
     <div class="meta"><span class="badge">{{ _(c.level) }}</span>{% if c.length_hours %}<span>{{ hours(c) }}</span>{% endif %}</div>
     <h3><a href="{{ url_for('main.course_detail', slug=c.slug) }}">{{ c.title }}</a></h3>
