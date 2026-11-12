@@ -524,3 +524,17 @@ body.has-tabbar.has-mobile-cta { padding-bottom: 140px; }
 .locked .i, .locked-lesson .i { width: 1em; height: 1em; vertical-align: -.12em; }
 
 .pay-instructions { white-space: pre-line; padding: var(--s3) var(--s4); background: var(--brand-soft); border-radius: var(--radius-sm); }
+
+/* Phones: the hero stays short. Its "What you get" panel moves below the courses (or the empty
+   state) with CSS only, so the HTML is not repeated. From 900px the two-column hero is unchanged. */
+@media (max-width: 899px) {
+  .home { display: flex; flex-direction: column; }
+  .home > .hero { display: contents; }
+  .home .hero-main { order: 0; background: var(--brand-soft); border: 1px solid var(--line); border-radius: calc(var(--radius) + 6px); padding: var(--s6) var(--s5); margin-bottom: var(--s6); }
+  .home .home-topics { order: 1; }
+  .home .home-courses { order: 2; }
+  .home .hero-panel { order: 3; margin: 0 0 var(--s6); }
+  .home .home-free { order: 4; }
+  .home .home-how { order: 5; }
+  .home .home-cta { order: 6; }
+}

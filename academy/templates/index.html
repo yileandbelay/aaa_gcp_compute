@@ -1,5 +1,6 @@
 {% extends "base.html" %}{% from "_macros.html" import course_card, empty_panel, icon with context %}
 {% block content %}
+<div class="home">
 <section class="hero">
   <div class="hero-main">
   <h1>{{ _(config.SITE_HEADLINE) }}</h1>
@@ -24,31 +25,31 @@
 </section>
 
 {% if topics %}
-<section class="section">
+<section class="section home-topics">
   <div class="section-head"><h2>{{ _('Browse by topic') }}</h2></div>
   <div class="topic-grid">{% for name, n in topics %}<a class="topic" href="{{ url_for('main.catalog', category=name) }}"><span class="topic-icon">{{ icon(topic_icon(name)) }}</span><b>{{ name }}</b><span>{{ _n('%(n)s course', '%(n)s courses', n) }}</span></a>{% endfor %}</div>
 </section>
 {% endif %}
 
 {% if not courses and not free_courses %}
-<section class="section">{{ empty_panel() }}</section>
+<section class="section home-courses">{{ empty_panel() }}</section>
 {% endif %}
 
 {% if courses %}
-<section class="section">
+<section class="section home-courses">
   <div class="section-head"><h2>{{ _('Latest courses') }}</h2><a href="{{ url_for('main.catalog') }}">{{ _('View all courses') }} →</a></div>
   <div class="grid">{% for c in courses %}{{ course_card(c, ratings, mine) }}{% endfor %}</div>
 </section>
 {% endif %}
 
 {% if free_courses %}
-<section class="section">
+<section class="section home-free">
   <div class="section-head"><h2>{{ _('Start with a free course') }}</h2><a href="{{ url_for('main.catalog', price='free') }}">{{ _('See all free courses') }} →</a></div>
   <div class="grid">{% for c in free_courses %}{{ course_card(c, ratings, mine) }}{% endfor %}</div>
 </section>
 {% endif %}
 
-<section class="section" id="how-it-works">
+<section class="section home-how" id="how-it-works">
   <div class="section-head"><h2>{{ _('How it works') }}</h2></div>
   <div class="steps">
     <div class="step"><h3>{{ _('Choose a course') }}</h3><p>{{ _('Browse the catalog by topic, level and length, and pick the course that fits your goals.') }}</p></div>
@@ -57,10 +58,11 @@
   </div>
 </section>
 
-{% if not current_user.is_authenticated %}
-<section class="cta-band">
+{% if courses and not current_user.is_authenticated %}
+<section class="cta-band home-cta">
   <div><h2>{{ _('Ready to start learning?') }}</h2><p>{{ _('Create a free account and enroll in your first course today.') }}</p></div>
   <a class="btn" href="{{ url_for('auth.register') }}">{{ _('Create a free account') }}</a>
 </section>
 {% endif %}
+</div>
 {% endblock %}

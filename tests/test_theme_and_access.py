@@ -254,7 +254,7 @@ def test_home_page_sections(app):
     page = app.test_client().get("/").data.decode()
     assert 'class="hero-search"' in page and 'name="q"' in page
     assert 'href="/courses?category=Business+%26+Management"' in page and "Browse by topic" in page
-    assert "How it works" in page and 'class="cta-band"' in page and "Ready to start learning?" in page
+    assert "How it works" in page and 'class="cta-band' in page and "Ready to start learning?" in page
 
 
 def test_home_page_for_signed_in_students_has_no_signup_prompts(app):

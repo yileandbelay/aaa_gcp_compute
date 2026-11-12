@@ -112,3 +112,37 @@ def test_certificate_hours_stay_as_hours_of_training(app):
         db.session.commit()
         code = cert.code
     assert "4.5 hours of training" in app.test_client().get(f"/certificates/{code}").data.decode()
+
+
+# --- NX-2: shorter hero on phones -------------------------------------------------------------
+
+def test_hero_panel_is_in_the_page_once_and_ordered_below_the_courses_on_phones(app):
+    page = app.test_client().get("/").data.decode()
+    assert page.count('class="hero-panel"') == 1                       # moved with CSS, never duplicated
+    assert '<div class="home">' in page and 'class="section home-topics"' in page and 'class="section home-courses"' in page
+    css = open("academy/static/style.css").read()
+    phone = css.split("@media (max-width: 899px) {\n  .home {")[1].split("\n}\n")[0]
+    order = lambda sel: int(re.search(rf"{re.escape(sel)}[^}}]*?[\s{{]order: (\d+)", phone).group(1))
+    assert order(".home .hero-main") < order(".home .home-topics") < order(".home .home-courses") \
+        < order(".home .hero-panel") < order(".home .home-free") < order(".home .home-how")
+
+
+def test_desktop_hero_keeps_its_two_columns(app):
+    css = open("academy/static/style.css").read()
+    assert "grid-template-columns: 3fr 2fr" in css and "@media (min-width: 900px)" in css
+
+
+# --- NX-3: one sign-up prompt when the homepage is empty --------------------------------------
+
+def test_empty_homepage_asks_a_guest_to_sign_up_at_most_twice(app):
+    with app.app_context():
+        for c in Course.query.all():
+            c.is_published = False
+        db.session.commit()
+    page = app.test_client().get("/").data.decode()
+    assert page.count(">Create a free account<") <= 2 and 'class="cta-band' not in page
+
+
+def test_call_to_action_band_shows_when_courses_exist_and_hides_when_signed_in(app):
+    assert 'class="cta-band' in app.test_client().get("/").data.decode()
+    assert 'class="cta-band' not in student_client(app).get("/").data.decode()
