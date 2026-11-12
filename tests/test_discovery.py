@@ -458,3 +458,33 @@ def test_empty_state_in_amharic(app):
 
 def test_how_it_works_section_has_an_anchor(app):
     assert 'id="how-it-works"' in app.test_client().get("/").get_data(as_text=True)
+
+
+# --- Meta description and link previews -------------------------------------------------------
+
+def meta(html, key, attr="name"):
+    m = re.search(rf'<meta {attr}="{key}" content="([^"]*)"', html)
+    return m.group(1) if m else None
+
+
+def test_homepage_has_description_and_open_graph(app):
+    html = app.test_client().get("/").get_data(as_text=True)
+    for key, attr in (("description", "name"), ("og:title", "property"), ("og:description", "property"),
+                      ("og:url", "property")):
+        assert meta(html, key, attr), key
+    assert "og:image" not in html
+
+
+def test_course_page_uses_the_course_summary_with_html_stripped(app):
+    add_course(app, "Meta Course", summary="Learn <b>fast</b> &amp; well")
+    html = app.test_client().get("/courses/meta-course").get_data(as_text=True)
+    assert meta(html, "description") == "Learn fast &amp; well"
+    assert meta(html, "og:description", "property") == "Learn fast &amp; well"
+    assert meta(html, "og:title", "property").startswith("Meta Course")
+    assert "<b>fast</b>" not in html.split("</head>")[0]
+
+
+def test_course_without_summary_falls_back_to_site_description(app):
+    add_course(app, "Plain Course")
+    html = app.test_client().get("/courses/plain-course").get_data(as_text=True)
+    assert meta(html, "description")

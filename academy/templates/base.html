@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#287D63">
   <title>{% block title %}{{ site_name }}{% endblock %}</title>
+  {% set page_title = self.title()|striptags|trim %}
+  {% set page_description %}{% block description %}{{ _(config.SITE_INTRO) }}{% endblock %}{% endset %}
+  {% set page_description = page_description|striptags|trim|truncate(200, True) %}
+  <meta name="description" content="{{ page_description }}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{ site_name }}">
+  <meta property="og:title" content="{{ page_title }}">
+  <meta property="og:description" content="{{ page_description }}">
+  <meta property="og:url" content="{{ request.url }}">
   <script>document.documentElement.classList.add('js')</script>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   {% if config.BRAND_COLOR %}<style>
