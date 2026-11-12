@@ -91,6 +91,13 @@ class Config:
     VDOCIPHER_API_SECRET = os.environ.get("VDOCIPHER_API_SECRET", "")
     VDOCIPHER_API_BASE = os.environ.get("VDOCIPHER_API_BASE", "https://dev.vdocipher.com/api")
     VDOCIPHER_OTP_TTL = int(os.environ.get("VDOCIPHER_OTP_TTL", "300"))
+    # Bunny Stream (https://bunny.net/stream/). Library ID and the library's API key are on
+    # the library's "API" page; the token key is on its "Security" page (enable
+    # "Embed view token authentication" there). Token key is optional but recommended.
+    BUNNY_LIBRARY_ID = os.environ.get("BUNNY_LIBRARY_ID", "")
+    BUNNY_API_KEY = os.environ.get("BUNNY_API_KEY", "")
+    BUNNY_TOKEN_KEY = os.environ.get("BUNNY_TOKEN_KEY", "")
+    BUNNY_TOKEN_TTL = int(os.environ.get("BUNNY_TOKEN_TTL", "14400"))
     # When nginx serves local videos (see deploy/nginx.conf), the app only checks
     # access and hands the file off with X-Accel-Redirect - far more concurrent viewers.
     USE_X_ACCEL_REDIRECT = _bool("USE_X_ACCEL_REDIRECT", False)

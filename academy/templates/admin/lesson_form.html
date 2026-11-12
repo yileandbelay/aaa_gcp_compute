@@ -6,26 +6,27 @@
 <form method="post" enctype="multipart/form-data" class="stack" id="lessonForm">{{ csrf() }}
   <label for="title">Title</label><input type="text" id="title" name="title" value="{{ lesson.title if lesson }}" required>
   <label for="kind">Format</label>
-  <select name="kind" id="kind"><option value="text" {{ 'selected' if lesson and lesson.kind == 'text' }}>≡ Text lecture</option><option value="video" {{ 'selected' if lesson and lesson.kind == 'video' }}>▶ Video lecture</option></select>
+  <select name="kind" id="kind"><option value="text" {{ 'selected' if lesson and lesson.kind == 'text' }}>Text lesson</option><option value="video" {{ 'selected' if lesson and lesson.kind == 'video' }}>Video lesson</option></select>
 
   <div id="videoBox">
-    {% set provider = lesson.video_provider if lesson else ('vdocipher' if vdocipher else 'local') %}
-    <label>Where is the video hosted?</label>
-    <label class="check"><input type="radio" name="video_provider" value="vdocipher" {{ 'checked' if provider == 'vdocipher' }} {{ 'disabled' if not vdocipher and provider != 'vdocipher' }}>
-      Protected (VdoCipher DRM) – recommended for paid lessons{% if not vdocipher %} <span class="small muted">· set VDOCIPHER_API_SECRET to enable</span>{% endif %}</label>
-    <label class="check"><input type="radio" name="video_provider" value="local" {{ 'checked' if provider == 'local' }}> This server (simple, no DRM)</label>
+    {# A lesson that already has a video keeps its host; a new or empty one defaults to the first configured host. #}
+    {% set provider = lesson.video_provider if lesson and lesson.has_video else (enabled_keys[0] if enabled_keys else 'local') %}
+    <label>Where is the video stored?</label>
+    {% for h in hosts %}
+    <label class="check"><input type="radio" name="video_provider" value="{{ h.key }}" {{ 'checked' if provider == h.key }}> {{ h.label }}{% if h.key not in enabled_keys %} <span class="small muted">· not configured in settings</span>{% endif %}</label>
+    {% endfor %}
+    <label class="check"><input type="radio" name="video_provider" value="local" {{ 'checked' if provider == 'local' }}> This server{% if hosts %} <span class="small muted">· uses your server's disk and bandwidth; best for a few small videos</span>{% else %} <span class="small muted">· set up Bunny Stream or VdoCipher in the settings to host videos elsewhere</span>{% endif %}</label>
 
-    <div id="box-vdocipher" class="card" style="margin-top:10px">
-      <label for="vdocipher_id">VdoCipher video ID</label>
-      <input type="text" id="vdocipher_id" name="vdocipher_id" value="{{ lesson.vdocipher_id if lesson and lesson.vdocipher_id }}" placeholder="e.g. 1234567890abcdef1234567890abcdef">
-      {% if vdo_status %}<p class="small">Status at VdoCipher: <b>{{ vdo_status }}</b></p>{% endif %}
-      {% if vdocipher %}
-      <label for="vdoFile">…or upload a video file straight to VdoCipher</label>
-      <input type="file" id="vdoFile" accept="video/*">
-      <p class="row"><button type="button" class="btn small secondary" id="vdoUpload">Upload to VdoCipher</button> <span id="vdoMsg" class="small muted"></span></p>
-      <div class="progress" id="vdoBar" hidden><div style="width:0%"></div></div>
-      {% endif %}
-      <p class="small muted">The file goes directly from your computer to VdoCipher. After upload it is encrypted and processed, which can take a few minutes. Students then see it with DRM and a watermark showing their name and email.</p>
+    <div id="box-hosted" class="card" style="margin-top:10px">
+      <label for="video_ref">Video ID</label>
+      <input type="text" id="video_ref" name="video_ref" value="{{ lesson.video_ref if lesson and lesson.video_ref }}" placeholder="Paste the video ID, or upload below">
+      <p class="small muted" id="refHelp"></p>
+      {% if host_status %}<p class="small">Status at the video host: <b>{{ host_status }}</b></p>{% endif %}
+      <label for="hostFile">Upload a video file</label>
+      <input type="file" id="hostFile" accept="video/*">
+      <p class="row"><button type="button" class="btn small secondary" id="hostUpload">Upload video</button> <span id="hostMsg" class="small muted"></span></p>
+      <div class="progress" id="hostBar" hidden><div style="width:0%"></div></div>
+      <p class="small muted">The file goes straight from your computer to the video host, not through this server. It may take a few minutes to process afterwards. Click "Save lesson" once the upload finishes.</p>
     </div>
 
     <div id="box-local" class="card" style="margin-top:10px">
@@ -35,8 +36,8 @@
     </div>
   </div>
 
-  <label for="body">Lecture text / notes / recipe (Markdown)</label>
-  <textarea id="body" name="body" rows="14" placeholder="## Ingredients&#10;- 250g flour&#10;&#10;## Method&#10;1. Preheat oven to 180°C…">{{ lesson.body if lesson }}</textarea>
+  <label for="body">Lesson text / notes (Markdown)</label>
+  <textarea id="body" name="body" rows="14" placeholder="## Objectives&#10;- Explain…&#10;&#10;## Steps&#10;1. First…">{{ lesson.body if lesson }}</textarea>
   <div class="card" id="materials">
     <label for="materials-input">Course materials (handouts, slides, templates)</label>
     {% if lesson and lesson.attachments %}<ul class="materials">{% for att in lesson.attachments %}
@@ -56,43 +57,61 @@
 {% endfor %}{% endif %}
 </div>
 {% endblock %}
-{% block scripts %}<script>
+{% block scripts %}
+{% if hosts %}<script src="https://cdn.jsdelivr.net/npm/tus-js-client@4.1.0/dist/tus.min.js"></script>{% endif %}
+<script>
 (function(){
+  var HOSTS = {{ hosts|map(attribute='key')|list|tojson }};
+  var HELP = {{ dict_help|default({})|tojson }};
   var kind=document.getElementById('kind'), box=document.getElementById('videoBox');
   function radios(){return document.querySelectorAll('input[name=video_provider]');}
   function provider(){var v='local';radios().forEach(function(r){if(r.checked)v=r.value;});return v;}
   function sync(){
     box.style.display = kind.value==='video' ? '' : 'none';
-    document.getElementById('box-vdocipher').style.display = provider()==='vdocipher' ? '' : 'none';
-    document.getElementById('box-local').style.display = provider()==='local' ? '' : 'none';
+    var p=provider(), hosted=HOSTS.indexOf(p)>=0;
+    document.getElementById('box-hosted').style.display = hosted ? '' : 'none';
+    document.getElementById('box-local').style.display = hosted ? 'none' : '';
+    document.getElementById('refHelp').textContent = HELP[p] || '';
   }
   kind.onchange=sync; radios().forEach(function(r){r.onchange=sync;}); sync();
 
-  var btn=document.getElementById('vdoUpload'); if(!btn) return;
-  var msg=document.getElementById('vdoMsg'), bar=document.getElementById('vdoBar'), save=document.getElementById('saveBtn');
+  var btn=document.getElementById('hostUpload'); if(!btn) return;
+  var msg=document.getElementById('hostMsg'), bar=document.getElementById('hostBar'), save=document.getElementById('saveBtn');
+  function done(text){btn.disabled=false;save.disabled=false;msg.textContent=text;}
+  function progress(pc){bar.hidden=false;bar.firstElementChild.style.width=pc+'%';msg.textContent='Uploading… '+pc+'%';}
+  function uploadForm(d,file){            // VdoCipher: one POST of a signed form
+    var p=d.clientPayload, fd=new FormData();
+    ['policy','key','x-amz-signature','x-amz-algorithm','x-amz-date','x-amz-credential'].forEach(function(k){fd.append(k,p[k]);});
+    fd.append('success_action_status','201'); fd.append('success_action_redirect',''); fd.append('file',file);
+    var xhr=new XMLHttpRequest(); xhr.open('POST',p.uploadLink);
+    xhr.upload.onprogress=function(e){if(e.lengthComputable)progress(Math.round(100*e.loaded/e.total));};
+    xhr.onload=function(){ if(xhr.status>=200&&xhr.status<300) finished(d); else done('Upload failed (status '+xhr.status+'). Try again.'); };
+    xhr.onerror=function(){done('Upload failed: network error. Try again.');};
+    xhr.send(fd);
+  }
+  function uploadTus(d,file){             // Bunny: resumable TUS upload with a server-made signature
+    if(!window.tus){done('The upload helper could not be loaded. Check your internet connection and reload.');return;}
+    var up=new tus.Upload(file,{endpoint:d.endpoint,headers:d.headers,retryDelays:[0,3000,5000,10000,20000],
+      metadata:{filetype:file.type,title:document.getElementById('title').value||file.name},
+      onError:function(e){done('Upload failed: '+e);},
+      onProgress:function(a,t){progress(Math.round(100*a/t));},
+      onSuccess:function(){finished(d);}});
+    up.start();
+  }
+  function finished(d){
+    document.getElementById('video_ref').value=d.video_ref;
+    done('Uploaded. Now click "Save lesson". The host will process the video for a few minutes.');
+  }
   btn.onclick=function(){
-    var file=document.getElementById('vdoFile').files[0];
+    var file=document.getElementById('hostFile').files[0];
     if(!file){msg.textContent='Choose a video file first.';return;}
     btn.disabled=true; save.disabled=true; msg.textContent='Preparing upload…';
-    var title=document.getElementById('title').value||file.name;
-    fetch('{{ url_for("admin.vdocipher_credentials") }}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':'{{ csrf_token() }}'},body:JSON.stringify({title:title})})
+    fetch('{{ url_for("admin.video_upload_info", provider="PROVIDER") }}'.replace('PROVIDER',provider()),
+          {method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':'{{ csrf_token() }}'},
+           body:JSON.stringify({title:document.getElementById('title').value||file.name})})
     .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Could not start upload');return d;});})
-    .then(function(d){
-      var p=d.clientPayload, fd=new FormData();
-      ['policy','key','x-amz-signature','x-amz-algorithm','x-amz-date','x-amz-credential'].forEach(function(k){fd.append(k,p[k]);});
-      fd.append('success_action_status','201'); fd.append('success_action_redirect','');
-      fd.append('file',file);
-      var xhr=new XMLHttpRequest(); xhr.open('POST',p.uploadLink); bar.hidden=false;
-      xhr.upload.onprogress=function(e){if(e.lengthComputable){var pc=Math.round(100*e.loaded/e.total);bar.firstElementChild.style.width=pc+'%';msg.textContent='Uploading… '+pc+'%';}};
-      xhr.onload=function(){
-        btn.disabled=false; save.disabled=false;
-        if(xhr.status>=200&&xhr.status<300){document.getElementById('vdocipher_id').value=d.videoId;msg.textContent='Uploaded. Now click "Save lesson". VdoCipher will process the video for a few minutes.';}
-        else{msg.textContent='Upload failed (status '+xhr.status+'). Try again.';}
-      };
-      xhr.onerror=function(){btn.disabled=false;save.disabled=false;msg.textContent='Upload failed: network error. Try again.';};
-      xhr.send(fd);
-    })
-    .catch(function(e){btn.disabled=false;save.disabled=false;msg.textContent=e.message;});
+    .then(function(d){ if(d.method==='tus') uploadTus(d,file); else uploadForm(d,file); })
+    .catch(function(e){done(e.message);});
   };
 })();
 </script>{% endblock %}
