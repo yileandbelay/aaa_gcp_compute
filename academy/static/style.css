@@ -278,6 +278,10 @@ html[lang=am] .footer-grid h4 { letter-spacing: 0; text-transform: none; }
 .hero-popular .chip { min-height: 32px; font-size: .86rem; background: var(--surface); }
 .hero-actions { margin-top: var(--s5); }
 .hero-actions .btn { width: 100%; }
+.empty-panel { text-align: center; max-width: 560px; margin: 0 auto; padding: var(--s6) var(--s5); background: var(--surface); border: 2px dashed var(--line-strong); border-radius: var(--radius); }
+.empty-panel > .i { width: 40px; height: 40px; color: var(--brand); }
+.empty-panel p { color: var(--muted); margin-inline: auto; }
+.empty-panel .row { justify-content: center; margin-top: var(--s4); }
 .hero-panel { margin-top: var(--s5); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s4) var(--s5); box-shadow: var(--shadow); }
 .hero-panel h2 { font-size: 1.1rem; margin-bottom: var(--s3); }
 .hero-panel ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s3); }

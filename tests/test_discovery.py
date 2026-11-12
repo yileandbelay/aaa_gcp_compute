@@ -410,3 +410,47 @@ def test_hero_panel_in_amharic(app):
     c.set_cookie("lang", "am")
     panel = re.search(r'<aside class="hero-panel".*?</aside>', c.get("/").get_data(as_text=True), re.S).group(0)
     assert "የሚያገኙት" in panel and "What you get" not in panel
+
+
+# --- Empty states -----------------------------------------------------------------------------
+
+def unpublish_all(app):
+    with app.app_context():
+        for c in Course.query.all():
+            c.is_published = False
+        db.session.commit()
+
+
+def test_homepage_empty_state_shown_without_published_courses(app):
+    unpublish_all(app)
+    html = app.test_client().get("/").get_data(as_text=True)
+    assert 'class="empty-panel"' in html and "Courses are on their way" in html
+    assert "Create a free account" in html and "/contact" in html
+
+
+def test_homepage_empty_state_hidden_when_a_course_is_published(app):
+    assert 'class="empty-panel"' not in app.test_client().get("/").get_data(as_text=True)
+
+
+def test_homepage_empty_state_ignores_draft_courses(app):
+    unpublish_all(app)
+    add_course(app, "Secret Draft", published=False)
+    html = app.test_client().get("/").get_data(as_text=True)
+    assert 'class="empty-panel"' in html and "Secret Draft" not in html
+
+
+def test_empty_state_hides_signup_for_signed_in_users(app):
+    unpublish_all(app)
+    c = app.test_client()
+    register(c)
+    html = c.get("/").get_data(as_text=True)
+    panel = re.search(r'<div class="empty-panel">.*?</div>\s*</div>', html, re.S).group(0)
+    assert "btn" in panel and "/register" not in panel and "Contact us" in panel
+
+
+def test_empty_state_in_amharic(app):
+    unpublish_all(app)
+    c = app.test_client()
+    c.set_cookie("lang", "am")
+    html = c.get("/").get_data(as_text=True)
+    assert "ኮርሶች በቅርቡ ይመጣሉ" in html and "Courses are on their way" not in html
