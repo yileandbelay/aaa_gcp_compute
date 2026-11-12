@@ -373,3 +373,259 @@ def test_migration_round_trip_for_review_tables(tmp_path):
         upgrade()
         downgrade(revision="62d0bef7c5e1")
         upgrade()
+
+
+def test_logo_mark_hidden_from_screen_readers_and_footer_year(app):
+    from datetime import datetime, timezone
+
+    html = app.test_client().get("/").get_data(as_text=True)
+    assert html.count('<span class="mark" aria-hidden="true">') == 2
+    assert f"© {datetime.now(timezone.utc).year} " in html
+
+
+# --- Homepage hero panel ----------------------------------------------------------------------
+
+def hero_panel(app, path="/"):
+    html = app.test_client().get(path).get_data(as_text=True)
+    m = re.search(r'<aside class="hero-panel".*?</aside>', html, re.S)
+    return m.group(0) if m else None
+
+
+def test_hero_panel_lists_real_features_without_numbers(app):
+    panel = hero_panel(app)
+    assert panel and "What you get" in panel
+    assert not re.search(r"\d", re.sub(r"<[^>]+>", "", panel))
+    assert "certificate" in panel and "English or Amharic" in panel
+
+
+def test_hero_panel_hides_lines_for_disabled_features(app):
+    app.config["FEATURE_CERTIFICATES"] = False
+    assert "certificate" not in hero_panel(app)
+    app.config["LANGUAGES"] = ["en"]
+    assert "Amharic" not in hero_panel(app)
+
+
+def test_hero_panel_in_amharic(app):
+    c = app.test_client()
+    c.set_cookie("lang", "am")
+    panel = re.search(r'<aside class="hero-panel".*?</aside>', c.get("/").get_data(as_text=True), re.S).group(0)
+    assert "የሚያገኙት" in panel and "What you get" not in panel
+
+
+# --- Empty states -----------------------------------------------------------------------------
+
+def unpublish_all(app):
+    with app.app_context():
+        for c in Course.query.all():
+            c.is_published = False
+        db.session.commit()
+
+
+def test_homepage_empty_state_shown_without_published_courses(app):
+    unpublish_all(app)
+    html = app.test_client().get("/").get_data(as_text=True)
+    assert 'class="empty-panel"' in html and "Courses are on their way" in html
+    assert "Create a free account" in html and "/contact" in html
+
+
+def test_homepage_empty_state_hidden_when_a_course_is_published(app):
+    assert 'class="empty-panel"' not in app.test_client().get("/").get_data(as_text=True)
+
+
+def test_homepage_empty_state_ignores_draft_courses(app):
+    unpublish_all(app)
+    add_course(app, "Secret Draft", published=False)
+    html = app.test_client().get("/").get_data(as_text=True)
+    assert 'class="empty-panel"' in html and "Secret Draft" not in html
+
+
+def test_empty_state_hides_signup_for_signed_in_users(app):
+    unpublish_all(app)
+    c = app.test_client()
+    register(c)
+    html = c.get("/").get_data(as_text=True)
+    panel = re.search(r'<div class="empty-panel">.*?</div>\s*</div>', html, re.S).group(0)
+    assert "btn" in panel and "/register" not in panel and "Contact us" in panel
+
+
+def test_empty_state_in_amharic(app):
+    unpublish_all(app)
+    c = app.test_client()
+    c.set_cookie("lang", "am")
+    html = c.get("/").get_data(as_text=True)
+    assert "ኮርሶች በቅርቡ ይመጣሉ" in html and "Courses are on their way" not in html
+
+
+def test_how_it_works_section_has_an_anchor(app):
+    assert 'id="how-it-works"' in app.test_client().get("/").get_data(as_text=True)
+
+
+# --- Meta description and link previews -------------------------------------------------------
+
+def meta(html, key, attr="name"):
+    m = re.search(rf'<meta {attr}="{key}" content="([^"]*)"', html)
+    return m.group(1) if m else None
+
+
+def test_homepage_has_description_and_open_graph(app):
+    html = app.test_client().get("/").get_data(as_text=True)
+    for key, attr in (("description", "name"), ("og:title", "property"), ("og:description", "property"),
+                      ("og:url", "property")):
+        assert meta(html, key, attr), key
+    assert "og:image" not in html
+
+
+def test_course_page_uses_the_course_summary_with_html_stripped(app):
+    add_course(app, "Meta Course", summary="Learn <b>fast</b> &amp; well")
+    html = app.test_client().get("/courses/meta-course").get_data(as_text=True)
+    assert meta(html, "description") == "Learn fast &amp; well"
+    assert meta(html, "og:description", "property") == "Learn fast &amp; well"
+    assert meta(html, "og:title", "property").startswith("Meta Course")
+    assert "<b>fast</b>" not in html.split("</head>")[0]
+
+
+def test_course_without_summary_falls_back_to_site_description(app):
+    add_course(app, "Plain Course")
+    html = app.test_client().get("/courses/plain-course").get_data(as_text=True)
+    assert meta(html, "description")
+
+
+def test_catalog_empty_state_without_published_courses(app):
+    unpublish_all(app)
+    add_course(app, "Secret Draft", published=False)
+    html = app.test_client().get("/courses").get_data(as_text=True)
+    assert 'class="empty-panel"' in html and "Secret Draft" not in html
+
+
+def test_catalog_empty_state_hidden_when_courses_exist(catalog):
+    c = catalog.test_client()
+    assert 'class="empty-panel"' not in c.get("/courses").get_data(as_text=True)
+    no_match = c.get("/courses?q=zzzznothing").get_data(as_text=True)
+    assert 'class="empty-panel"' not in no_match and "No course matches these filters." in no_match
+
+
+# --- Honest sorting ---------------------------------------------------------------------------
+
+def sort_options(html):
+    block = re.search(r'<select name="sort".*?</select>', html, re.S).group(0)
+    return re.findall(r'<option value="([^"]+)"', block)
+
+
+def test_empty_catalog_offers_neither_popular_nor_rated_sorting(app):
+    unpublish_all(app)
+    opts = sort_options(app.test_client().get("/courses").get_data(as_text=True))
+    assert "popular" not in opts and "rating" not in opts and "newest" in opts
+
+
+def test_popular_and_rated_sorting_appear_once_real_data_exists(app):
+    from academy.models import Enrollment, Review, User
+
+    c = app.test_client()
+    assert "popular" not in sort_options(c.get("/courses").get_data(as_text=True))
+    with app.app_context():
+        u = User(email="s@example.com", full_name="S")
+        u.set_password("secret123")
+        db.session.add(u)
+        db.session.flush()
+        course = Course.query.filter_by(is_published=True).first()
+        enr = Enrollment(user_id=u.id, course_id=course.id)
+        db.session.add(enr)
+        enr.activate(source="assigned")
+        db.session.commit()
+        cid = course.id
+        uid = u.id
+    opts = sort_options(c.get("/courses").get_data(as_text=True))
+    assert "popular" in opts and "rating" not in opts
+    with app.app_context():
+        db.session.add(Review(user_id=uid, course_id=cid, rating=5))
+        db.session.commit()
+    assert "rating" in sort_options(c.get("/courses").get_data(as_text=True))
+    app.config["FEATURE_REVIEWS"] = False
+    assert "rating" not in sort_options(c.get("/courses").get_data(as_text=True))
+
+
+def test_unavailable_sort_falls_back_to_newest(catalog):
+    html = catalog.test_client().get("/courses?sort=rating").get_data(as_text=True)
+    assert re.search(r'<option value="newest"\s+selected', html)
+
+
+# --- Topic icons ------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("topic,icon_name", [
+    ("Business", "briefcase"), ("Leadership & Management", "briefcase"), ("TECHNOLOGY", "laptop"),
+    ("Health and Safety", "heart"), ("Communication", "chat"), ("Statistics", "chart"),
+    ("Engineering", "tool"), ("Teaching", "cap"), ("Digital Marketing", "laptop"), ("Marketing", "megaphone"),
+    ("Cooking", "book"), ("", "book"), (None, "book"),
+])
+def test_topic_icon_matches_keywords_case_insensitively(topic, icon_name):
+    from academy.utils import topic_icon
+
+    assert topic_icon(topic) == icon_name
+
+
+def test_topic_tiles_show_a_decorative_icon(catalog):
+    html = catalog.test_client().get("/").get_data(as_text=True)
+    tile = re.search(r'<a class="topic".*?</a>', html, re.S).group(0)
+    assert 'class="topic-icon"' in tile and 'aria-hidden="true"' in tile and "#i-briefcase" in html
+
+
+# --- Course card anatomy ----------------------------------------------------------------------
+
+def card_html(app, slug, user=None):
+    c = app.test_client()
+    if user:
+        login(c, *user)
+    html = c.get("/courses").get_data(as_text=True)
+    for m in re.finditer(r'<article class="card course-card">.*?</article>', html, re.S):
+        if f"/courses/{slug}" in m.group(0):
+            return m.group(0)
+
+
+def order(card, *markers):
+    positions = [card.index(m) for m in markers]
+    assert positions == sorted(positions), dict(zip(markers, positions))
+
+
+def test_course_card_has_one_fixed_order(app):
+    from academy.models import User
+
+    with app.app_context():
+        teacher = User.query.filter_by(email="admin@example.com").first()
+        cid = add_course(app, "Full Card", level="Intermediate", category="Business", hours=3, price="750",
+                         summary="Everything present", minutes=20)
+        db.session.get(Course, cid).instructor_id = teacher.id
+        db.session.commit()
+    card = card_html(app, "full-card")
+    order(card, 'class="cover"', 'class="meta"', "<h3>", 'class="small muted instructor"', 'class="summary"',
+          'class="foot"', 'class="price', 'class="small muted counts"', 'class="actions"')
+
+
+def test_course_card_with_only_title_and_price_leaves_slots_out(app):
+    add_course(app, "Bare Card", price="0")
+    card = card_html(app, "bare-card")
+    assert "instructor" not in card and 'class="summary"' not in card and 'class="rating"' not in card
+    order(card, "<h3>", 'class="foot"', 'class="actions"')
+    assert "Free" in card
+
+
+def test_course_card_prices_and_actions(app):
+    add_course(app, "Paid One", price="500")
+    add_course(app, "Free One", price="0")
+    assert "500.00" in card_html(app, "paid-one") and "Free" in card_html(app, "free-one")
+    assert ">Enroll<" in card_html(app, "paid-one")
+    c = app.test_client()
+    register(c)
+    with app.app_context():
+        from academy.models import Enrollment, User
+
+        u = User.query.filter_by(email="student@example.com").first()
+        e = Enrollment(user_id=u.id, course_id=Course.query.filter_by(slug="free-one").first().id)
+        db.session.add(e)
+        e.activate(source="free")
+        db.session.commit()
+    html = c.get("/courses").get_data(as_text=True)
+    mine = [m.group(0) for m in re.finditer(r'<article class="card course-card">.*?</article>', html, re.S)
+            if "/courses/free-one" in m.group(0)][0]
+    assert "Continue learning" in mine and ">Enroll<" not in mine
+    staff = card_html(app, "free-one", ("admin@example.com", "admin12345"))
+    assert "Continue learning" in staff

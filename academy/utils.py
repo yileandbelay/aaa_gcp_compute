@@ -160,3 +160,28 @@ def can_attempt(user, assessment: Assessment):
     if Attempt.query.filter_by(user_id=user.id, assessment_id=assessment.id, passed=True).first():
         return False
     return attempts_used(user, assessment) < assessment.max_attempts
+
+
+# Topic name keywords -> sprite icon. First match wins; anything else gets the open book.
+TOPIC_ICONS = (
+    ("briefcase", ("business", "management", "leadership", "finance", "accounting", "entrepreneur", "sales",
+                   "project", "office", "career", "hr", "human resource")),
+    ("laptop", ("technology", "tech", "computer", "software", "programming", "coding", "data", "digital",
+                "it ", "web", "cyber", "ai")),
+    ("heart", ("health", "wellbeing", "wellness", "care", "nursing", "medical", "first aid", "safety")),
+    ("chat", ("communication", "language", "english", "amharic", "writing", "speaking", "soft skill")),
+    ("chart", ("marketing analytics", "analytics", "statistics", "economics", "research")),
+    ("tool", ("engineering", "construction", "technical", "trade", "craft", "repair", "mechanic",
+              "electrical", "agriculture")),
+    ("cap", ("education", "teaching", "teacher", "pedagogy", "training", "school", "academic")),
+    ("megaphone", ("marketing", "advertising", "media", "brand", "social")),
+)
+
+
+def topic_icon(name):
+    """Icon name for a topic, matched case-insensitively on keywords; ``book`` when nothing fits."""
+    text = f" {(name or '').strip().lower()} "
+    for icon_name, words in TOPIC_ICONS:
+        if any((f" {w.strip()} " in text) if w.endswith(" ") or len(w) <= 4 else (w in text) for w in words):
+            return icon_name
+    return "book"

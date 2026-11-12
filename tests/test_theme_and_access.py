@@ -358,3 +358,14 @@ def test_catalog_filters_and_search_share_one_form(app):
     page = app.test_client().get("/courses").data.decode()
     assert 'id="finder"' in page and page.count('form="finder"') >= 4 and 'data-toggle="#filters"' in page
     assert "Filters" in page
+
+
+def test_field_outlines_and_placeholders_are_visible():
+    from pathlib import Path
+
+    css = (Path(__file__).resolve().parents[1] / "academy" / "static" / "style.css").read_text()
+    line = re.search(r"--line-input:\s*(#[0-9A-Fa-f]{6})", css).group(1)
+    placeholder = re.search(r"::placeholder \{ color: (#[0-9A-Fa-f]{6})", css).group(1)
+    for bg in ("#FFFFFF", token("sage")):
+        assert contrast(line, bg) >= 3
+    assert contrast(placeholder, "#FFFFFF") >= 4.5

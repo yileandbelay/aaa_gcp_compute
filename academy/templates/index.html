@@ -1,6 +1,7 @@
-{% extends "base.html" %}{% from "_macros.html" import course_card, icon with context %}
+{% extends "base.html" %}{% from "_macros.html" import course_card, empty_panel, icon with context %}
 {% block content %}
 <section class="hero">
+  <div class="hero-main">
   <h1>{{ _(config.SITE_HEADLINE) }}</h1>
   <p>{{ _(config.SITE_INTRO) }}</p>
   <form class="hero-search" action="{{ url_for('main.catalog') }}" role="search">
@@ -9,13 +10,28 @@
   </form>
   {% if topics %}<div class="hero-popular"><span>{{ _('Popular:') }}</span>{% for name, n in topics[:4] %}<a class="chip" href="{{ url_for('main.catalog', category=name) }}">{{ name }}</a>{% endfor %}</div>{% endif %}
   {% if not current_user.is_authenticated %}<div class="row hero-actions"><a class="btn" href="{{ url_for('auth.register') }}">{{ _('Create a free account') }}</a><a class="btn secondary" href="{{ url_for('main.catalog') }}">{{ _('Browse courses') }}</a></div>{% endif %}
+  </div>
+  <aside class="hero-panel" aria-labelledby="hero-panel-title">
+    <h2 id="hero-panel-title">{{ _('What you get') }}</h2>
+    <ul>
+      <li>{{ icon('play') }}<span>{{ _('Video and text lessons with downloadable materials') }}</span></li>
+      <li>{{ icon('check') }}<span>{{ _('Auto-graded quizzes and final exams') }}</span></li>
+      {% if config.FEATURE_CERTIFICATES %}<li>{{ icon('award') }}<span>{{ _('A verifiable certificate showing your training hours') }}</span></li>{% endif %}
+      <li>{{ icon('device') }}<span>{{ _('Learn on your phone or computer') }}</span></li>
+      {% if available_languages()|length > 1 %}<li>{{ icon('globe') }}<span>{{ _('Use the site in English or Amharic') }}</span></li>{% endif %}
+    </ul>
+  </aside>
 </section>
 
 {% if topics %}
 <section class="section">
   <div class="section-head"><h2>{{ _('Browse by topic') }}</h2></div>
-  <div class="topic-grid">{% for name, n in topics %}<a class="topic" href="{{ url_for('main.catalog', category=name) }}"><b>{{ name }}</b><span>{{ _n('%(n)s course', '%(n)s courses', n) }}</span></a>{% endfor %}</div>
+  <div class="topic-grid">{% for name, n in topics %}<a class="topic" href="{{ url_for('main.catalog', category=name) }}"><span class="topic-icon">{{ icon(topic_icon(name)) }}</span><b>{{ name }}</b><span>{{ _n('%(n)s course', '%(n)s courses', n) }}</span></a>{% endfor %}</div>
 </section>
+{% endif %}
+
+{% if not courses and not free_courses %}
+<section class="section">{{ empty_panel() }}</section>
 {% endif %}
 
 {% if courses %}
@@ -32,7 +48,7 @@
 </section>
 {% endif %}
 
-<section class="section">
+<section class="section" id="how-it-works">
   <div class="section-head"><h2>{{ _('How it works') }}</h2></div>
   <div class="steps">
     <div class="step"><h3>{{ _('Choose a course') }}</h3><p>{{ _('Browse the catalog by topic, level and length, and pick the course that fits your goals.') }}</p></div>

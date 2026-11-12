@@ -1,5 +1,6 @@
 {% extends "base.html" %}{% from "_macros.html" import csrf, progress_bar, price, hours, stars %}
 {% block title %}{{ course.title }} · {{ site_name }}{% endblock %}
+{% block description %}{{ (course.summary or _(config.SITE_INTRO))|striptags|trim }}{% endblock %}
 {% block body_class %}{% if progress is none and not pending_payment and course.is_published %}has-mobile-cta{% endif %}{% endblock %}
 {% block content %}
 {% if not course.is_published %}<div class="flash info">{{ _('Draft - only staff can see this course.') }}</div>{% endif %}

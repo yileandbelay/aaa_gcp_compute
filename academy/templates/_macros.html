@@ -3,6 +3,18 @@
 {% macro price(course) %}{% if course.is_free %}{{ _('Free') }}{% else %}{{ course.price|money }} {{ currency }}{% endif %}{% endmacro %}
 {% macro hours(course) %}{% if course.length_hours %}{{ _('%(n)s h', n='%g'|format(course.length_hours|round(1))) }}{% endif %}{% endmacro %}
 {% macro icon(name) %}<svg class="i" aria-hidden="true"><use href="#i-{{ name }}"/></svg>{% endmacro %}
+{# Shown instead of a course list while no course is published. #}
+{% macro empty_panel() %}
+<div class="empty-panel">
+  {{ icon('book') }}
+  <h2>{{ _('Courses are on their way') }}</h2>
+  <p>{{ _('We are preparing our first courses. Create a free account now, or contact us to ask about a course.') }}</p>
+  <div class="row">
+    {% if not current_user.is_authenticated %}<a class="btn" href="{{ url_for('auth.register') }}">{{ _('Create a free account') }}</a>{% endif %}
+    <a class="btn secondary" href="{{ url_for('main.contact') }}">{{ _('Contact us') }}</a>
+  </div>
+</div>
+{% endmacro %}
 {% macro stars(avg, count=none) %}<span class="rating"><span class="stars" role="img" aria-label="{{ _('%(n)s out of 5 stars', n='%.1f'|format(avg)) }}"><span style="width:{{ (avg / 5 * 100)|round(0)|int }}%">★★★★★</span>★★★★★</span> <b>{{ '%.1f'|format(avg) }}</b>{% if count is not none %} <span class="muted small">({{ count }})</span>{% endif %}</span>{% endmacro %}
 {# One course in a list. The whole card is a single tap target (the title link covers it). #}
 {# `mine` is the set of course ids the viewer can already open. Imported "with context" so the card
@@ -14,11 +26,11 @@
   <div class="body">
     <div class="meta"><span class="badge">{{ _(c.level) }}</span>{% if c.length_hours %}<span>{{ hours(c) }}</span>{% endif %}</div>
     <h3><a href="{{ url_for('main.course_detail', slug=c.slug) }}">{{ c.title }}</a></h3>
-    {% if c.instructor %}<p class="small muted" style="margin:0">{{ c.instructor.full_name }}</p>{% endif %}
+    {% if c.instructor %}<p class="small muted instructor">{{ c.instructor.full_name }}</p>{% endif %}
     {% if r and r[1] and config.FEATURE_REVIEWS %}<div>{{ stars(r[0], r[1]) }}</div>{% endif %}
     {% if c.summary %}<p class="summary">{{ c.summary }}</p>{% endif %}
     {% set nl, na = c.lessons|length, c.assessments|length %}
-    <div class="foot"><span class="price {{ 'is-free' if c.is_free }}">{{ price(c) }}</span><span class="small muted">{{ _n('%(n)s lesson', '%(n)s lessons', nl) }}{% if na %} · {{ _n('%(n)s assessment', '%(n)s assessments', na) }}{% endif %}</span></div>
+    <div class="foot"><span class="price {{ 'is-free' if c.is_free }}">{{ price(c) }}</span><span class="small muted counts">{% if nl %}{{ _n('%(n)s lesson', '%(n)s lessons', nl) }}{% endif %}{% if nl and na %} · {% endif %}{% if na %}{{ _n('%(n)s assessment', '%(n)s assessments', na) }}{% endif %}</span></div>
     {# Enroll for everyone: guests are asked to create an account first and then come back to enrolling #}
     <div class="actions">
       {% if current_user.is_authenticated and mine is not none and c.id in mine %}
