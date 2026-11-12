@@ -5,11 +5,12 @@ from datetime import timedelta
 from flask import (Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory,
                    url_for)
 from flask_login import current_user, login_required
+from sqlalchemy.orm import joinedload, selectinload
 
 from ..enrollment import EMAIL_RE
 from ..mail import send_email
 from ..i18n import gettext as _
-from ..models import Certificate, ContactMessage, Course, Enrollment, Payment, Review, db, utcnow
+from ..models import Certificate, ContactMessage, Course, Enrollment, Lesson, Payment, Review, db, utcnow
 from ..reviews import can_review, distribution, popularity, rating_summary
 from ..utils import course_progress
 
@@ -23,6 +24,12 @@ class _AllCourses:
         return True
 
 
+def _card_courses(query):
+    """Load what every course card needs (lessons, assessments, teacher) in a fixed number of queries,
+    so a page with 50 cards costs the same as one with 5."""
+    return query.options(selectinload(Course.lessons), selectinload(Course.assessments), joinedload(Course.instructor))
+
+
 def _my_course_ids():
     """Ids of the courses the visitor can already open (for Enroll / Continue buttons)."""
     if not current_user.is_authenticated:
@@ -34,7 +41,7 @@ def _my_course_ids():
 
 @bp.route("/")
 def index():
-    published = Course.query.filter_by(is_published=True).order_by(Course.created_at.desc()).all()
+    published = _card_courses(Course.query.filter_by(is_published=True)).order_by(Course.created_at.desc()).all()
     latest = published[:6]
     topics = {}
     for c in published:
@@ -54,7 +61,7 @@ SORTS = (("newest", "Newest"), ("popular", "Most popular"), ("rating", "Highest 
 
 @bp.route("/courses")
 def catalog():
-    published = Course.query.filter_by(is_published=True).all()
+    published = _card_courses(Course.query.filter_by(is_published=True)).all()
     categories = sorted({c.category for c in published if c.category})
     levels = sorted({c.level for c in published if c.level})
     category = request.args.get("category", "")
@@ -144,7 +151,10 @@ def healthz():
 
 @bp.route("/courses/<slug>")
 def course_detail(slug):
-    course = Course.query.filter_by(slug=slug).first_or_404()
+    course = (Course.query.filter_by(slug=slug)
+              .options(selectinload(Course.lessons).selectinload(Lesson.attachments), selectinload(Course.assessments),
+                       selectinload(Course.sections), joinedload(Course.instructor))
+              .first_or_404())
     if not course.is_published and not (current_user.is_authenticated and current_user.is_staff):
         abort(404)
     enrollment = progress = pending_payment = None

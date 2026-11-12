@@ -1409,3 +1409,64 @@ def test_sections_migration_up_and_down_keeps_lessons(tmp_path):
     assert "section_id" not in [r[1] for r in con.execute("pragma table_info(lesson)")]
     assert con.execute("select title from lesson").fetchall() == [("Keep me",)]
     assert not con.execute("select name from sqlite_master where name='section'").fetchall()
+
+
+# --- Performance budget: no extra database query per course card or lesson row ----------------
+
+def count_queries(app, path):
+    from sqlalchemy import event
+    seen = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        seen.append(statement)
+
+    with app.app_context():
+        event.listen(db.engine, "before_cursor_execute", record)
+        try:
+            response = app.test_client().get(path)
+        finally:
+            event.remove(db.engine, "before_cursor_execute", record)
+    assert response.status_code == 200, path
+    return len(seen)
+
+
+def fill_site(app, courses, lessons):
+    from academy.models import Assessment, Attachment
+    with app.app_context():
+        teacher = User.query.filter_by(email="instructor@example.com").one()
+        for i in range(courses):
+            c = Course(slug=f"q{i}", title=f"Q{i}", level="Beginner", category=f"Cat{i % 4}", price=Decimal(i % 3 * 100),
+                       is_published=True, instructor_id=teacher.id)
+            db.session.add(c)
+            db.session.flush()
+            db.session.add(Assessment(course_id=c.id, title="Quiz"))
+            for j in range(lessons):
+                l = Lesson(course_id=c.id, title=f"L{j}", position=j + 1, duration_min=5, kind="text", is_preview=(j == 0))
+                db.session.add(l)
+                db.session.flush()
+                db.session.add(Attachment(lesson_id=l.id, original_name="x", url="https://example.com/x"))
+        db.session.commit()
+        return Lesson.query.filter_by(title="L0").first().id
+
+
+def build_site(tmp_path, name, courses, lessons):
+    """A fresh app with the demo data plus ``courses`` courses of ``lessons`` lessons each."""
+    app = create_app(type("Cfg", (TestConfig,), {"UPLOAD_DIR": str(tmp_path / name)}))
+    with app.app_context():
+        seed()
+    return app, fill_site(app, courses, lessons)
+
+
+def test_pages_cost_the_same_number_of_queries_with_few_or_many_courses_and_lessons(tmp_path):
+    small, small_lesson = build_site(tmp_path, "small", 3, 3)
+    big, big_lesson = build_site(tmp_path, "big", 15, 15)
+    for path_small, path_big in (("/", "/"), ("/courses", "/courses"), ("/courses/q1", "/courses/q1"),
+                                 (f"/learn/lesson/{small_lesson}", f"/learn/lesson/{big_lesson}")):
+        assert count_queries(small, path_small) == count_queries(big, path_big), path_small
+
+
+def test_catalog_with_filters_and_sorting_also_has_a_fixed_query_cost(tmp_path):
+    few_app, _ = build_site(tmp_path, "few", 4, 3)
+    many_app, _ = build_site(tmp_path, "many", 20, 8)
+    for path in ("/courses?sort=popular", "/courses?price=free", "/courses?q=Q1", "/courses?category=Cat1&level=Beginner"):
+        assert count_queries(few_app, path) == count_queries(many_app, path), path
