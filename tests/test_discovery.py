@@ -373,3 +373,11 @@ def test_migration_round_trip_for_review_tables(tmp_path):
         upgrade()
         downgrade(revision="62d0bef7c5e1")
         upgrade()
+
+
+def test_logo_mark_hidden_from_screen_readers_and_footer_year(app):
+    from datetime import datetime, timezone
+
+    html = app.test_client().get("/").get_data(as_text=True)
+    assert html.count('<span class="mark" aria-hidden="true">') == 2
+    assert f"© {datetime.now(timezone.utc).year} " in html

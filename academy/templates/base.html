@@ -28,7 +28,7 @@
 <a class="sr" href="#main">{{ _('Skip to content') }}</a>
 <header class="top">
   <div class="container topbar">
-    <a class="logo" href="{{ url_for('main.index') }}"><span class="mark">{{ site_name[:1] }}</span>{{ site_name }}</a>
+    <a class="logo" href="{{ url_for('main.index') }}"><span class="mark" aria-hidden="true">{{ site_name[:1] }}</span>{{ site_name }}</a>
     <form class="header-search" id="header-search" action="{{ url_for('main.catalog') }}" role="search">
       <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
       <input type="search" name="q" placeholder="{{ _('Search courses') }}" aria-label="{{ _('Search courses') }}">
@@ -67,7 +67,7 @@
   <div class="container">
     <div class="footer-grid">
       <div class="footer-brand">
-        <a class="logo" href="{{ url_for('main.index') }}"><span class="mark">{{ site_name[:1] }}</span>{{ site_name }}</a>
+        <a class="logo" href="{{ url_for('main.index') }}"><span class="mark" aria-hidden="true">{{ site_name[:1] }}</span>{{ site_name }}</a>
         <p>{{ _(config.SITE_TAGLINE) }}</p>
       </div>
       <div>
@@ -83,7 +83,7 @@
         <a href="{{ url_for('main.policy', page='refunds') }}">{{ _('Refunds') }}</a>
       </div>
     </div>
-    <div class="footer-bottom">© {{ site_name }}</div>
+    <div class="footer-bottom">© {{ current_year() }} {{ site_name }}</div>
   </div>
 </footer>
 {% if current_user.is_authenticated %}
