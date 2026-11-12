@@ -1,8 +1,9 @@
-{% extends "base.html" %}{% from "_macros.html" import csrf, progress_bar %}
+{% extends "base.html" %}{% from "_macros.html" import csrf, progress_bar %}{% from "admin/_record_payment.html" import record_form with context %}
 {% block title %}Students · {{ course.title }}{% endblock %}
 {% block content %}
 <p class="small"><a href="{{ url_for('admin.course_edit', course_id=course.id) }}">← {{ course.title }}</a></p>
 <h1>Students in {{ course.title }}</h1>
+{% if current_user.is_admin %}<p class="muted">Fee {{ course.price|money }} {{ currency }} · collected so far <b>{{ collected|money }} {{ currency }}</b> · <a href="#record-payment">Record a payment</a></p>{% endif %}
 
 <div class="card" id="enroll">
   <h2>Enroll students</h2>
@@ -32,17 +33,19 @@
 </div>{% endif %}
 
 <div class="card"><h2>Enrolled ({{ rows|selectattr('0.status','equalto','active')|list|length }})</h2>
-<div class="table-wrap"><table><tr><th>Student</th><th>Access</th><th>How</th><th>Since</th><th style="width:24%">Progress</th><th></th></tr>
+<div class="table-wrap"><table><tr><th>Student</th><th>Access</th><th>How</th><th>Since</th>{% if current_user.is_admin %}<th>Paid</th>{% endif %}<th style="width:24%">Progress</th><th></th></tr>
 {% for e, p in rows %}<tr>
 <td>{% if current_user.is_admin %}<a href="{{ url_for('admin.user_detail', user_id=e.user.id) }}">{{ e.user.full_name }}</a>{% else %}{{ e.user.full_name }}{% endif %}<br><span class="small muted">{{ e.user.email }}</span></td>
 <td><span class="badge {{ e.status }}">{{ 'waiting for payment' if e.status == 'pending' else e.status }}</span></td>
 <td class="small">{{ e.source_label }}{% if e.source == 'assigned' and e.assigned_by %}<br><span class="muted">by {{ e.assigned_by.full_name }}</span>{% endif %}</td>
 <td class="small">{{ (e.activated_at or e.created_at).strftime('%d %b %Y') }}</td>
+{% if current_user.is_admin %}{% set got = paid.get(e.user_id) %}<td class="small">{% if got %}{{ got|money }} {{ currency }}{% if course.price and got < course.price %}<br><span class="muted">{{ (course.price - got)|money }} to pay</span>{% endif %}{% else %}<span class="muted">—</span>{% endif %}<br><a href="{{ url_for('admin.course_students', course_id=course.id, student=e.user_id) }}#record-payment">record payment</a></td>{% endif %}
 <td>{{ progress_bar(p.percent) }} <span class="small">{{ p.percent }}%</span></td>
 <td><form method="post" class="row">{{ csrf() }}<input type="hidden" name="enrollment_id" value="{{ e.id }}">
   {% if e.status == 'active' %}<button class="linkbtn" name="action" value="revoke" onclick="return confirm('Remove this student\'s access?')">remove access</button>
   {% else %}<button class="linkbtn" name="action" value="activate">give access</button>{% if e.status == 'pending' %}<button class="linkbtn" name="action" value="remove">discard</button>{% endif %}{% endif %}</form></td>
-</tr>{% else %}<tr><td colspan="6" class="muted">Nobody is enrolled yet. Use "Enroll students" above, or students can enroll themselves from the course page.</td></tr>{% endfor %}</table></div></div>
+</tr>{% else %}<tr><td colspan="7" class="muted">Nobody is enrolled yet. Use "Enroll students" above, or students can enroll themselves from the course page.</td></tr>{% endfor %}</table></div></div>
+{% if current_user.is_admin %}{{ record_form(course=course, next_url=url_for('admin.course_students', course_id=course.id)) }}{% endif %}
 {% endblock %}
 {% block scripts %}{% if candidates %}<script>
 (function(){var f=document.getElementById('pickfilter'); if(!f) return;

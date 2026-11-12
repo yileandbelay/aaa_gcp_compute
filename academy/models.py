@@ -222,7 +222,13 @@ class Enrollment(db.Model):
 
 
 class Payment(db.Model):
-    """status: initiated | submitted (receipt awaiting review) | paid | failed | rejected"""
+    """status: initiated | submitted (receipt awaiting review) | paid | failed | rejected
+
+    method: chapa | manual | demo. A "manual" payment is money received outside the website; an
+    admin may enter it directly (see ledger.record_payment), in which case ``channel`` says how it
+    arrived and ``recorded_by`` who entered it."""
+
+    CHANNELS = (("cash", "Cash"), ("telebirr", "Telebirr"), ("bank", "Bank transfer"), ("other", "Other"))
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
@@ -238,10 +244,17 @@ class Payment(db.Model):
     created_at = db.Column(db.DateTime, default=utcnow)
     paid_at = db.Column(db.DateTime)
     reviewed_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    channel = db.Column(db.String(20))  # cash | telebirr | bank | other (payments entered by an admin)
+    recorded_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
 
     user = db.relationship("User", foreign_keys=[user_id])
     course = db.relationship("Course")
     reviewed_by = db.relationship("User", foreign_keys=[reviewed_by_id])
+    recorded_by = db.relationship("User", foreign_keys=[recorded_by_id])
+
+    @property
+    def channel_label(self):
+        return dict(self.CHANNELS).get(self.channel)
 
     def mark_paid(self, provider_ref=None):
         """Mark paid and activate the matching enrollment. Idempotent."""

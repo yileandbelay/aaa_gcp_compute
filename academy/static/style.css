@@ -134,7 +134,7 @@ main.container { padding-block: var(--s5) var(--s7); min-height: 60vh; }
 
 /* Forms */
 input[type=text], input[type=search], input[type=email], input[type=password], input[type=number], input[type=tel],
-input[type=url], input[type=file], select, textarea {
+input[type=url], input[type=file], input[type=date], select, textarea {
   width: 100%; min-height: 44px; padding: 10px 14px; font: inherit; color: var(--ink); background: var(--surface);
   border: 1px solid var(--line-input); border-radius: var(--radius-sm); transition: border-color .15s, box-shadow .15s;
 }

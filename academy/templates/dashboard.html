@@ -28,7 +28,7 @@
 
 {% if payments %}<div class="section"><h2>{{ _('Payments') }}</h2><div class="table-wrap"><table>
 <tr><th>{{ _('Date') }}</th><th>{{ _('Course') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Method') }}</th><th>{{ _('Status') }}</th><th></th></tr>
-{% for p in payments %}<tr><td>{{ p.created_at|localdate }}</td><td>{{ p.course.title }}</td><td>{{ p.amount|money }} {{ p.currency }}</td><td>{{ _(p.method|capitalize) }}</td><td><span class="badge {{ p.status }}">{{ _(p.status|capitalize) }}</span></td>
+{% for p in payments %}<tr><td>{{ p.created_at|localdate }}</td><td>{{ p.course.title }}</td><td>{{ p.amount|money }} {{ p.currency }}</td><td>{{ _(p.channel_label) if p.channel else _(p.method|capitalize) }}</td><td><span class="badge {{ p.status }}">{{ _(p.status|capitalize) }}</span></td>
 <td>{% if p.status == 'paid' %}<a href="{{ url_for('pay.invoice', payment_id=p.id) }}">{{ _('Receipt') }}</a>{% endif %}</td></tr>{% endfor %}
 </table></div></div>{% endif %}
 {% endblock %}

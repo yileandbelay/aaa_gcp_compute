@@ -19,6 +19,7 @@ from werkzeug.utils import secure_filename
 
 from .. import videohosts
 from ..enrollment import (create_invitation, enroll_student, notify_enrolled, parse_emails)
+from ..ledger import paid_total, paid_totals, record_payment
 from ..mail import send_email
 from ..reviews import rating_summary
 from ..models import (Announcement, Assessment, Attachment, Attempt, Certificate, ContactMessage, Course,
@@ -281,8 +282,14 @@ def course_students(course_id):
         candidates = [u for u in User.query.filter(User.is_student.is_(True), User.is_active_account.is_(True))
                       .order_by(User.full_name).limit(500) if u.id not in enrolled_ids]
     invitations = Invitation.query.filter_by(course_id=course.id).order_by(Invitation.created_at.desc()).all()
+    extra = {}
+    if current_user.is_admin:  # money is for admins only
+        paid = paid_totals(course.id)
+        pay_for = db.session.get(User, _int(request.args.get("student")))
+        extra = {"paid": paid, "collected": sum(paid.values(), Decimal("0")),
+                 "pay_for": pay_for if pay_for and pay_for.can_study else None, **_record_form_data()}
     return render_template("admin/course_students.html", course=course, rows=rows, candidates=candidates,
-                           invitations=invitations)
+                           invitations=invitations, **extra)
 
 
 def _course_students_action(course):
@@ -774,10 +781,19 @@ def user_detail(user_id):
     active_ids = {e.course_id for e in user.enrollments if e.status == "active"}
     return render_template("admin/user_detail.html", user=user, rows=rows, payments=payments,
                            courses=[c for c in Course.query.order_by(Course.title) if c.id not in active_ids],
+                           all_courses=Course.query.order_by(Course.title).all(),
+                           paid={e.course_id: paid_total(user.id, e.course_id) for e in user.enrollments},
                            teaching=Course.query.filter_by(instructor_id=user.id).all())
 
 
 # --- Payments (admin) --------------------------------------------------------
+
+def _record_form_data():
+    """What the "Record a payment" form needs: courses and the emails to suggest."""
+    return {"courses": Course.query.order_by(Course.title).all(),
+            "student_emails": [e for (e,) in db.session.query(User.email).filter(
+                User.is_student.is_(True), User.is_active_account.is_(True)).order_by(User.email).limit(500)]}
+
 
 @bp.route("/payments")
 @admin_required
@@ -787,7 +803,73 @@ def payments():
     if status:
         query = query.filter_by(status=status)
     return render_template("admin/payments.html", payments=query.order_by(Payment.created_at.desc()).all(),
-                           status=status)
+                           status=status, **_record_form_data())
+
+
+@bp.route("/payments.csv")
+@admin_required
+def payments_csv():
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["date", "student", "email", "course", "amount", "currency", "method", "how", "reference",
+                "status", "entered_by"])
+    for p in Payment.query.order_by(Payment.created_at.desc()):
+        w.writerow([(p.paid_at or p.created_at).strftime("%Y-%m-%d"), p.user.full_name, p.user.email,
+                    p.course.title, p.amount, p.currency, p.method, p.channel_label or "",
+                    p.provider_ref or p.tx_ref, p.status, p.recorded_by.full_name if p.recorded_by else ""])
+    return Response(buf.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=payments.csv"})
+
+
+def _back_to(default):
+    """Where to go after recording: a page inside the admin area, never an outside address."""
+    target = request.form.get("next", "")
+    return target if target.startswith("/admin/") and "//" not in target else default
+
+
+@bp.route("/payments/record", methods=["POST"])
+@admin_required
+def payment_record():
+    """Enter money received outside the website (cash, Telebirr, bank transfer) for one student and
+    one course, with an optional receipt, and confirm it so the course unlocks."""
+    f = request.form
+    back = _back_to(url_for("admin.payments"))
+    user = db.session.get(User, _int(f.get("user_id"))) if f.get("user_id") else \
+        User.query.filter_by(email=f.get("email", "").strip().lower()).first()
+    course = db.session.get(Course, _int(f.get("course_id")))
+    if not user or not user.can_study:
+        flash("No student account has that email address. Ask them to create an account first.", "error")
+        return redirect(back)
+    if not course:
+        flash("Choose the course the payment is for.", "error")
+        return redirect(back)
+    confirmed = bool(f.get("confirm"))
+    payment, error = record_payment(
+        user, course, amount=f.get("amount"), channel=f.get("channel"), reference=f.get("reference", ""),
+        paid_on=f.get("paid_on", ""), note=f.get("note", ""), receipt=request.files.get("receipt"),
+        confirmed=confirmed, by=current_user)
+    if error:
+        db.session.rollback()
+        flash(error, "error")
+        return redirect(back)
+    db.session.commit()
+    total, fee = paid_total(user.id, course.id), course.price or 0
+    summary = f"{payment.amount:,.2f} {payment.currency} ({payment.channel_label.lower()}) from {user.full_name} for {course.title}."
+    if confirmed:
+        left = Decimal(str(fee)) - total
+        flash(f"Payment recorded and confirmed: {summary} {user.full_name} now has access. "
+              + (f"Paid so far {total:,.2f} of {Decimal(str(fee)):,.2f} {payment.currency}; "
+                 f"{left:,.2f} still to pay." if left > 0 else "The course fee is paid in full."), "success")
+        if f.get("notify"):
+            link = url_for("main.course_detail", slug=course.slug, _external=True)
+            site = current_app.config["SITE_NAME"]
+            send_email(user.email, f"Payment received: {course.title}",
+                       f"Hello {user.full_name},\n\nWe received your payment of {payment.amount:,.2f} "
+                       f"{payment.currency} ({payment.channel_label.lower()}) for {course.title} "
+                       f"(ref {payment.tx_ref}). The course is now unlocked:\n{link}\n\nEnjoy the course!\n{site}\n")
+    else:
+        flash(f"Payment saved but not confirmed yet: {summary} It waits in Payments until you approve it.", "info")
+    return redirect(back)
 
 
 @bp.route("/payments/<int:payment_id>/review", methods=["POST"])

@@ -1,0 +1,38 @@
+{# "Record a payment": money received outside the website (cash, Telebirr, bank transfer).
+   Pass `user` or `course` to fix that part of the form. Import with context (needs `courses`,
+   `student_emails`). Works without JavaScript. #}
+{% from "_macros.html" import csrf %}
+{% macro record_form(user=none, course=none, next_url='', heading='Record a payment', course_choices=none) %}
+{% set choices = course_choices if course_choices is not none else courses %}
+<div class="card" id="record-payment">
+  <h2>{{ heading }}</h2>
+  <p class="muted">Use this when a student paid you in cash, by Telebirr or by bank transfer. Enter what you received, attach the receipt if you have one, and confirm it to unlock the course. Online payments confirm themselves; this works alongside them.</p>
+  <form method="post" action="{{ url_for('admin.payment_record') }}" enctype="multipart/form-data" class="stack">
+    {{ csrf() }}<input type="hidden" name="next" value="{{ next_url }}">
+    {% if user %}<input type="hidden" name="user_id" value="{{ user.id }}"><p><b>Student:</b> {{ user.full_name }} <span class="muted">({{ user.email }})</span></p>
+    {% else %}<label for="rp-email">Student's email</label>
+    <input type="email" id="rp-email" name="email" list="rp-emails" value="{{ pay_for.email if pay_for is defined and pay_for else '' }}" required autocomplete="off" placeholder="Start typing to see registered students">
+    <datalist id="rp-emails">{% for e in student_emails %}<option value="{{ e }}">{% endfor %}</datalist>{% endif %}
+    {% if course %}<input type="hidden" name="course_id" value="{{ course.id }}"><p><b>Course:</b> {{ course.title }} <span class="muted">· fee {{ course.price|money }} {{ currency }}</span></p>
+    {% else %}<label for="rp-course">Course</label>
+    <select id="rp-course" name="course_id" required><option value="">Choose a course</option>{% for c in choices %}<option value="{{ c.id }}" data-price="{{ c.price|money }}">{{ c.title }}{% if c.price %} ({{ c.price|money }} {{ currency }}){% else %} (free){% endif %}</option>{% endfor %}</select>{% endif %}
+    <div class="row">
+      <div style="flex:1;min-width:150px"><label for="rp-amount">Amount received ({{ currency }})</label><input type="text" inputmode="decimal" id="rp-amount" name="amount" required value="{{ course.price|money if course and course.price else '' }}" placeholder="e.g. 2500"></div>
+      <div style="flex:1;min-width:150px"><label for="rp-channel">How was it paid?</label>
+        <select id="rp-channel" name="channel" required>{% for key, label in payment_channels %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></div>
+      <div style="flex:1;min-width:150px"><label for="rp-date">Date received</label><input type="date" id="rp-date" name="paid_on" max="{{ today() }}" value="{{ today() }}"></div>
+    </div>
+    <label for="rp-ref">Reference <span class="small muted">(optional: Telebirr transaction ID, bank slip number…)</span></label>
+    <input type="text" id="rp-ref" name="reference" maxlength="128" autocomplete="off">
+    <label for="rp-receipt">Receipt <span class="small muted">(optional: photo or PDF)</span></label>
+    <input type="file" id="rp-receipt" name="receipt" accept="image/png,image/jpeg,application/pdf">
+    <label for="rp-note">Note <span class="small muted">(optional)</span></label>
+    <input type="text" id="rp-note" name="note" maxlength="500" autocomplete="off">
+    <label class="check"><input type="checkbox" name="confirm" value="1" checked> <b>Payment confirmed</b>: unlock the course for this student now</label>
+    <label class="check"><input type="checkbox" name="notify" value="1" checked> Email the student that the payment was received</label>
+    <p class="small muted">Untick "confirmed" to save it for later; it then waits in Payments until you approve it.</p>
+    <p><button class="btn">Save payment</button></p>
+  </form>
+  {% if not course %}<script>(function(){var c=document.getElementById('rp-course'),a=document.getElementById('rp-amount');if(c&&a)c.addEventListener('change',function(){var p=c.options[c.selectedIndex].getAttribute('data-price');if(p&&!a.value)a.value=p;});})();</script>{% endif %}
+</div>
+{% endmacro %}

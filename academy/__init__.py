@@ -1,6 +1,6 @@
 """Mek Academy - an online learning platform for professional training."""
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import click
 from jinja2 import ChoiceLoader, FileSystemLoader
@@ -9,7 +9,7 @@ from flask_login import LoginManager
 from flask_migrate import Migrate
 
 from .config import Config
-from .models import User, db
+from .models import Payment, User, db
 from .utils import check_csrf, csrf_token, render_markdown, topic_icon
 
 login_manager = LoginManager()
@@ -69,6 +69,8 @@ def create_app(config_object=Config):
 
     i18n.init_app(app)
     app.jinja_env.globals["topic_icon"] = topic_icon
+    app.jinja_env.globals["payment_channels"] = Payment.CHANNELS
+    app.jinja_env.globals["today"] = lambda: date.today().isoformat()
     app.jinja_env.globals["current_year"] = lambda: datetime.now(timezone.utc).year
     app.jinja_env.filters["markdown"] = render_markdown
     app.jinja_env.filters["money"] = lambda v: f"{float(v or 0):,.2f}"

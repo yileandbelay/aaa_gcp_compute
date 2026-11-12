@@ -156,7 +156,7 @@ def demo_pay(course_id):
 @login_required
 def receipt_file(payment_id):
     p = db.get_or_404(Payment, payment_id)
-    if not p.receipt_file or (p.user_id != current_user.id and not current_user.is_staff):
+    if not p.receipt_file or (p.user_id != current_user.id and not current_user.is_admin):
         abort(404)
     return send_from_directory(os.path.join(current_app.config["UPLOAD_DIR"], "receipts"), p.receipt_file)
 
@@ -165,6 +165,6 @@ def receipt_file(payment_id):
 @login_required
 def invoice(payment_id):
     p = db.get_or_404(Payment, payment_id)
-    if p.user_id != current_user.id and not current_user.is_staff:
+    if p.user_id != current_user.id and not current_user.is_admin:
         abort(403)
     return render_template("pay/invoice.html", p=p)
