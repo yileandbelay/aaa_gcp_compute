@@ -197,3 +197,146 @@ def test_restore_reports_a_missing_backup(box):
 
 def test_restore_needs_its_options(box):
     assert run(RESTORE, box).returncode == 2
+
+
+# --- Safe HTTPS renewal in the installer ------------------------------------------------------
+
+HTTPS = ROOT / "deploy" / "https.sh"
+INSTALL = ROOT / "deploy" / "install.sh"
+
+PLAIN_CONF = "server {\n    listen 80;\n    server_name learn.example.org;\n}\n"
+HTTPS_BLOCK = "server {\n    listen 443 ssl;\n    ssl_certificate /etc/letsencrypt/live/x/fullchain.pem;\n}\n"
+
+CERTBOT_STUB = textwrap.dedent('''\
+    #!/usr/bin/env python3
+    """Stand-in for certbot: fails the first CERTBOT_FAILS calls, then adds an HTTPS block like certbot does."""
+    import os, sys
+    count_file = os.environ["STATE_DIR"] + "/certbot-calls"
+    calls = int(open(count_file).read()) if os.path.exists(count_file) else 0
+    open(count_file, "w").write(str(calls + 1))
+    open(os.environ["STATE_DIR"] + "/certbot-args", "a").write(" ".join(sys.argv[1:]) + "\\n")
+    if calls < int(os.environ.get("CERTBOT_FAILS", "0")):
+        sys.exit(1)
+    conf = os.environ.get("NGINX_CONF")
+    if conf and os.path.exists(conf) and "ssl_certificate" not in open(conf).read():
+        open(conf, "a").write("server {\\n    listen 443 ssl;\\n    ssl_certificate /etc/letsencrypt/live/x/fullchain.pem;\\n}\\n")
+''')
+
+PGREP_STUB = textwrap.dedent('''\
+    #!/usr/bin/env python3
+    """Stand-in for pgrep: reports a running certbot for the first PGREP_BUSY_CALLS calls."""
+    import os, sys
+    f = os.environ["STATE_DIR"] + "/pgrep-calls"
+    n = int(open(f).read()) if os.path.exists(f) else 0
+    open(f, "w").write(str(n + 1))
+    sys.exit(0 if n < int(os.environ.get("PGREP_BUSY_CALLS", "0")) else 1)
+''')
+
+SLEEP_STUB = "#!/bin/sh\necho \"$1\" >> \"$STATE_DIR/sleeps\"\n"
+
+
+@pytest.fixture
+def https_box(tmp_path):
+    bindir, state = tmp_path / "bin", tmp_path / "state"
+    bindir.mkdir(); state.mkdir()
+    for name, body in (("certbot", CERTBOT_STUB), ("pgrep", PGREP_STUB), ("sleep", SLEEP_STUB)):
+        f = bindir / name
+        f.write_text(body)
+        f.chmod(f.stat().st_mode | stat.S_IEXEC)
+    conf = tmp_path / "nginx-site.conf"
+    return type("H", (), dict(bin=bindir, state=state, conf=conf, root=tmp_path))
+
+
+def bash_run(box, snippet, **env):
+    full = {"PATH": f"{box.bin}:/usr/bin:/bin", "STATE_DIR": str(box.state), "NGINX_CONF": str(box.conf),
+            "HOME": str(box.root), **{k: str(v) for k, v in env.items()}}
+    return subprocess.run(["bash", "-c", f'. "{HTTPS}"\n{snippet}'], capture_output=True, text=True, env=full, timeout=60)
+
+
+def counter(box, name):
+    f = box.state / name
+    return int(f.read_text()) if f.exists() else 0
+
+
+def installer_rerun(box, **env):
+    """What install.sh does on every run: snapshot HTTPS, rewrite the config as plain HTTP, ask certbot."""
+    snippet = textwrap.dedent(f'''\
+        https_snapshot "$NGINX_CONF"
+        printf '%s' '{PLAIN_CONF}' > "$NGINX_CONF"
+        if install_certificate learn.example.org me@example.org; then https_clear "$NGINX_CONF"
+        else https_restore "$NGINX_CONF" || true; fi
+        ''')
+    return bash_run(box, snippet, **env)
+
+
+def test_certificate_is_requested_with_the_expected_options(https_box):
+    r = bash_run(https_box, "install_certificate learn.example.org me@example.org")
+    assert r.returncode == 0, r.stderr
+    args = (https_box.state / "certbot-args").read_text()
+    assert "--nginx" in args and "--keep-until-expiring" in args and "--redirect" in args
+    assert "-d learn.example.org" in args and "-m me@example.org" in args and "-n" in args
+
+
+def test_installer_waits_while_another_certbot_runs_then_continues(https_box):
+    r = bash_run(https_box, "install_certificate learn.example.org me@example.org", PGREP_BUSY_CALLS=3)
+    assert r.returncode == 0 and "Another certbot run is active" in r.stdout
+    assert counter(https_box, "certbot-calls") == 1 and counter(https_box, "pgrep-calls") >= 4
+    assert (https_box.state / "sleeps").read_text().split() == ["5", "5", "5"]
+
+
+def test_installer_gives_up_waiting_without_touching_certbot(https_box):
+    r = bash_run(https_box, "install_certificate learn.example.org me@example.org", PGREP_BUSY_CALLS=999, CERTBOT_WAIT_SECONDS=20)
+    assert r.returncode != 0 and "still active" in r.stderr
+    assert counter(https_box, "certbot-calls") == 0
+
+
+def test_certbot_failures_are_retried_with_growing_pauses(https_box):
+    r = bash_run(https_box, "install_certificate learn.example.org me@example.org", CERTBOT_FAILS=2)
+    assert r.returncode == 0 and counter(https_box, "certbot-calls") == 3
+    assert (https_box.state / "sleeps").read_text().split() == ["10", "20"]
+
+
+def test_certbot_that_never_works_returns_failure_after_the_set_number_of_tries(https_box):
+    r = bash_run(https_box, "install_certificate learn.example.org me@example.org", CERTBOT_FAILS=99, CERTBOT_TRIES=3)
+    assert r.returncode != 0 and counter(https_box, "certbot-calls") == 3 and "attempt 3 of 3 failed" in r.stderr
+
+
+def test_rerunning_the_installer_twice_in_a_row_leaves_https_working(https_box):
+    https_box.conf.write_text(PLAIN_CONF)
+    for _ in range(2):
+        r = installer_rerun(https_box)
+        assert r.returncode == 0, r.stderr
+        text = https_box.conf.read_text()
+        assert "listen 443 ssl" in text and "ssl_certificate" in text
+        assert not Path(str(https_box.conf) + ".https-keep").exists()
+
+
+def test_a_busy_certbot_does_not_leave_the_site_on_plain_http(https_box):
+    """The failure that took the site down: certbot busy, config rewritten as HTTP only."""
+    https_box.conf.write_text(PLAIN_CONF + HTTPS_BLOCK)
+    r = installer_rerun(https_box, PGREP_BUSY_CALLS=999, CERTBOT_WAIT_SECONDS=10)
+    assert r.returncode == 0
+    text = https_box.conf.read_text()
+    assert "listen 443 ssl" in text and "ssl_certificate" in text      # the HTTPS version was put back
+
+
+def test_a_failing_certbot_also_keeps_the_previous_https_config(https_box):
+    https_box.conf.write_text(PLAIN_CONF + HTTPS_BLOCK)
+    installer_rerun(https_box, CERTBOT_FAILS=99, CERTBOT_TRIES=2)
+    assert "listen 443 ssl" in https_box.conf.read_text()
+
+
+def test_first_install_without_a_previous_https_config_has_nothing_to_restore(https_box):
+    https_box.conf.write_text(PLAIN_CONF)
+    installer_rerun(https_box, CERTBOT_FAILS=99, CERTBOT_TRIES=1)
+    assert "listen 443" not in https_box.conf.read_text()              # honest: plain HTTP until certbot works
+    assert not Path(str(https_box.conf) + ".https-keep").exists()
+
+
+def test_the_installer_uses_these_helpers_and_stays_valid_bash():
+    text = INSTALL.read_text()
+    for needle in ("https.sh", "https_snapshot", "install_certificate", "https_restore", "https_clear"):
+        assert needle in text, needle
+    assert subprocess.run(["bash", "-n", str(INSTALL)]).returncode == 0
+    assert subprocess.run(["bash", "-n", str(HTTPS)]).returncode == 0
+    assert "certbot --nginx" not in text                               # only the retrying helper calls certbot

@@ -44,6 +44,8 @@ if [ -z "$REPO" ]; then
 fi
 
 APP_DIR=/opt/$NAME; DATA_DIR=/var/lib/$NAME; ENV_FILE=/etc/$NAME.env
+# shellcheck source=deploy/https.sh
+. "$(dirname "${BASH_SOURCE[0]}")/https.sh"
 printf 'SAVED_DOMAIN=%q\nSAVED_EMAIL=%q\nSAVED_PORT=%q\nSAVED_REPO=%q\n' "$DOMAIN" "$EMAIL" "$PORT" "$REPO" > "$STATE"
 echo "==> Installing '$NAME' from $REPO ($BRANCH) on port $PORT"
 
@@ -100,8 +102,10 @@ sudo -u "$NAME" bash -c "set -a; . '$ENV_FILE'; cd '$APP_DIR' && .venv/bin/flask
 
 sed -e "s|__NAME__|$NAME|g" -e "s|__PORT__|$PORT|g" "$APP_DIR/deploy/academy.service" \
   > "/etc/systemd/system/$NAME.service"
+NGINX_CONF="/etc/nginx/sites-available/$NAME"
+https_snapshot "$NGINX_CONF"   # remember the HTTPS version in case certbot cannot put it back below
 sed -e "s|__NAME__|$NAME|g" -e "s|__PORT__|$PORT|g" -e "s|__DOMAIN__|${DOMAIN:-_}|g" \
-  "$APP_DIR/deploy/nginx.conf" > "/etc/nginx/sites-available/$NAME"
+  "$APP_DIR/deploy/nginx.conf" > "$NGINX_CONF"
 ln -sf "/etc/nginx/sites-available/$NAME" "/etc/nginx/sites-enabled/$NAME"
 rm -f /etc/nginx/sites-enabled/default
 
@@ -115,12 +119,17 @@ nginx -t -q && systemctl restart nginx
 
 if [ -n "$DOMAIN" ] && [ -n "$EMAIL" ]; then
   echo "==> Requesting an HTTPS certificate for $DOMAIN"
-  # Re-runs reinstall the existing certificate into the freshly written nginx config.
-  if certbot --nginx -n --agree-tos --keep-until-expiring -m "$EMAIL" -d "$DOMAIN" --redirect; then
+  # Waits for a running certbot (the automatic renewal), retries, and reuses the existing certificate.
+  if install_certificate "$DOMAIN" "$EMAIL"; then
+    https_clear "$NGINX_CONF"
     sed -i 's|^SESSION_COOKIE_SECURE=.*|SESSION_COOKIE_SECURE=true|' "$ENV_FILE"
     systemctl restart "$NAME"
   else
     echo "!! HTTPS setup failed. Check that $DOMAIN points to this server, then re-run." >&2
+    # Never leave the site without HTTPS: put back the previous HTTPS configuration if there was one.
+    if https_restore "$NGINX_CONF" && nginx -t -q && systemctl reload nginx; then
+      echo "==> Kept the previous HTTPS configuration, so the site is still served over HTTPS."
+    fi
   fi
 fi
 
