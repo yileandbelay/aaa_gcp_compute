@@ -454,3 +454,7 @@ def test_empty_state_in_amharic(app):
     c.set_cookie("lang", "am")
     html = c.get("/").get_data(as_text=True)
     assert "ኮርሶች በቅርቡ ይመጣሉ" in html and "Courses are on their way" not in html
+
+
+def test_how_it_works_section_has_an_anchor(app):
+    assert 'id="how-it-works"' in app.test_client().get("/").get_data(as_text=True)
