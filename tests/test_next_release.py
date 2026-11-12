@@ -926,3 +926,65 @@ def test_cover_migration_keeps_existing_courses_up_and_down(tmp_path):
     assert run("db", "downgrade").returncode == 0
     cols = [r[1] for r in sqlite3.connect(db_file).execute("pragma table_info(course)")]
     assert "cover_image" not in cols and sqlite3.connect(db_file).execute("select title from course").fetchall() == [("C",)]
+
+
+# --- NX-16: QR code on certificates -----------------------------------------------------------
+
+def make_certificate(app, name="Abebe Kebede"):
+    from academy.models import Certificate
+    with app.app_context():
+        user = User(email="holder@example.com", full_name=name)
+        user.set_password("secret123")
+        db.session.add(user)
+        db.session.flush()
+        cert = Certificate(user_id=user.id, course_id=Course.query.first().id)
+        db.session.add(cert)
+        db.session.commit()
+        return cert.code
+
+
+def test_certificate_shows_a_qr_code_for_the_public_verify_page(app):
+    import segno
+    code = make_certificate(app)
+    page = app.test_client().get(f"/certificates/{code}").data.decode()
+    svg = re.search(r'<svg[^>]*class="cert-qr-svg".*?</svg>', page, re.S).group(0)
+    assert "<title>QR code that opens the page verifying this certificate</title>" in svg and "Scan to verify" in page
+    url = f"http://localhost/certificates/{code}"
+    expected = segno.make(url, error="m", micro=False).svg_inline(scale=3, border=2, dark="#000000", light="#ffffff",
+                                                                    title="QR code that opens the page verifying this certificate",
+                                                                    svgclass="cert-qr-svg", lineclass=None)
+    assert svg == expected                       # the code encodes exactly the certificate's public address
+    assert f"verify at {url}" in page or url in page
+
+
+def test_the_verify_page_the_qr_points_to_opens_logged_out(app):
+    code = make_certificate(app, "Holder Name")
+    r = app.test_client().get(f"/certificates/{code}")
+    assert r.status_code == 200 and "Holder Name" in r.data.decode() and "Certificate of Completion" in r.data.decode()
+    assert app.test_client().get(f"/certificates/{code.lower()}").status_code == 200          # codes are case-insensitive
+    assert app.test_client().get("/certificates/NOSUCHCODE").status_code == 404
+
+
+def test_print_button_stays_and_print_gives_one_a4_landscape_page(app):
+    code = make_certificate(app)
+    page = app.test_client().get(f"/certificates/{code}").data.decode()
+    assert "Print / Save as PDF" in page and "window.print()" in page
+    assert 'rel="stylesheet" media="print" href="/static/certificate-print.css"' in page
+    css = open("academy/static/certificate-print.css").read()
+    assert "@page" in css and "size: A4 landscape" in css
+    assert 'certificate-print.css' not in app.test_client().get("/").data.decode()          # other pages stay portrait
+    main_css = open("academy/static/style.css").read()
+    assert re.search(r"@media print \{\s*main\.container \{ padding: 0", main_css) and "height: 190mm" in main_css
+
+
+def test_certificate_qr_texts_in_amharic(app):
+    code = make_certificate(app)
+    c = app.test_client()
+    c.set_cookie("lang", "am")
+    page = c.get(f"/certificates/{code}").data.decode()
+    assert "ለማረጋገጥ ይቃኙ" in page and "Scan to verify" not in page and "የQR ኮድ" in page
+
+
+def test_exactly_one_dependency_was_added_for_qr_codes():
+    text = open("requirements.txt").read()
+    assert re.search(r"^segno==\d+\.\d+\.\d+", text, re.M)

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Certificate') }} · {{ cert.user.full_name }}{% endblock %}
+{% block head_extra %}<link rel="stylesheet" media="print" href="{{ url_for('static', filename='certificate-print.css') }}">{% endblock %}
 {% block content %}
 <div class="cert">
   <div class="seal">{{ site_name[:1] }}</div>
@@ -11,7 +12,11 @@
   <h2>{{ cert.course.title }}</h2>
   {% if cert.course.hours %}<p>{{ _('%(n)s hours of training', n='%g'|format(cert.course.hours|float)) }}</p>{% endif %}
   <p>{{ _('Issued %(date)s', date=cert.issued_at|localdate('%d %B %Y')) }}</p>
-  <p class="small muted">{{ _('Certificate ID %(code)s · verify at %(url)s', code=cert.code, url=url_for('main.certificate', code=cert.code, _external=True)) }}</p>
+  {% set verify_url = url_for('main.certificate', code=cert.code, _external=True) %}
+  <div class="cert-foot">
+    <div class="cert-qr">{{ qr_svg(verify_url, _('QR code that opens the page verifying this certificate')) }}<span class="small muted">{{ _('Scan to verify') }}</span></div>
+    <p class="small muted cert-verify">{{ _('Certificate ID %(code)s · verify at %(url)s', code=cert.code, url=verify_url) }}</p>
+  </div>
 </div>
 <p class="noprint" style="text-align:center;margin-top:16px"><button class="btn" onclick="window.print()">{{ _('Print / Save as PDF') }}</button></p>
 {% endblock %}

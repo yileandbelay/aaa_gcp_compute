@@ -475,6 +475,10 @@ body.has-tabbar.has-mobile-cta { padding-bottom: 140px; }
 .cert .name { font-family: var(--font-serif); font-size: 1.8rem; border-bottom: 1px solid var(--line-strong); display: inline-block; padding: 0 var(--s5); margin: var(--s2) 0; }
 .cert .seal { display: inline-grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 1.6rem; font-weight: 700; box-shadow: 0 0 0 4px var(--surface), 0 0 0 6px var(--gold); }
 @media (min-width: 760px) { .cert { padding: var(--s7) var(--s7); } .cert h1 { font-size: 2.6rem; } }
+.cert-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--s4); margin-top: var(--s4); }
+.cert-qr { display: grid; justify-items: center; gap: 2px; }
+.cert-qr-svg { width: 104px; height: 104px; display: block; }
+.cert-verify { margin: 0; max-width: 46ch; overflow-wrap: anywhere; }
 
 /* Admin: same system, denser */
 .choices { display: grid; gap: var(--s3); grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
@@ -499,6 +503,20 @@ body.has-tabbar.has-mobile-cta { padding-bottom: 140px; }
   header.top, footer.site-footer, .tabbar, .mobile-cta, .noprint { display: none !important; }
   body { background: #fff; padding: 0 !important; }
   .cert { border-width: 3px; margin: 0 auto; }
+}
+
+/* Printing a certificate: the A4 landscape page size comes from certificate-print.css, which only the
+   certificate page loads (an @page rule cannot be limited to one page from the shared stylesheet). */
+@media print {
+  main.container { padding: 0 !important; margin: 0 !important; max-width: none; }
+  .cert { box-sizing: border-box; max-width: none; width: 100%; height: 190mm; margin: 0; padding: 8mm 16mm; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5mm; break-inside: avoid; overflow: hidden; }
+  .cert p, .cert h1, .cert h2 { margin: 0; }
+  .cert h1 { font-size: 26pt; line-height: 1.15; }
+  .cert h2 { font-size: 17pt; line-height: 1.25; }
+  .cert .name { font-size: 22pt; margin: 1mm 0; }
+  .cert .seal { width: 15mm; height: 15mm; font-size: 18pt; }
+  .cert .cert-foot { margin-top: 3mm; flex-wrap: nowrap; gap: 6mm; }
+  .cert-qr-svg { width: 24mm; height: 24mm; }
 }
 
 /* Enrol button on every course card; sits above the card-wide link */

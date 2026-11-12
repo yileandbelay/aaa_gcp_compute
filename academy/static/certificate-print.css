@@ -1,0 +1,3 @@
+/* Loaded only by the certificate page, for printing: exactly one A4 landscape page.
+   The layout of the certificate itself is in style.css (@media print, .cert). */
+@page { size: A4 landscape; margin: 8mm; }

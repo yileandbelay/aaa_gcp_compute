@@ -20,6 +20,7 @@
     :root{--brand: {{ config.BRAND_COLOR }}}
     @supports (color: color-mix(in srgb, red, blue)){:root{--brand-dark: color-mix(in srgb, var(--brand) 82%, #000);--brand-soft: color-mix(in srgb, var(--brand) 11%, #fff)}}
   </style>{% endif %}
+  {% block head_extra %}{% endblock %}
   {% if theme_css %}<link rel="stylesheet" href="{{ url_for('theme_static', filename='theme.css') }}">{% endif %}
 </head>
 {% set ep = request.endpoint or '' %}
