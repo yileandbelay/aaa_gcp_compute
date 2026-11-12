@@ -502,3 +502,48 @@ def test_catalog_empty_state_hidden_when_courses_exist(catalog):
     assert 'class="empty-panel"' not in c.get("/courses").get_data(as_text=True)
     no_match = c.get("/courses?q=zzzznothing").get_data(as_text=True)
     assert 'class="empty-panel"' not in no_match and "No course matches these filters." in no_match
+
+
+# --- Honest sorting ---------------------------------------------------------------------------
+
+def sort_options(html):
+    block = re.search(r'<select name="sort".*?</select>', html, re.S).group(0)
+    return re.findall(r'<option value="([^"]+)"', block)
+
+
+def test_empty_catalog_offers_neither_popular_nor_rated_sorting(app):
+    unpublish_all(app)
+    opts = sort_options(app.test_client().get("/courses").get_data(as_text=True))
+    assert "popular" not in opts and "rating" not in opts and "newest" in opts
+
+
+def test_popular_and_rated_sorting_appear_once_real_data_exists(app):
+    from academy.models import Enrollment, Review, User
+
+    c = app.test_client()
+    assert "popular" not in sort_options(c.get("/courses").get_data(as_text=True))
+    with app.app_context():
+        u = User(email="s@example.com", full_name="S")
+        u.set_password("secret123")
+        db.session.add(u)
+        db.session.flush()
+        course = Course.query.filter_by(is_published=True).first()
+        enr = Enrollment(user_id=u.id, course_id=course.id)
+        db.session.add(enr)
+        enr.activate(source="assigned")
+        db.session.commit()
+        cid = course.id
+        uid = u.id
+    opts = sort_options(c.get("/courses").get_data(as_text=True))
+    assert "popular" in opts and "rating" not in opts
+    with app.app_context():
+        db.session.add(Review(user_id=uid, course_id=cid, rating=5))
+        db.session.commit()
+    assert "rating" in sort_options(c.get("/courses").get_data(as_text=True))
+    app.config["FEATURE_REVIEWS"] = False
+    assert "rating" not in sort_options(c.get("/courses").get_data(as_text=True))
+
+
+def test_unavailable_sort_falls_back_to_newest(catalog):
+    html = catalog.test_client().get("/courses?sort=rating").get_data(as_text=True)
+    assert re.search(r'<option value="newest"\s+selected', html)

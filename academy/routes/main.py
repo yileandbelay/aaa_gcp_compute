@@ -79,6 +79,16 @@ def catalog():
             filter(None, [c.title, c.summary, c.category, c.description])).lower()]
 
     ratings = rating_summary([c.id for c in courses])
+    # Only offer orderings that mean something: popularity needs real enrolments, rating needs real reviews.
+    published_ids = [c.id for c in published]
+    available = {"newest", "shortest", "title"}
+    if popularity(published_ids):
+        available.add("popular")
+    if current_app.config["FEATURE_REVIEWS"] and rating_summary(published_ids):
+        available.add("rating")
+    sorts = tuple(s for s in SORTS if s[0] in available)
+    if sort not in available:
+        sort = "newest"
     if sort == "popular":
         students = popularity([c.id for c in courses])
         courses.sort(key=lambda c: (-students.get(c.id, 0), c.title.lower()))
@@ -94,7 +104,7 @@ def catalog():
     filtered = bool(category or level or length or price or q)
     return render_template(
         "courses/catalog.html", courses=courses, ratings=ratings, categories=categories, levels=levels,
-        lengths=LENGTHS, sorts=SORTS, category=category, level=level, length=length, price=price, sort=sort,
+        lengths=LENGTHS, sorts=sorts, category=category, level=level, length=length, price=price, sort=sort,
         q=q, filtered=filtered, mine=_my_course_ids(), has_courses=bool(published))
 
 
