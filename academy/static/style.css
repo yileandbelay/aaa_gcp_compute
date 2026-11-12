@@ -40,6 +40,7 @@
   --muted: var(--muted-green);
   --line: #DCE8E0;                        /* hairlines, tinted toward sage */
   --line-strong: #C3D8CB;
+  --line-input: #6E8277;                  /* form-field outlines: 3:1 against white and sage */
   --accent: var(--gold);
   --accent-soft: #FBF1DC;
   --accent-ink: #6B4E12;                  /* readable text on gold tints */
@@ -135,12 +136,12 @@ main.container { padding-block: var(--s5) var(--s7); min-height: 60vh; }
 input[type=text], input[type=search], input[type=email], input[type=password], input[type=number], input[type=tel],
 input[type=url], input[type=file], select, textarea {
   width: 100%; min-height: 44px; padding: 10px 14px; font: inherit; color: var(--ink); background: var(--surface);
-  border: 1px solid var(--line-strong); border-radius: var(--radius-sm); transition: border-color .15s, box-shadow .15s;
+  border: 1px solid var(--line-input); border-radius: var(--radius-sm); transition: border-color .15s, box-shadow .15s;
 }
 textarea { min-height: 110px; resize: vertical; line-height: 1.55; }
 input:hover, select:hover, textarea:hover { border-color: var(--brand); }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent); }
-input::placeholder, textarea::placeholder { color: #6E8277; }
+input::placeholder, textarea::placeholder { color: #627569; }
 input[type=checkbox], input[type=radio] { accent-color: var(--brand); width: 18px; height: 18px; flex: none; }
 .check { display: flex; gap: var(--s2); align-items: flex-start; font-weight: 400 !important; }
 .check input { margin-top: 3px; }
@@ -226,7 +227,7 @@ header.top { background: rgba(255, 255, 255, .94); backdrop-filter: saturate(1.4
 .site-nav a.btn:hover { color: #fff; background: var(--brand-dark); }
 .site-nav form { display: contents; }
 .header-search { flex-basis: 100%; order: 3; position: relative; }
-.header-search input { padding-left: 42px; background: var(--brand-soft); border-color: transparent; border-radius: var(--radius-pill); }
+.header-search input { padding-left: 42px; background: var(--brand-soft); border-color: var(--line-input); border-radius: var(--radius-pill); }
 .header-search input:focus { background: var(--surface); }
 .header-search .i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
 .js .header-search { display: none; }
@@ -273,7 +274,7 @@ html[lang=am] .footer-grid h4 { letter-spacing: 0; text-transform: none; }
 .hero h1::after { content: ""; display: block; width: 56px; height: 4px; border-radius: 2px; background: var(--gold); margin-top: var(--s3); }
 .hero p { max-width: 58ch; color: var(--muted); font-size: 1.05rem; }
 .hero-search { display: flex; flex-direction: column; gap: var(--s2); max-width: 620px; margin: var(--s5) 0 var(--s4); }
-.hero-search input { min-height: 52px; background: var(--surface); border-color: var(--line-strong); font-size: 1.02rem; }
+.hero-search input { min-height: 52px; background: var(--surface); border-color: var(--line-input); font-size: 1.02rem; }
 .hero-popular { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; font-size: .9rem; color: var(--muted); }
 .hero-popular .chip { min-height: 32px; font-size: .86rem; background: var(--surface); }
 .hero-actions { margin-top: var(--s5); }
