@@ -77,13 +77,18 @@ if [ ! -f "$ENV_FILE" ]; then
     echo "DATABASE_URL=sqlite:///$DATA_DIR/instance/academy.db"
     echo "BACKUP_DIR=$DATA_DIR/backups"
   } >> "$ENV_FILE"
-  chmod 600 "$ENV_FILE"
   echo "==> Created $ENV_FILE - edit it to set your academy name, payment and email details."
 fi
+# The app user must be able to read the settings (the migration and create-admin commands run as
+# that user; systemd reads the file as root). Readable by root and the app's group only.
+chown "root:$NAME" "$ENV_FILE"
+chmod 640 "$ENV_FILE"
 grep -q '^USE_X_ACCEL_REDIRECT=' "$ENV_FILE" || echo 'USE_X_ACCEL_REDIRECT=true' >> "$ENV_FILE"
 grep -q '^BEHIND_PROXY=' "$ENV_FILE" || echo 'BEHIND_PROXY=true' >> "$ENV_FILE"
 
 chown -R "$NAME:$NAME" "$DATA_DIR"
+# Folder the app may create inside its (otherwise root-owned) code directory.
+install -d -o "$NAME" -g "$NAME" "$APP_DIR/instance"
 chmod 750 "$DATA_DIR"; chmod 700 "$DATA_DIR/backups"
 # nginx (www-data) streams lecture videos for X-Accel-Redirect through the app's group.
 usermod -aG "$NAME" www-data

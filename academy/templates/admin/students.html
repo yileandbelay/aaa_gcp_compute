@@ -1,10 +1,12 @@
 {% extends "base.html" %}
+{% block title %}Students · Admin{% endblock %}
 {% block content %}
-<h1>Students & users</h1>{% include "admin/_nav.html" %}
-<form class="row" method="get"><input type="text" name="q" value="{{ q }}" placeholder="Search name, email or phone" style="max-width:340px"><button class="btn small">Search</button>
+<h1>Students</h1>{% include "admin/_nav.html" %}
+<p class="muted">People who registered to learn. Admins and instructors are listed under <a href="{{ url_for('admin.staff') }}">Staff</a>.</p>
+<form class="row" method="get"><input type="text" name="q" value="{{ q }}" placeholder="Search name, email or phone" aria-label="Search students" style="max-width:340px"><button class="btn small">Search</button>
 <a href="{{ url_for('admin.students_csv') }}">Export CSV</a></form><br>
-<div class="table-wrap"><table><tr><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Courses</th><th>Joined</th></tr>
-{% for u in users %}<tr><td><a href="{{ url_for('admin.student_detail', user_id=u.id) }}">{{ u.full_name }}</a>{% if not u.is_active_account %} <span class="badge failed">suspended</span>{% endif %}</td>
-<td>{{ u.email }}</td><td>{{ u.phone or '' }}</td><td>{{ u.role }}</td><td>{{ u.enrollments|selectattr('status','equalto','active')|list|length }}</td><td>{{ u.created_at.strftime('%d %b %Y') }}</td></tr>
-{% endfor %}</table></div>
+<div class="table-wrap"><table><tr><th>Name</th><th>Email</th><th>Phone</th><th>Courses</th><th>Joined</th></tr>
+{% for u in users %}<tr><td><a href="{{ url_for('admin.user_detail', user_id=u.id) }}">{{ u.full_name }}</a>{% if not u.is_active_account %} <span class="badge failed">suspended</span>{% endif %}</td>
+<td>{{ u.email }}</td><td>{{ u.phone or '' }}</td><td>{{ u.enrollments|selectattr('status','equalto','active')|list|length }}</td><td>{{ u.created_at.strftime('%d %b %Y') }}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">{{ 'No student matches your search.' if q else 'No students have registered yet.' }}</td></tr>{% endfor %}</table></div>
 {% endblock %}

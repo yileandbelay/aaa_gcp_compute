@@ -7,7 +7,7 @@ import json
 import os
 from decimal import Decimal
 
-from .models import Assessment, Course, Lesson, Question, User, db
+from .models import Assessment, Attachment, Course, Lesson, Question, User, db
 
 DEFAULT_FILE = os.path.join(os.path.dirname(__file__), "sample_data", "demo_courses.json")
 DEMO_ADMIN = ("admin@example.com", "admin12345")
@@ -47,9 +47,12 @@ def seed(path=None):
         db.session.add(course)
         db.session.flush()
         for pos, l in enumerate(c.get("lessons", []), start=1):
-            db.session.add(Lesson(course_id=course.id, position=pos, title=l["title"], kind=l.get("kind", "text"),
-                                  body=l.get("body", ""), duration_min=l.get("minutes"),
-                                  is_preview=l.get("preview", False)))
+            lesson = Lesson(course_id=course.id, position=pos, title=l["title"], kind=l.get("kind", "text"),
+                            body=l.get("body", ""), duration_min=l.get("minutes"),
+                            is_preview=l.get("preview", False))
+            for link in l.get("links", []):
+                lesson.attachments.append(Attachment(url=link["url"], original_name=link["title"]))
+            db.session.add(lesson)
         for a in c.get("assessments", []):
             assessment = Assessment(course_id=course.id, title=a["title"], instructions=a.get("instructions"),
                                     pass_mark=a.get("pass_mark", 70), max_attempts=a.get("attempts", 3),

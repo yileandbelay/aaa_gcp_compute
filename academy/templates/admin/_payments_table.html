@@ -2,7 +2,7 @@
 <div class="table-wrap"><table><tr><th>Date</th><th>Student</th><th>Course</th><th>Amount</th><th>Method / ref</th><th>Status</th><th>Action</th></tr>
 {% for p in payments %}<tr>
 <td>{{ p.created_at.strftime('%d %b %Y %H:%M') }}</td>
-<td><a href="{{ url_for('admin.student_detail', user_id=p.user_id) }}">{{ p.user.full_name }}</a></td>
+<td><a href="{{ url_for('admin.user_detail', user_id=p.user_id) }}">{{ p.user.full_name }}</a></td>
 <td>{{ p.course.title }}</td><td>{{ p.amount|money }} {{ p.currency }}</td>
 <td>{{ p.method }}<br><span class="small muted">{{ p.tx_ref }}{% if p.provider_ref %} / {{ p.provider_ref }}{% endif %}</span>
   {% if p.receipt_file %}<br><a href="{{ url_for('pay.receipt_file', payment_id=p.id) }}" target="_blank">view receipt</a>{% endif %}</td>

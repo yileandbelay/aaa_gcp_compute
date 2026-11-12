@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}Messages · Admin{% endblock %}
+{% block content %}
+<h1>Messages</h1>{% include "admin/_nav.html" %}
+<p class="muted">Sent through the Contact page. {% if config.CONTACT_EMAIL and config.CONTACT_EMAIL != 'info@example.com' %}Each message is also emailed to {{ config.CONTACT_EMAIL }}.{% else %}Set <code>CONTACT_EMAIL</code> in the settings to also receive them by email.{% endif %}</p>
+{% for m in items %}
+<div class="card" {% if not m.is_read %}style="border-color:var(--brand)"{% endif %}>
+  <div class="row spread"><div><b>{{ m.subject or '(no subject)' }}</b> {% if not m.is_read %}<span class="badge pending">new</span>{% endif %}<br>
+    <span class="small muted">{{ m.name }} · <a href="mailto:{{ m.email }}">{{ m.email }}</a> · {{ m.created_at.strftime('%d %b %Y %H:%M') }} UTC</span></div>
+    <form method="post" action="{{ url_for('admin.message_update', mid=m.id) }}" class="row">{{ csrf() }}
+      {% if m.is_read %}<button class="linkbtn" name="action" value="unread">mark unread</button>{% else %}<button class="linkbtn" name="action" value="read">mark read</button>{% endif %}
+      <button class="linkbtn" name="action" value="delete" style="color:var(--err)" onclick="return confirm('Delete this message?')">delete</button></form></div>
+  <p style="white-space:pre-wrap;margin-bottom:0">{{ m.message }}</p>
+</div>
+{% else %}<p class="muted">No messages yet.</p>{% endfor %}
+{% endblock %}

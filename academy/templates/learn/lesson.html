@@ -8,7 +8,7 @@
     <ol>
     {% for l in lessons %}
       <li><a href="{{ url_for('learn.lesson', lesson_id=l.id) }}" class="{{ 'current' if l.id == lesson.id }}">
-        <span class="tick">{% if progress and l.id in progress.done_lessons %}✓{% elif l.kind == 'video' %}▶{% else %}≡{% endif %}</span>{{ loop.index }}. {{ l.title }}</a></li>
+        <span class="tick">{% if progress and l.id in progress.done_lessons %}✓{% elif l.kind == 'video' %}▶{% elif l.kind == 'link' %}↗{% else %}≡{% endif %}</span>{{ loop.index }}. {{ l.title }}</a></li>
     {% endfor %}
     </ol>
     {% if progress and course.assessments %}<hr><b class="small">Assessments</b><ol>
@@ -23,7 +23,7 @@
         <div class="video-wrap drm">
           <iframe src="{{ embed_url }}" allow="encrypted-media; accelerometer; gyroscope; picture-in-picture; fullscreen" allowfullscreen
                   title="{{ lesson.title }} video" style="border:0;width:100%;aspect-ratio:16/9;display:block"></iframe>
-          {% if config.VIDEO_WATERMARK and not embed_provider.burned_watermark %}<div class="watermark">{{ current_user.email }}</div>{% endif %}
+          {% if config.VIDEO_WATERMARK and embed_provider.overlay_watermark and not embed_provider.burned_watermark %}<div class="watermark">{{ current_user.email }}</div>{% endif %}
         </div>
       {% elif video_error %}
         <div class="card muted">{{ video_error }}</div>
@@ -44,11 +44,15 @@
     {% else %}<div class="card lesson-body">{% endif %}{{ lesson.body|markdown }}</div>
     {% endif %}
 
-    {% if lesson.attachments and current_user.is_authenticated and (config.ALLOW_MATERIAL_DOWNLOAD or current_user.is_staff) %}
-    <div class="card" id="materials"><h3>Course materials</h3>
-      <ul class="materials">{% for att in lesson.attachments %}
-        <li><a href="{{ url_for('learn.material', attachment_id=att.id) }}">{{ att.original_name }}</a><span class="small muted">{{ att.size_label }}</span></li>
+    {% set can_files = current_user.is_authenticated and (config.ALLOW_MATERIAL_DOWNLOAD or current_user.is_staff) %}
+    {% set shown = lesson.attachments|selectattr('is_link')|list + (lesson.attachments|rejectattr('is_link')|list if can_files else []) %}
+    {% if shown and current_user.is_authenticated %}
+    <div class="card" id="materials"><h3>{{ 'Open the resource' if lesson.kind == 'link' else 'Files and links' }}</h3>
+      <ul class="materials">{% for att in shown %}
+        {% if att.is_link %}<li><a {% if lesson.kind == 'link' %}class="btn small"{% endif %} href="{{ att.url }}" target="_blank" rel="noopener noreferrer">{{ att.original_name }} ↗</a><span class="small muted">{{ att.domain }}</span></li>
+        {% else %}<li><a href="{{ url_for('learn.material', attachment_id=att.id) }}">{{ att.original_name }}</a><span class="small muted">{{ att.size_label }}</span></li>{% endif %}
       {% endfor %}</ul>
+      {% if shown|selectattr('is_link')|list %}<p class="small muted" style="margin-bottom:0">Links open other websites in a new tab. We are not responsible for their content.</p>{% endif %}
     </div>{% endif %}
 
     <div class="row spread">

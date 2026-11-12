@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}Staff · Admin{% endblock %}
+{% block content %}
+<h1>Staff</h1>{% include "admin/_nav.html" %}
+<p class="muted">Staff are not students and do not appear in the student list. <b>Admins</b> can manage everything. <b>Instructors</b> (course admins) manage only the courses assigned to them and the students enrolled in those courses.</p>
+<div class="table-wrap"><table><tr><th>Name</th><th>Email</th><th>Role</th><th>Courses taught</th><th></th></tr>
+{% for u in users %}<tr><td><a href="{{ url_for('admin.user_detail', user_id=u.id) }}">{{ u.full_name }}</a>{% if u.id == current_user.id %} <span class="small muted">(you)</span>{% endif %}{% if not u.is_active_account %} <span class="badge failed">suspended</span>{% endif %}</td>
+<td>{{ u.email }}</td><td><span class="badge {{ 'active' if u.role == 'admin' else '' }}">{{ u.role }}</span></td><td>{{ taught.get(u.id, 0) }}</td><td></td></tr>{% endfor %}</table></div>
+
+<div class="card" style="margin-top:20px"><h2>Add a staff member</h2>
+<form method="post" action="{{ url_for('admin.staff_new') }}" class="stack">{{ csrf() }}
+  <div class="row">
+    <div style="flex:2;min-width:200px"><label for="full_name">Full name</label><input type="text" id="full_name" name="full_name" required></div>
+    <div style="flex:2;min-width:200px"><label for="email">Email</label><input type="email" id="email" name="email" required></div>
+    <div style="flex:1;min-width:160px"><label for="role">Role</label><select id="role" name="role"><option value="instructor">Instructor (course admin)</option><option value="admin">Admin</option></select></div>
+  </div>
+  <p class="small muted">They receive an email with a link to choose their own password. If email is not set up yet, the link is shown here for you to send. If the address already has a student account, that account becomes staff instead.</p>
+  <p><button class="btn">Create account</button></p>
+</form></div>
+{% endblock %}

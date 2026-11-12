@@ -104,7 +104,7 @@ def test_materials_download_requires_enrollment(app):
     cid, lessons = pm_course(app)
     _upload_material(app, lessons[2])
     with app.app_context():
-        att = Attachment.query.one()
+        att = Attachment.query.filter(Attachment.stored_name.isnot(None)).one()
         assert att.original_name == "handout.pdf" and att.size_bytes == 16
         aid = att.id
     s = app.test_client()
@@ -130,14 +130,14 @@ def test_material_delete_removes_file(app):
     _, lessons = pm_course(app)
     admin, _ = _upload_material(app, lessons[0])
     with app.app_context():
-        att = Attachment.query.one()
+        att = Attachment.query.filter(Attachment.stored_name.isnot(None)).one()
         path = os.path.join(app.config["UPLOAD_DIR"], "materials", att.stored_name)
         aid = att.id
     assert os.path.exists(path)
     admin.post(f"/admin/materials/{aid}/delete")
     assert not os.path.exists(path)
     with app.app_context():
-        assert Attachment.query.count() == 0
+        assert Attachment.query.filter(Attachment.stored_name.isnot(None)).count() == 0
 
 
 def test_material_download_can_be_switched_off(tmp_path):
@@ -145,7 +145,7 @@ def test_material_download_can_be_switched_off(tmp_path):
     cid, lessons = pm_course(app)
     _upload_material(app, lessons[0])
     with app.app_context():
-        aid = Attachment.query.one().id
+        aid = Attachment.query.filter(Attachment.stored_name.isnot(None)).one().id
     s = app.test_client()
     register(s)
     s.post(f"/pay/course/{cid}/demo")
@@ -241,3 +241,33 @@ def test_seed_from_custom_json(tmp_path):
         assert Course.query.count() == 1
         assert course.assessments[0].questions[0].correct_index == 0
         assert float(course.hours) == 6
+
+
+def test_app_starts_when_instance_folder_cannot_be_created(tmp_path, monkeypatch):
+    """On a server the code directory is read-only for the app user."""
+    import os
+
+    real_makedirs = os.makedirs
+
+    def makedirs(path, *args, **kwargs):
+        if str(path).endswith("instance"):
+            raise PermissionError(13, "Permission denied", str(path))
+        return real_makedirs(path, *args, **kwargs)
+
+    monkeypatch.setattr("academy.os.makedirs", makedirs)
+    app = make_app(tmp_path)
+    assert app.test_client().get("/healthz").get_json() == {"status": "ok"}
+
+
+def test_unwritable_upload_folder_still_fails_loudly(tmp_path, monkeypatch):
+    """Only the optional instance folder is tolerated; uploads must be writable."""
+    real_makedirs = __import__("os").makedirs
+
+    def makedirs(path, *args, **kwargs):
+        if str(path).endswith("uploads"):
+            raise PermissionError(13, "Permission denied", str(path))
+        return real_makedirs(path, *args, **kwargs)
+
+    monkeypatch.setattr("academy.os.makedirs", makedirs)
+    with pytest.raises(PermissionError):
+        make_app(tmp_path)

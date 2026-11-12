@@ -1,23 +1,32 @@
-"""Back-office: content management (staff) and students/payments (admin)."""
+"""Back-office.
+
+Admins manage everything. Instructors ("course admins") manage only the courses they
+teach: their content, quizzes, announcements and the students enrolled in them.
+Students, staff accounts, payments and contact messages are admin-only.
+"""
 import csv
 import io
 import os
+import secrets
 from decimal import Decimal, InvalidOperation
+from urllib.parse import urlparse
 
 from flask import (Blueprint, Response, abort, current_app, flash, jsonify, redirect, render_template,
                    request, url_for)
 from flask_login import current_user
-from werkzeug.utils import secure_filename
 from sqlalchemy import func
+from werkzeug.utils import secure_filename
 
-from ..models import (Announcement, Assessment, Attachment, Attempt, Certificate, Course, Enrollment,
-                      Lesson, Payment, Question, User, db)
-from ..mail import send_email
-from ..utils import admin_required, course_progress, save_upload, slugify, staff_required
 from .. import videohosts
-
+from ..enrollment import (create_invitation, enroll_student, notify_enrolled, parse_emails)
+from ..mail import send_email
+from ..models import (Announcement, Assessment, Attachment, Attempt, Certificate, ContactMessage, Course,
+                      Enrollment, Invitation, Lesson, LessonProgress, Payment, Question, User, db)
+from ..utils import admin_required, course_progress, save_upload, slugify, staff_required
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
+
+STAFF_ROLES = ("admin", "instructor")
 
 
 def _int(value, default=0):
@@ -27,22 +36,69 @@ def _int(value, default=0):
         return default
 
 
+# --- Who may manage what ----------------------------------------------------------
+
+def _can_manage(course):
+    return current_user.is_admin or course.instructor_id == current_user.id
+
+
+def _manage(course):
+    if not _can_manage(course):
+        abort(403)
+    return course
+
+
+def _course(course_id):
+    return _manage(db.get_or_404(Course, course_id))
+
+
+def _lesson(lesson_id):
+    lesson = db.get_or_404(Lesson, lesson_id)
+    _manage(lesson.course)
+    return lesson
+
+
+def _assessment(aid):
+    a = db.get_or_404(Assessment, aid)
+    _manage(a.course)
+    return a
+
+
+def _staff_users():
+    return (User.query.filter(User.role.in_(STAFF_ROLES), User.is_active_account.is_(True))
+            .order_by(User.full_name).all())
+
+
 # --- Dashboard -----------------------------------------------------------------
 
 @bp.route("/")
 @staff_required
 def dashboard():
-    revenue = db.session.query(func.coalesce(func.sum(Payment.amount), 0)).filter(Payment.status == "paid").scalar()
-    stats = {
-        "students": User.query.filter_by(role="student").count(),
-        "courses": Course.query.count(),
-        "active_enrollments": Enrollment.query.filter_by(status="active").count(),
-        "pending_payments": Payment.query.filter_by(status="submitted").count(),
-        "revenue": revenue,
-        "certificates": Certificate.query.count(),
-    }
-    recent_students = User.query.filter_by(role="student").order_by(User.created_at.desc()).limit(8).all()
-    recent_payments = Payment.query.order_by(Payment.created_at.desc()).limit(8).all()
+    if current_user.is_admin:
+        revenue = (db.session.query(func.coalesce(func.sum(Payment.amount), 0))
+                   .filter(Payment.status == "paid").scalar())
+        stats = {
+            "students": User.query.filter_by(role="student").count(),
+            "staff": User.query.filter(User.role.in_(STAFF_ROLES)).count(),
+            "courses": Course.query.count(),
+            "active_enrollments": Enrollment.query.filter_by(status="active").count(),
+            "pending_payments": Payment.query.filter_by(status="submitted").count(),
+            "revenue": revenue,
+            "certificates": Certificate.query.count(),
+            "messages": ContactMessage.query.filter_by(is_read=False).count(),
+        }
+        recent_students = User.query.filter_by(role="student").order_by(User.created_at.desc()).limit(8).all()
+        recent_payments = Payment.query.order_by(Payment.created_at.desc()).limit(8).all()
+    else:
+        mine = Course.query.filter_by(instructor_id=current_user.id)
+        ids = [c.id for c in mine]
+        stats = {
+            "courses": len(ids),
+            "active_enrollments": (Enrollment.query.filter(Enrollment.course_id.in_(ids),
+                                                           Enrollment.status == "active").count() if ids else 0),
+            "certificates": (Certificate.query.filter(Certificate.course_id.in_(ids)).count() if ids else 0),
+        }
+        recent_students, recent_payments = [], []
     return render_template("admin/dashboard.html", stats=stats, recent_students=recent_students,
                            recent_payments=recent_payments)
 
@@ -52,7 +108,10 @@ def dashboard():
 @bp.route("/courses")
 @staff_required
 def courses():
-    return render_template("admin/courses.html", courses=Course.query.order_by(Course.created_at.desc()).all())
+    query = Course.query
+    if not current_user.is_admin:
+        query = query.filter_by(instructor_id=current_user.id)
+    return render_template("admin/courses.html", courses=query.order_by(Course.created_at.desc()).all())
 
 
 def _categories():
@@ -88,6 +147,11 @@ def _fill_course(course, form):
             slug = f"{base}-{n}"
             n += 1
         course.slug = slug
+    # Only admins choose who teaches a course; instructors keep their own.
+    if current_user.is_admin:
+        teacher = db.session.get(User, _int(form.get("instructor_id")))
+        if teacher and teacher.is_staff:
+            course.instructor_id = teacher.id
 
 
 @bp.route("/courses/new", methods=["GET", "POST"])
@@ -98,21 +162,24 @@ def course_new():
         _fill_course(course, request.form)
         db.session.add(course)
         db.session.commit()
-        flash("Course created. Now add lessons and assessments.", "success")
-        return redirect(url_for("admin.course_edit", course_id=course.id))
-    return render_template("admin/course_form.html", course=None, categories=_categories())
+        flash("Course created. Next, add its lessons below.", "success")
+        return redirect(url_for("admin.course_edit", course_id=course.id) + "#lessons")
+    return render_template("admin/course_form.html", course=None, categories=_categories(),
+                           staff=_staff_users())
 
 
 @bp.route("/courses/<int:course_id>", methods=["GET", "POST"])
 @staff_required
 def course_edit(course_id):
-    course = db.get_or_404(Course, course_id)
+    course = _course(course_id)
     if request.method == "POST":
         _fill_course(course, request.form)
         db.session.commit()
         flash("Course saved.", "success")
         return redirect(url_for("admin.course_edit", course_id=course.id))
-    return render_template("admin/course_form.html", course=course, categories=_categories())
+    enrolled = Enrollment.query.filter_by(course_id=course.id, status="active").count()
+    return render_template("admin/course_form.html", course=course, categories=_categories(),
+                           staff=_staff_users(), enrolled=enrolled)
 
 
 @bp.route("/courses/<int:course_id>/delete", methods=["POST"])
@@ -122,20 +189,18 @@ def course_delete(course_id):
     if Payment.query.filter_by(course_id=course.id, status="paid").first():
         flash("This course has paid enrollments. Unpublish it instead of deleting.", "error")
         return redirect(url_for("admin.course_edit", course_id=course.id))
+    for lesson in course.lessons:
+        _delete_video(lesson.video_file)
+        for att in lesson.attachments:
+            _delete_material(att.stored_name)
+        LessonProgress.query.filter_by(lesson_id=lesson.id).delete()
     Payment.query.filter_by(course_id=course.id).delete()
     Certificate.query.filter_by(course_id=course.id).delete()
+    Invitation.query.filter_by(course_id=course.id).delete()
     db.session.delete(course)
     db.session.commit()
     flash("Course deleted.", "info")
     return redirect(url_for("admin.courses"))
-
-
-@bp.route("/courses/<int:course_id>/students")
-@staff_required
-def course_students(course_id):
-    course = db.get_or_404(Course, course_id)
-    rows = [(e, course_progress(e.user, course)) for e in course.enrollments]
-    return render_template("admin/course_students.html", course=course, rows=rows)
 
 
 @bp.route("/courses/<int:course_id>/announce", methods=["POST"])
@@ -143,7 +208,7 @@ def course_students(course_id):
 def announce(course_id):
     if not current_app.config["FEATURE_ANNOUNCEMENTS"]:
         abort(404)
-    course = db.get_or_404(Course, course_id)
+    course = _course(course_id)
     title = request.form.get("title", "").strip()
     if title:
         db.session.add(Announcement(course_id=course.id, title=title, body=request.form.get("body", "")))
@@ -156,18 +221,113 @@ def announce(course_id):
 @staff_required
 def announcement_delete(ann_id):
     ann = db.get_or_404(Announcement, ann_id)
+    _manage(ann.course)
     cid = ann.course_id
     db.session.delete(ann)
     db.session.commit()
     return redirect(url_for("admin.course_edit", course_id=cid) + "#announcements")
 
 
+# --- Who is enrolled in a course (assigning courses to students) ------------------
+
+@bp.route("/courses/<int:course_id>/students", methods=["GET", "POST"])
+@staff_required
+def course_students(course_id):
+    course = _course(course_id)
+    if request.method == "POST":
+        _course_students_action(course)
+        return redirect(url_for("admin.course_students", course_id=course.id))
+    enrollments = [e for e in course.enrollments if e.user.role == "student"]
+    enrollments.sort(key=lambda e: (e.status != "active", e.user.full_name.lower()))
+    rows = [(e, course_progress(e.user, course)) for e in enrollments]
+    enrolled_ids = {e.user_id for e in enrollments if e.status == "active"}
+    # Browsing every student is for admins; instructors add people by email address.
+    candidates = []
+    if current_user.is_admin:
+        candidates = [u for u in User.query.filter_by(role="student", is_active_account=True)
+                      .order_by(User.full_name).limit(500) if u.id not in enrolled_ids]
+    invitations = Invitation.query.filter_by(course_id=course.id).order_by(Invitation.created_at.desc()).all()
+    return render_template("admin/course_students.html", course=course, rows=rows, candidates=candidates,
+                           invitations=invitations)
+
+
+def _course_students_action(course):
+    f = request.form
+    action = f.get("action")
+    if action == "enroll":
+        notify = bool(f.get("notify"))
+        enrolled, already, invited, skipped = [], 0, [], []
+        for uid in f.getlist("student_ids"):
+            user = db.session.get(User, _int(uid))
+            if user and user.role == "student" and user.is_active_account:
+                if enroll_student(user, course, by=current_user):
+                    enrolled.append(user)
+                else:
+                    already += 1
+        emails, bad = parse_emails(f.get("emails", ""))
+        for email in emails:
+            user = User.query.filter_by(email=email).first()
+            if user is None:
+                if create_invitation(email, course, by=current_user, notify=notify):
+                    invited.append(email)
+                else:
+                    already += 1
+            elif user.role == "student" and user.is_active_account:
+                if enroll_student(user, course, by=current_user):
+                    enrolled.append(user)
+                else:
+                    already += 1
+            else:
+                skipped.append(email)
+        db.session.commit()
+        if notify:
+            for user in enrolled:
+                notify_enrolled(user, course)
+        parts = []
+        if enrolled:
+            parts.append(f"{len(enrolled)} enrolled")
+        if invited:
+            parts.append(f"{len(invited)} invited (no account yet; they get the course when they register)")
+        if already:
+            parts.append(f"{already} already had access")
+        if not parts and not (skipped or bad):
+            parts.append("Nobody was selected")
+        if parts:
+            flash(". ".join(parts) + ".", "success" if (enrolled or invited) else "info")
+        if skipped:
+            flash("Skipped staff or suspended accounts: " + ", ".join(skipped), "error")
+        if bad:
+            flash("These do not look like email addresses: " + ", ".join(bad[:10]), "error")
+    elif action in ("revoke", "activate", "remove"):
+        enr = db.get_or_404(Enrollment, _int(f.get("enrollment_id")))
+        if enr.course_id != course.id:
+            abort(404)
+        if action == "revoke":
+            enr.status = "revoked"
+            flash(f"Access removed for {enr.user.full_name}.", "info")
+        elif action == "activate":
+            enr.activate(source="assigned", by=current_user)
+            flash(f"{enr.user.full_name} now has access.", "success")
+        else:
+            db.session.delete(enr)
+            flash("Enrollment removed.", "info")
+        db.session.commit()
+    elif action == "cancel_invite":
+        inv = db.get_or_404(Invitation, _int(f.get("invitation_id")))
+        if inv.course_id != course.id:
+            abort(404)
+        db.session.delete(inv)
+        db.session.commit()
+        flash("Invitation cancelled.", "info")
+
+
 # --- Lessons -------------------------------------------------------------------
 
 def _delete_material(name):
-    path = os.path.join(current_app.config["UPLOAD_DIR"], "materials", name)
-    if os.path.exists(path):
-        os.remove(path)
+    if name:
+        path = os.path.join(current_app.config["UPLOAD_DIR"], "materials", name)
+        if os.path.exists(path):
+            os.remove(path)
 
 
 def _delete_video(name):
@@ -177,12 +337,44 @@ def _delete_video(name):
             os.remove(path)
 
 
+def _clean_url(text):
+    """http(s) URLs only (no javascript:, data:, ...). Returns None if invalid."""
+    text = (text or "").strip()
+    if text and "://" not in text and not text.startswith(("mailto:", "javascript:", "data:")):
+        text = "https://" + text
+    try:
+        url = urlparse(text)
+    except ValueError:
+        return None
+    if url.scheme not in ("http", "https") or not url.hostname or len(text) > 500:
+        return None
+    return text
+
+
+def _add_links(lesson, text):
+    """Add one resource link per line. Format: ``Title | https://address`` or just the address."""
+    bad = []
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        title, _, address = line.rpartition("|") if "|" in line else ("", "", line)
+        url = _clean_url(address)
+        if not url:
+            bad.append(line[:60])
+            continue
+        title = title.strip() or (urlparse(url).hostname or url).removeprefix("www.")
+        lesson.attachments.append(Attachment(url=url, original_name=title[:255]))
+    if bad:
+        flash("These links were skipped because they are not web addresses: " + "; ".join(bad), "error")
+
+
 @bp.route("/courses/<int:course_id>/lessons/new", methods=["GET", "POST"])
 @bp.route("/lessons/<int:lesson_id>", methods=["GET", "POST"])
 @staff_required
 def lesson_form(course_id=None, lesson_id=None):
-    lesson = db.get_or_404(Lesson, lesson_id) if lesson_id else None
-    course = lesson.course if lesson else db.get_or_404(Course, course_id)
+    lesson = _lesson(lesson_id) if lesson_id else None
+    course = lesson.course if lesson else _course(course_id)
     if request.method == "POST":
         f = request.form
         if not lesson:
@@ -190,17 +382,14 @@ def lesson_form(course_id=None, lesson_id=None):
             db.session.add(lesson)
         lesson.title = f.get("title", "").strip() or "Untitled lesson"
         lesson.kind = f.get("kind") if f.get("kind") in Lesson.TYPES else "text"
-        lesson.body = f.get("body", "")
-        lesson.duration_min = _int(f.get("duration_min")) or None
-        lesson.is_preview = bool(f.get("is_preview"))
-        provider = f.get("video_provider")
-        if provider == "local" or videohosts.get(provider):
-            lesson.video_provider = provider
-        host = videohosts.get(lesson.video_provider)
-        ref = f.get("video_ref", "").strip()
-        if host and ref and not host.valid_ref(ref):
-            abort(400, f"That does not look like a {host.label} video ID.")
-        lesson.video_ref = (ref or None) if host else lesson.video_ref
+        if "body" in f:
+            lesson.body = f.get("body", "")
+        if "duration_min" in f:
+            lesson.duration_min = _int(f.get("duration_min")) or None
+        if "title" in f and "is_preview_present" in f:
+            lesson.is_preview = bool(f.get("is_preview"))
+        if lesson.kind == "video":
+            _save_video_choice(lesson, f)
         for f_upload in request.files.getlist("materials"):
             if f_upload and f_upload.filename:
                 stored = save_upload(f_upload, "materials", current_app.config["ALLOWED_MATERIAL_EXT"])
@@ -208,8 +397,9 @@ def lesson_form(course_id=None, lesson_id=None):
                 lesson.attachments.append(Attachment(
                     stored_name=stored, original_name=secure_filename(f_upload.filename) or stored,
                     size_bytes=os.path.getsize(path)))
+        _add_links(lesson, f.get("links", ""))
         upload = request.files.get("video")
-        if upload and upload.filename:
+        if upload and upload.filename and lesson.kind == "video" and (lesson.video_provider or "local") == "local":
             new_name = save_upload(upload, "videos", current_app.config["ALLOWED_VIDEO_EXT"])
             _delete_video(lesson.video_file)
             lesson.video_file = new_name
@@ -217,30 +407,60 @@ def lesson_form(course_id=None, lesson_id=None):
             flash("Video lesson saved without a video - add one to make it playable.", "info")
         db.session.commit()
         flash("Lesson saved.", "success")
+        action = f.get("action")
+        if action == "save_add":
+            return redirect(url_for("admin.lesson_form", course_id=course.id))
+        if action == "edit":  # quick-add from the course page: open the new lesson for editing
+            return redirect(url_for("admin.lesson_form", lesson_id=lesson.id))
         return redirect(url_for("admin.course_edit", course_id=course.id) + "#lessons")
-    host_status = None
+
     current_host = videohosts.get(lesson.video_provider) if lesson else None
-    if current_host and current_host.enabled() and lesson.video_ref:
+    host_status = None
+    if current_host and current_host.enabled() and lesson.video_ref and current_host.key != "external":
         host_status = current_host.status(lesson.video_ref)
     hosts = videohosts.enabled_providers()
-    # Lessons already using a provider that is no longer configured keep it selectable.
+    # A lesson already using a provider that is no longer configured keeps it selectable.
     if current_host and current_host not in hosts:
         hosts.append(current_host)
-    return render_template("admin/lesson_form.html", course=course, lesson=lesson, hosts=hosts,
-                           enabled_keys=[h.key for h in videohosts.enabled_providers()],
-                           host_status=host_status,
-                           dict_help={h.key: h.help for h in hosts})
+    ref_value = ""
+    if current_host and lesson.video_ref:
+        ref_value = current_host.display_ref(lesson.video_ref)
+    return render_template(
+        "admin/lesson_form.html", course=course, lesson=lesson, hosts=hosts,
+        enabled_keys=[h.key for h in videohosts.enabled_providers()],
+        upload_keys=[h.key for h in videohosts.uploading_providers()],
+        host_status=host_status, ref_value=ref_value, dict_help={h.key: h.help for h in hosts})
+
+
+def _save_video_choice(lesson, f):
+    provider = f.get("video_provider")
+    if provider == "local":
+        lesson.video_provider = "local"
+        return
+    host = videohosts.get(provider)
+    if not host:
+        return
+    lesson.video_provider = provider
+    ref = f.get("video_ref", "").strip()
+    if not ref:
+        lesson.video_ref = None
+        return
+    try:
+        lesson.video_ref = host.normalize_ref(ref)
+    except ValueError as exc:
+        abort(400, str(exc))
 
 
 @bp.route("/materials/<int:attachment_id>/delete", methods=["POST"])
 @staff_required
 def material_delete(attachment_id):
     att = db.get_or_404(Attachment, attachment_id)
+    _manage(att.lesson.course)
     lesson_id = att.lesson_id
     _delete_material(att.stored_name)
     db.session.delete(att)
     db.session.commit()
-    flash("Material removed.", "info")
+    flash("Resource removed.", "info")
     return redirect(url_for("admin.lesson_form", lesson_id=lesson_id) + "#materials")
 
 
@@ -249,7 +469,7 @@ def material_delete(attachment_id):
 def video_upload_info(provider):
     """Create an empty video at the host and return what the browser needs to upload to it."""
     host = videohosts.get(provider)
-    if not host or not host.enabled():
+    if not host or not host.enabled() or host.key == "external":
         return jsonify(error="That video host is not configured."), 400
     title = ((request.get_json(silent=True) or {}).get("title") or "Lesson video").strip()
     try:
@@ -259,16 +479,25 @@ def video_upload_info(provider):
         return jsonify(error=str(exc)), 502
 
 
+@bp.route("/video/<provider>/status")
+@staff_required
+def video_status(provider):
+    """Processing status of an uploaded video, for the lesson editor."""
+    host = videohosts.get(provider)
+    ref = request.args.get("ref", "").strip()
+    if not host or not host.enabled() or host.key == "external" or not host.valid_ref(ref):
+        return jsonify(status=None)
+    return jsonify(status=host.status(ref))
+
+
 @bp.route("/lessons/<int:lesson_id>/delete", methods=["POST"])
 @staff_required
 def lesson_delete(lesson_id):
-    lesson = db.get_or_404(Lesson, lesson_id)
+    lesson = _lesson(lesson_id)
     cid = lesson.course_id
     _delete_video(lesson.video_file)
     for att in lesson.attachments:
         _delete_material(att.stored_name)
-    from ..models import LessonProgress
-
     LessonProgress.query.filter_by(lesson_id=lesson.id).delete()
     db.session.delete(lesson)
     db.session.commit()
@@ -279,7 +508,7 @@ def lesson_delete(lesson_id):
 @bp.route("/lessons/<int:lesson_id>/move/<direction>", methods=["POST"])
 @staff_required
 def lesson_move(lesson_id, direction):
-    lesson = db.get_or_404(Lesson, lesson_id)
+    lesson = _lesson(lesson_id)
     lessons = list(lesson.course.lessons)
     i = lessons.index(lesson)
     j = i - 1 if direction == "up" else i + 1
@@ -297,8 +526,8 @@ def lesson_move(lesson_id, direction):
 @bp.route("/assessments/<int:aid>", methods=["GET", "POST"])
 @staff_required
 def assessment_form(course_id=None, aid=None):
-    a = db.get_or_404(Assessment, aid) if aid else None
-    course = a.course if a else db.get_or_404(Course, course_id)
+    a = _assessment(aid) if aid else None
+    course = a.course if a else _course(course_id)
     if request.method == "POST":
         f = request.form
         if not a:
@@ -319,7 +548,7 @@ def assessment_form(course_id=None, aid=None):
 @bp.route("/assessments/<int:aid>/delete", methods=["POST"])
 @staff_required
 def assessment_delete(aid):
-    a = db.get_or_404(Assessment, aid)
+    a = _assessment(aid)
     cid = a.course_id
     db.session.delete(a)
     db.session.commit()
@@ -332,7 +561,7 @@ def assessment_delete(aid):
 @staff_required
 def question_save(aid=None, qid=None):
     q = db.get_or_404(Question, qid) if qid else None
-    a = q.assessment if q else db.get_or_404(Assessment, aid)
+    a = _assessment(q.assessment_id) if q else _assessment(aid)
     options = [line.strip() for line in request.form.get("options", "").splitlines() if line.strip()]
     correct = _int(request.form.get("correct"), 0) - 1
     text = request.form.get("text", "").strip()
@@ -356,6 +585,7 @@ def question_save(aid=None, qid=None):
 @staff_required
 def question_delete(qid):
     q = db.get_or_404(Question, qid)
+    _assessment(q.assessment_id)
     aid = q.assessment_id
     db.session.delete(q)
     db.session.commit()
@@ -365,7 +595,7 @@ def question_delete(qid):
 @bp.route("/assessments/<int:aid>/results")
 @staff_required
 def assessment_results(aid):
-    a = db.get_or_404(Assessment, aid)
+    a = _assessment(aid)
     attempts = (Attempt.query.filter(Attempt.assessment_id == a.id, Attempt.submitted_at.isnot(None))
                 .order_by(Attempt.submitted_at.desc()).all())
     return render_template("admin/assessment_results.html", a=a, attempts=attempts)
@@ -373,15 +603,18 @@ def assessment_results(aid):
 
 # --- Students (admin) --------------------------------------------------------
 
+def _search(query, q):
+    if q:
+        like = f"%{q}%"
+        query = query.filter((User.full_name.ilike(like)) | (User.email.ilike(like)) | (User.phone.ilike(like)))
+    return query
+
+
 @bp.route("/students")
 @admin_required
 def students():
     q = request.args.get("q", "").strip()
-    query = User.query
-    if q:
-        like = f"%{q}%"
-        query = query.filter((User.full_name.ilike(like)) | (User.email.ilike(like)) | (User.phone.ilike(like)))
-    users = query.order_by(User.created_at.desc()).all()
+    users = _search(User.query.filter_by(role="student"), q).order_by(User.created_at.desc()).all()
     return render_template("admin/students.html", users=users, q=q)
 
 
@@ -390,43 +623,101 @@ def students():
 def students_csv():
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["id", "full_name", "email", "phone", "city", "role", "registered", "active_courses"])
-    for u in User.query.order_by(User.id):
+    w.writerow(["id", "full_name", "email", "phone", "city", "registered", "active_courses"])
+    for u in User.query.filter_by(role="student").order_by(User.id):
         active = ", ".join(e.course.title for e in u.enrollments if e.status == "active")
-        w.writerow([u.id, u.full_name, u.email, u.phone or "", u.city or "", u.role,
+        w.writerow([u.id, u.full_name, u.email, u.phone or "", u.city or "",
                     u.created_at.strftime("%Y-%m-%d"), active])
     return Response(buf.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": "attachment; filename=students.csv"})
 
 
+# --- Staff: admins and instructors (admin) -------------------------------------
+
+@bp.route("/staff")
+@admin_required
+def staff():
+    users = User.query.filter(User.role.in_(STAFF_ROLES)).order_by(User.role, User.full_name).all()
+    taught = dict(db.session.query(Course.instructor_id, func.count(Course.id)).group_by(Course.instructor_id).all())
+    return render_template("admin/staff.html", users=users, taught=taught)
+
+
+@bp.route("/staff/new", methods=["POST"])
+@admin_required
+def staff_new():
+    from .auth import EMAIL_RE, make_reset_token
+
+    f = request.form
+    name = f.get("full_name", "").strip()
+    email = f.get("email", "").strip().lower()
+    role = f.get("role") if f.get("role") in STAFF_ROLES else "instructor"
+    if len(name) < 2 or not EMAIL_RE.match(email):
+        flash("Enter the person's full name and a valid email address.", "error")
+        return redirect(url_for("admin.staff"))
+    user = User.query.filter_by(email=email).first()
+    if user and user.is_staff:
+        flash(f"{email} already has a staff account.", "error")
+        return redirect(url_for("admin.staff"))
+    if user:  # an existing student account is promoted instead of duplicated
+        user.role = role
+        flash(f"{user.full_name} already had a student account. They are now {role}.", "success")
+        db.session.commit()
+        return redirect(url_for("admin.staff"))
+    user = User(full_name=name, email=email, role=role)
+    user.set_password(secrets.token_urlsafe(24))  # unusable until they set their own
+    db.session.add(user)
+    db.session.commit()
+    link = url_for("auth.reset_password", token=make_reset_token(user, invite=True), _external=True)
+    site = current_app.config["SITE_NAME"]
+    days = max(1, current_app.config["INVITE_TTL"] // 86400)
+    sent = send_email(email, f"Your {site} staff account",
+                      f"Hello {name},\n\nAn account with the role '{role}' was created for you on {site}.\n"
+                      f"Choose your password within {days} days using this link:\n{link}\n\n{site}\n")
+    if sent:
+        flash(f"Account created for {name}. A link to set their password was emailed to {email}.", "success")
+    else:  # email is not set up: show the link so the admin can pass it on
+        flash(f"Account created for {name}, but email is not set up. Send them this link to set a password "
+              f"(valid {days} days): {link}", "success")
+    return redirect(url_for("admin.staff"))
+
+
+# --- One user (student or staff) -----------------------------------------------
+
+@bp.route("/users/<int:user_id>", methods=["GET", "POST"])
 @bp.route("/students/<int:user_id>", methods=["GET", "POST"])
 @admin_required
-def student_detail(user_id):
+def user_detail(user_id):
     user = db.get_or_404(User, user_id)
     if request.method == "POST":
         action = request.form.get("action")
-        if action == "role" and user.id != current_user.id:
+        is_me = user.id == current_user.id
+        if action == "role" and not is_me:
             role = request.form.get("role")
             if role in User.ROLES:
                 user.role = role
-        elif action == "toggle_active" and user.id != current_user.id:
+        elif action == "toggle_active" and not is_me:
+            # Nobody can lock everyone out: the person acting is an active admin and cannot
+            # change their own account, so at least one active admin always remains.
             user.is_active_account = not user.is_active_account
         elif action == "grant":
             course = db.get_or_404(Course, _int(request.form.get("course_id")))
-            enr = user.enrollment_for(course) or Enrollment(user_id=user.id, course_id=course.id)
-            db.session.add(enr)
-            enr.activate()
+            if enroll_student(user, course, by=current_user):
+                if request.form.get("notify"):
+                    db.session.commit()
+                    notify_enrolled(user, course)
         elif action == "revoke":
             enr = db.get_or_404(Enrollment, _int(request.form.get("enrollment_id")))
             if enr.user_id == user.id:
                 enr.status = "revoked"
         db.session.commit()
-        flash("Student updated.", "success")
-        return redirect(url_for("admin.student_detail", user_id=user.id))
+        flash("Saved.", "success")
+        return redirect(url_for("admin.user_detail", user_id=user.id))
     rows = [(e, course_progress(user, e.course)) for e in user.enrollments]
     payments = Payment.query.filter_by(user_id=user.id).order_by(Payment.created_at.desc()).all()
-    return render_template("admin/student_detail.html", user=user, rows=rows, payments=payments,
-                           courses=Course.query.order_by(Course.title).all())
+    active_ids = {e.course_id for e in user.enrollments if e.status == "active"}
+    return render_template("admin/user_detail.html", user=user, rows=rows, payments=payments,
+                           courses=[c for c in Course.query.order_by(Course.title) if c.id not in active_ids],
+                           teaching=Course.query.filter_by(instructor_id=user.id).all())
 
 
 # --- Payments (admin) --------------------------------------------------------
@@ -468,3 +759,27 @@ def payment_review(payment_id):
                    f"{' Reason: ' + p.note if p.note else ''}\n\nYou can submit a new receipt here:\n{course_link}\n"
                    f"\n{site}\n")
     return redirect(url_for("admin.payments", status=request.form.get("back_status", "")))
+
+
+# --- Contact messages (admin) -------------------------------------------------
+
+@bp.route("/messages")
+@admin_required
+def messages():
+    items = ContactMessage.query.order_by(ContactMessage.created_at.desc()).limit(300).all()
+    return render_template("admin/messages.html", items=items)
+
+
+@bp.route("/messages/<int:mid>", methods=["POST"])
+@admin_required
+def message_update(mid):
+    m = db.get_or_404(ContactMessage, mid)
+    action = request.form.get("action")
+    if action == "delete":
+        db.session.delete(m)
+    elif action == "unread":
+        m.is_read = False
+    else:
+        m.is_read = True
+    db.session.commit()
+    return redirect(url_for("admin.messages"))

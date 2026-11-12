@@ -1,9 +1,51 @@
-{% extends "base.html" %}{% from "_macros.html" import progress_bar %}
+{% extends "base.html" %}{% from "_macros.html" import csrf, progress_bar %}
+{% block title %}Students · {{ course.title }}{% endblock %}
 {% block content %}
 <p class="small"><a href="{{ url_for('admin.course_edit', course_id=course.id) }}">← {{ course.title }}</a></p>
 <h1>Students in {{ course.title }}</h1>
-<div class="table-wrap"><table><tr><th>Student</th><th>Status</th><th>Enrolled</th><th style="width:30%">Progress</th></tr>
-{% for e, p in rows %}<tr><td>{% if current_user.is_admin %}<a href="{{ url_for('admin.student_detail', user_id=e.user.id) }}">{{ e.user.full_name }}</a>{% else %}{{ e.user.full_name }}{% endif %}<br><span class="small muted">{{ e.user.email }}</span></td>
-<td><span class="badge {{ e.status }}">{{ e.status }}</span></td><td>{{ e.created_at.strftime('%d %b %Y') }}</td><td>{{ progress_bar(p.percent) }} <span class="small">{{ p.percent }}%</span></td></tr>
-{% else %}<tr><td colspan="4" class="muted">No students yet.</td></tr>{% endfor %}</table></div>
+
+<div class="card" id="enroll">
+  <h2>Enroll students</h2>
+  <p class="muted">Give people access without payment, for example scholarships, staff training or students who paid by other means. They see the course under "My learning" straight away.</p>
+  <form method="post" class="stack">{{ csrf() }}
+    <input type="hidden" name="action" value="enroll">
+    {% if candidates %}
+    <label for="pickfilter">1. Pick registered students</label>
+    <input type="text" id="pickfilter" placeholder="Type to filter by name or email" autocomplete="off">
+    <div class="pickbox" id="pickbox">
+      {% for u in candidates %}<label data-text="{{ (u.full_name ~ ' ' ~ u.email)|lower }}"><input type="checkbox" name="student_ids" value="{{ u.id }}"> {{ u.full_name }} <span class="small muted">{{ u.email }}</span></label>{% endfor %}
+    </div>
+    {% endif %}
+    <label for="emails">{{ '2. ' if candidates }}{{ 'Or paste email addresses' if candidates else 'Email addresses' }} <span class="small muted">(one per line, or separated by commas)</span></label>
+    <textarea id="emails" name="emails" rows="4" placeholder="student@example.com&#10;another@example.com"></textarea>
+    <p class="small muted">If someone has no account yet, they are invited: the course is added automatically when they register with that email address.</p>
+    <label class="check"><input type="checkbox" name="notify" value="1" checked> Email them about it</label>
+    <p><button class="btn">Enroll</button></p>
+  </form>
+</div>
+
+{% if invitations %}
+<div class="card"><h2>Waiting for registration</h2>
+  <p class="small muted">These people were invited but have not registered yet.</p>
+  <table>{% for inv in invitations %}<tr><td>{{ inv.email }}</td><td class="small muted">invited {{ inv.created_at.strftime('%d %b %Y') }}{% if inv.invited_by %} by {{ inv.invited_by.full_name }}{% endif %}</td>
+    <td><form method="post">{{ csrf() }}<input type="hidden" name="action" value="cancel_invite"><input type="hidden" name="invitation_id" value="{{ inv.id }}"><button class="linkbtn">cancel</button></form></td></tr>{% endfor %}</table>
+</div>{% endif %}
+
+<div class="card"><h2>Enrolled ({{ rows|selectattr('0.status','equalto','active')|list|length }})</h2>
+<div class="table-wrap"><table><tr><th>Student</th><th>Access</th><th>How</th><th>Since</th><th style="width:24%">Progress</th><th></th></tr>
+{% for e, p in rows %}<tr>
+<td>{% if current_user.is_admin %}<a href="{{ url_for('admin.user_detail', user_id=e.user.id) }}">{{ e.user.full_name }}</a>{% else %}{{ e.user.full_name }}{% endif %}<br><span class="small muted">{{ e.user.email }}</span></td>
+<td><span class="badge {{ e.status }}">{{ 'waiting for payment' if e.status == 'pending' else e.status }}</span></td>
+<td class="small">{{ e.source_label }}{% if e.source == 'assigned' and e.assigned_by %}<br><span class="muted">by {{ e.assigned_by.full_name }}</span>{% endif %}</td>
+<td class="small">{{ (e.activated_at or e.created_at).strftime('%d %b %Y') }}</td>
+<td>{{ progress_bar(p.percent) }} <span class="small">{{ p.percent }}%</span></td>
+<td><form method="post" class="row">{{ csrf() }}<input type="hidden" name="enrollment_id" value="{{ e.id }}">
+  {% if e.status == 'active' %}<button class="linkbtn" name="action" value="revoke" onclick="return confirm('Remove this student\'s access?')">remove access</button>
+  {% else %}<button class="linkbtn" name="action" value="activate">give access</button>{% if e.status == 'pending' %}<button class="linkbtn" name="action" value="remove">discard</button>{% endif %}{% endif %}</form></td>
+</tr>{% else %}<tr><td colspan="6" class="muted">Nobody is enrolled yet. Use "Enroll students" above, or students can enroll themselves from the course page.</td></tr>{% endfor %}</table></div></div>
 {% endblock %}
+{% block scripts %}{% if candidates %}<script>
+(function(){var f=document.getElementById('pickfilter'); if(!f) return;
+  f.addEventListener('input',function(){var q=f.value.trim().toLowerCase();
+    document.querySelectorAll('#pickbox label').forEach(function(l){l.hidden = q && l.dataset.text.indexOf(q)<0;});});})();
+</script>{% endif %}{% endblock %}

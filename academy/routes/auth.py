@@ -1,11 +1,12 @@
 """Student registration, login and profile."""
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
+from ..enrollment import apply_invitations
 from ..mail import send_email
 from ..models import LoginAttempt, User, db, utcnow
 
@@ -52,6 +53,8 @@ def register():
         db.session.commit()
         login_user(user)
         flash(f"Welcome to {current_app.config['SITE_NAME']}, {name}!", "success")
+        for course in apply_invitations(user):
+            flash(f"You have been enrolled in {course.title}.", "success")
         return redirect(_safe_next(request.args.get("next")) or url_for("main.catalog"))
     return render_template("auth/register.html", form=form)
 
@@ -104,16 +107,24 @@ def _reset_serializer():
     return URLSafeTimedSerializer(current_app.config["SECRET_KEY"], salt="password-reset")
 
 
-def make_reset_token(user):
+def make_reset_token(user, invite=False):
     # Including part of the current hash makes the link single-use: once the
-    # password changes, the old link stops working.
-    return _reset_serializer().dumps({"u": user.id, "h": user.password_hash[-16:]})
+    # password changes, the old link stops working. Invitation links (new staff
+    # accounts) stay valid for longer.
+    data = {"u": user.id, "h": user.password_hash[-16:]}
+    if invite:
+        data["i"] = 1
+    return _reset_serializer().dumps(data)
 
 
 def user_from_reset_token(token):
+    cfg = current_app.config
     try:
-        data = _reset_serializer().loads(token, max_age=current_app.config["PASSWORD_RESET_TTL"])
+        data, issued = _reset_serializer().loads(token, max_age=cfg["INVITE_TTL"], return_timestamp=True)
     except (BadSignature, SignatureExpired):
+        return None
+    ttl = cfg["INVITE_TTL"] if data.get("i") else cfg["PASSWORD_RESET_TTL"]
+    if (datetime.now(timezone.utc) - issued).total_seconds() > ttl:
         return None
     user = db.session.get(User, data.get("u"))
     if not user or user.password_hash[-16:] != data.get("h"):

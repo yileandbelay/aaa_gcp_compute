@@ -37,7 +37,7 @@ def checkout(course_id):
         return redirect(url_for("main.course_detail", slug=course.slug))
     enr = _ensure_enrollment(course)
     if course.is_free:
-        enr.activate()
+        enr.activate(source="free")
         db.session.commit()
         flash(f"You are enrolled in {course.title}. Enjoy!", "success")
         return redirect(url_for("main.course_detail", slug=course.slug))

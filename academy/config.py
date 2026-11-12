@@ -119,6 +119,16 @@ class Config:
     # Contact details shown on policy pages.
     CONTACT_EMAIL = os.environ.get("CONTACT_EMAIL", "info@example.com")
     CONTACT_PHONE = os.environ.get("CONTACT_PHONE", "+251 9XX XXX XXX")
+    # Shown on the Contact page when set.
+    CONTACT_ADDRESS = os.environ.get("CONTACT_ADDRESS", "")
+    CONTACT_HOURS = os.environ.get("CONTACT_HOURS", "")
+    CONTACT_WHATSAPP = os.environ.get("CONTACT_WHATSAPP", "")  # number with country code, e.g. 2519XXXXXXXX
+    CONTACT_TELEGRAM = os.environ.get("CONTACT_TELEGRAM", "")  # username without @
+    # Message form on the Contact page: messages are saved for admins and emailed to CONTACT_EMAIL.
+    CONTACT_FORM = _bool("CONTACT_FORM", True)
+    CONTACT_MAX_PER_HOUR = int(os.environ.get("CONTACT_MAX_PER_HOUR", "5"))  # per IP address
+    # How long a "set your password" link for a new staff account stays valid (seconds).
+    INVITE_TTL = int(os.environ.get("INVITE_TTL", str(7 * 24 * 3600)))
 
 
 class TestConfig(Config):
