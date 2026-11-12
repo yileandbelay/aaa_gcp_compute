@@ -20,8 +20,16 @@ def utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def _default_is_student(context):
+    """Accounts are students unless they were created as staff (teacher or admin) without the student role."""
+    return context.get_current_parameters().get("role") in (None, "student")
+
+
 class User(UserMixin, db.Model):
+    # `role` is the staff level: "student" (none), "instructor" (shown as Teacher) or "admin".
+    # `is_student` is a separate switch, so one email can be a teacher and a student at once.
     ROLES = ("student", "instructor", "admin")
+    ROLE_LABELS = {"student": "Student", "instructor": "Teacher", "admin": "Admin"}
 
     id = db.Column(db.Integer, primary_key=True)
     full_name = db.Column(db.String(120), nullable=False)
@@ -30,6 +38,7 @@ class User(UserMixin, db.Model):
     city = db.Column(db.String(80))
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default="student")
+    is_student = db.Column(db.Boolean, nullable=False, default=_default_is_student, server_default=db.true())
     # Shown on course pages for instructors.
     headline = db.Column(db.String(160))
     bio = db.Column(db.Text)
@@ -56,6 +65,19 @@ class User(UserMixin, db.Model):
     @property
     def is_admin(self):
         return self.role == "admin"
+
+    @property
+    def can_study(self):
+        """May take courses (has the student role). Everyone without a staff level is a student."""
+        return bool(self.is_student or self.role == "student")
+
+    @property
+    def role_names(self):
+        """Roles for display, e.g. ["Teacher", "Student"]."""
+        names = [self.ROLE_LABELS[self.role]] if self.role != "student" else []
+        if self.can_study:
+            names.append("Student")
+        return names
 
     def enrollment_for(self, course):
         return Enrollment.query.filter_by(user_id=self.id, course_id=course.id).first()

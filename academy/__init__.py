@@ -134,7 +134,7 @@ def register_cli(app):
         """Create (or promote) an admin account."""
         user = User.query.filter_by(email=email.lower()).first()
         if not user:
-            user = User(email=email.lower(), full_name=name)
+            user = User(email=email.lower(), full_name=name, role="admin")
             db.session.add(user)
         user.role = "admin"
         user.set_password(password)

@@ -65,6 +65,18 @@ def _assessment(aid):
     return a
 
 
+def _apply_roles(user, level, student):
+    """Set a person's staff level ("student" = none, "instructor", "admin") and student role.
+    Returns an error message, or None when saved. Someone always keeps at least one role."""
+    if level not in User.ROLES:
+        return "Choose Student, Teacher or Admin."
+    if level == "student":
+        student = True  # no staff level: the student role is what is left
+    user.role = level
+    user.is_student = bool(student)
+    return None
+
+
 def _staff_users():
     return (User.query.filter(User.role.in_(STAFF_ROLES), User.is_active_account.is_(True))
             .order_by(User.full_name).all())
@@ -79,7 +91,7 @@ def dashboard():
         revenue = (db.session.query(func.coalesce(func.sum(Payment.amount), 0))
                    .filter(Payment.status == "paid").scalar())
         stats = {
-            "students": User.query.filter_by(role="student").count(),
+            "students": User.query.filter(User.is_student.is_(True)).count(),
             "staff": User.query.filter(User.role.in_(STAFF_ROLES)).count(),
             "courses": Course.query.count(),
             "active_enrollments": Enrollment.query.filter_by(status="active").count(),
@@ -88,7 +100,7 @@ def dashboard():
             "certificates": Certificate.query.count(),
             "messages": ContactMessage.query.filter_by(is_read=False).count(),
         }
-        recent_students = User.query.filter_by(role="student").order_by(User.created_at.desc()).limit(8).all()
+        recent_students = User.query.filter(User.is_student.is_(True)).order_by(User.created_at.desc()).limit(8).all()
         recent_payments = Payment.query.order_by(Payment.created_at.desc()).limit(8).all()
     else:
         mine = Course.query.filter_by(instructor_id=current_user.id)
@@ -259,14 +271,14 @@ def course_students(course_id):
     if request.method == "POST":
         _course_students_action(course)
         return redirect(url_for("admin.course_students", course_id=course.id))
-    enrollments = [e for e in course.enrollments if e.user.role == "student"]
+    enrollments = [e for e in course.enrollments if e.user.can_study]
     enrollments.sort(key=lambda e: (e.status != "active", e.user.full_name.lower()))
     rows = [(e, course_progress(e.user, course)) for e in enrollments]
     enrolled_ids = {e.user_id for e in enrollments if e.status == "active"}
     # Browsing every student is for admins; instructors add people by email address.
     candidates = []
     if current_user.is_admin:
-        candidates = [u for u in User.query.filter_by(role="student", is_active_account=True)
+        candidates = [u for u in User.query.filter(User.is_student.is_(True), User.is_active_account.is_(True))
                       .order_by(User.full_name).limit(500) if u.id not in enrolled_ids]
     invitations = Invitation.query.filter_by(course_id=course.id).order_by(Invitation.created_at.desc()).all()
     return render_template("admin/course_students.html", course=course, rows=rows, candidates=candidates,
@@ -281,7 +293,7 @@ def _course_students_action(course):
         enrolled, already, invited, skipped = [], 0, [], []
         for uid in f.getlist("student_ids"):
             user = db.session.get(User, _int(uid))
-            if user and user.role == "student" and user.is_active_account:
+            if user and user.can_study and user.is_active_account:
                 if enroll_student(user, course, by=current_user):
                     enrolled.append(user)
                 else:
@@ -294,7 +306,7 @@ def _course_students_action(course):
                     invited.append(email)
                 else:
                     already += 1
-            elif user.role == "student" and user.is_active_account:
+            elif user.can_study and user.is_active_account:
                 if enroll_student(user, course, by=current_user):
                     enrolled.append(user)
                 else:
@@ -636,7 +648,7 @@ def _search(query, q):
 @admin_required
 def students():
     q = request.args.get("q", "").strip()
-    users = _search(User.query.filter_by(role="student"), q).order_by(User.created_at.desc()).all()
+    users = _search(User.query.filter(User.is_student.is_(True)), q).order_by(User.created_at.desc()).all()
     return render_template("admin/students.html", users=users, q=q)
 
 
@@ -646,7 +658,7 @@ def students_csv():
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["id", "full_name", "email", "phone", "city", "registered", "active_courses"])
-    for u in User.query.filter_by(role="student").order_by(User.id):
+    for u in User.query.filter(User.is_student.is_(True)).order_by(User.id):
         active = ", ".join(e.course.title for e in u.enrollments if e.status == "active")
         w.writerow([u.id, u.full_name, u.email, u.phone or "", u.city or "",
                     u.created_at.strftime("%Y-%m-%d"), active])
@@ -680,12 +692,13 @@ def staff_new():
     if user and user.is_staff:
         flash(f"{email} already has a staff account.", "error")
         return redirect(url_for("admin.staff"))
-    if user:  # an existing student account is promoted instead of duplicated
+    if user:  # an existing student account is promoted instead of duplicated; it stays a student too
         user.role = role
-        flash(f"{user.full_name} already had a student account. They are now {role}.", "success")
+        flash(f"{user.full_name} already had a student account. They are now {User.ROLE_LABELS[role]} "
+              f"and can still study as a student.", "success")
         db.session.commit()
         return redirect(url_for("admin.staff"))
-    user = User(full_name=name, email=email, role=role)
+    user = User(full_name=name, email=email, role=role, is_student=bool(f.get("also_student")))
     user.set_password(secrets.token_urlsafe(24))  # unusable until they set their own
     db.session.add(user)
     db.session.commit()
@@ -693,7 +706,7 @@ def staff_new():
     site = current_app.config["SITE_NAME"]
     days = max(1, current_app.config["INVITE_TTL"] // 86400)
     sent = send_email(email, f"Your {site} staff account",
-                      f"Hello {name},\n\nAn account with the role '{role}' was created for you on {site}.\n"
+                      f"Hello {name},\n\nAn account with the role '{User.ROLE_LABELS[role]}' was created for you on {site}.\n"
                       f"Choose your password within {days} days using this link:\n{link}\n\n{site}\n")
     if sent:
         flash(f"Account created for {name}. A link to set their password was emailed to {email}.", "success")
@@ -713,10 +726,20 @@ def user_detail(user_id):
     if request.method == "POST":
         action = request.form.get("action")
         is_me = user.id == current_user.id
-        if action == "role" and not is_me:
+        if action == "roles":
+            # Everyone may be given or lose the student role; only another admin changes the staff level.
+            level = user.role if is_me else request.form.get("level", "student")
+            error = _apply_roles(user, level, bool(request.form.get("student")))
+            if not error and not user.is_student and user.role == "student":
+                error = "Choose at least one role."
+            if error:
+                db.session.rollback()
+                flash(error, "error")
+                return redirect(url_for("admin.user_detail", user_id=user.id))
+        elif action == "role" and not is_me:  # older single-role form
             role = request.form.get("role")
             if role in User.ROLES:
-                user.role = role
+                _apply_roles(user, role, role == "student")
         elif action == "toggle_active" and not is_me:
             # Nobody can lock everyone out: the person acting is an active admin and cannot
             # change their own account, so at least one active admin always remains.
