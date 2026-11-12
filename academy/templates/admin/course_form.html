@@ -6,7 +6,7 @@
 {% if course %}
 <div class="row spread" style="margin-bottom:14px">
   <div class="row">
-    <span class="badge {{ 'active' if course.is_published else '' }}">{{ 'Published' if course.is_published else 'Draft' }}</span>
+    <span class="badge {{ 'active' if course.is_published else '' }}">{{ 'Visible to everyone' if course.is_published else 'Hidden' }}</span>
     <a href="{{ url_for('main.course_detail', slug=course.slug) }}">View as a student sees it</a>
   </div>
   <div class="row small"><a href="#details">Details</a><a href="#lessons">Lessons</a><a href="#assessments">Quizzes</a><a href="#students">Students</a><a href="#announcements">Announcements</a></div>
@@ -18,7 +18,7 @@
     <li><span class="done">✓</span> Course details</li>
     <li>{% if course.lessons %}<span class="done">✓</span>{% else %}<span class="todo">○</span>{% endif %} Add lessons <span class="small muted">({{ course.lessons|length }} so far)</span></li>
     <li>{% if course.assessments %}<span class="done">✓</span>{% else %}<span class="todo">○</span>{% endif %} Add a quiz or final exam <span class="small muted">(optional, needed for certificates to mean something)</span></li>
-    <li>{% if course.is_published %}<span class="done">✓</span>{% else %}<span class="todo">○</span>{% endif %} Publish it so it shows in the course list</li>
+    <li>{% if course.is_published %}<span class="done">✓</span>{% else %}<span class="todo">○</span>{% endif %} Show it in the public course list</li>
     <li>{% if enrolled %}<span class="done">✓</span>{% else %}<span class="todo">○</span>{% endif %} Students: {{ enrolled }} enrolled. <a href="{{ url_for('admin.course_students', course_id=course.id) }}">Enroll students</a></li>
   </ul>
 </div>
@@ -67,7 +67,8 @@
   <select id="instructor_id" name="instructor_id">{% for s in staff %}<option value="{{ s.id }}" {{ 'selected' if (course and course.instructor_id == s.id) or (not course and s.id == current_user.id) }}>{{ s.full_name }} ({{ s.role }})</option>{% endfor %}</select>
   <p class="small muted">The teacher can edit this course and manage its students. Admins can manage every course.</p>
   {% endif %}
-  <label class="check"><input type="checkbox" name="is_published" value="1" {{ 'checked' if course and course.is_published }}> Published (visible in the course list)</label>
+  <label class="check"><input type="checkbox" name="is_published" value="1" {{ 'checked' if (course.is_published if course else true) }}> <b>Show this course in the public list</b></label>
+  <p class="small muted" style="margin-top:0">Everyone sees the course name, summary and the list of its lessons, whether it is free or paid. Lessons stay locked until an admin makes them public. Untick only to hide the course while you are still building it.</p>
   <p><button class="btn">{{ 'Save course' if course else 'Create course and add lessons' }}</button></p>
 </form>
 </div>

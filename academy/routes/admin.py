@@ -260,6 +260,31 @@ def course_edit(course_id):
                            staff=_staff_users(), enrolled=enrolled, rating=rating_summary([course.id]).get(course.id))
 
 
+@bp.route("/courses/<int:course_id>/visibility", methods=["POST"])
+@staff_required
+def course_visibility(course_id):
+    """Show or hide one course in the public list. A visible course shows its name, summary and the
+    list of its lessons (locked unless made public) to everyone."""
+    course = _course(course_id)
+    course.is_published = not course.is_published
+    db.session.commit()
+    flash(f"\"{course.title}\" is now " + ("visible to everyone. Its lessons are listed and stay locked until made public."
+                                            if course.is_published else "hidden from the public list."), "success")
+    return redirect(request.form.get("next") if (request.form.get("next") or "").startswith("/admin/")
+                    else url_for("admin.courses"))
+
+
+@bp.route("/courses/show-all", methods=["POST"])
+@admin_required
+def courses_show_all():
+    """Make every hidden course visible in the public list."""
+    shown = Course.query.filter_by(is_published=False).update({"is_published": True})
+    db.session.commit()
+    flash(f"{shown} hidden course{'s are' if shown != 1 else ' is'} now visible to everyone." if shown
+          else "Every course is already visible to everyone.", "success" if shown else "info")
+    return redirect(url_for("admin.courses"))
+
+
 @bp.route("/courses/<int:course_id>/delete", methods=["POST"])
 @admin_required
 def course_delete(course_id):

@@ -1,7 +1,9 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
 {% block content %}
 <h1>Courses</h1>{% include "admin/_nav.html" %}
-<p class="row"><a class="btn" href="{{ url_for('admin.course_new') }}">+ New course</a>{% if current_user.is_admin %} <a class="btn secondary" href="{{ url_for('admin.categories') }}">Manage categories</a>{% endif %}</p>
+<p class="row"><a class="btn" href="{{ url_for('admin.course_new') }}">+ New course</a>{% if current_user.is_admin %} <a class="btn secondary" href="{{ url_for('admin.categories') }}">Manage categories</a>{% endif %}
+{% if current_user.is_admin and courses|rejectattr('is_published')|list %}<form method="post" action="{{ url_for('admin.courses_show_all') }}" style="margin:0">{{ csrf() }}<button class="btn secondary" onclick="return confirm('Show every hidden course to the public? Their lessons stay locked.')">Show all hidden courses</button></form>{% endif %}</p>
+<p class="small muted">Every visible course shows its name, summary and the list of its lessons to everyone. Lessons are locked by default; an admin makes a lesson public from the course page.</p>
 <div class="table-wrap"><table>
 <tr><th>Title</th>{% if current_user.is_admin %}<th>Teacher</th>{% endif %}<th>Price</th><th>Lessons</th><th>Students</th><th>Status</th><th></th></tr>
 {% for c in courses %}<tr>
@@ -9,7 +11,8 @@
   {% if current_user.is_admin %}<td>{{ c.instructor.full_name if c.instructor else '–' }}</td>{% endif %}
   <td>{{ c.price|money }}</td><td>{{ c.lessons|length }}</td>
   <td><a href="{{ url_for('admin.course_students', course_id=c.id) }}">{{ c.enrollments|selectattr('status','equalto','active')|list|length }}</a></td>
-  <td><span class="badge {{ 'active' if c.is_published else '' }}">{{ 'Published' if c.is_published else 'Draft' }}</span></td>
+  <td><span class="badge {{ 'active' if c.is_published else '' }}">{{ 'Visible to everyone' if c.is_published else 'Hidden' }}</span>
+    <form method="post" action="{{ url_for('admin.course_visibility', course_id=c.id) }}" style="margin-top:4px">{{ csrf() }}<input type="hidden" name="next" value="{{ url_for('admin.courses') }}"><button class="linkbtn small">{{ 'Hide it' if c.is_published else 'Show it' }}</button></form></td>
   <td><a href="{{ url_for('main.course_detail', slug=c.slug) }}">View</a></td>
 </tr>{% else %}<tr><td colspan="7" class="muted">No courses yet. Create your first one with "New course".</td></tr>{% endfor %}
 </table></div>
