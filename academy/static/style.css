@@ -314,7 +314,7 @@ html[lang=am] .footer-grid h4 { letter-spacing: 0; text-transform: none; }
 /* Course cards: discoverable at a glance */
 .course-card { display: flex; flex-direction: column; padding: 0; overflow: hidden; transition: border-color .15s, box-shadow .15s; }
 .course-card:hover { border-color: var(--brand); box-shadow: var(--shadow-raised); }
-.course-card .cover { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; gap: var(--s2); min-height: 104px; padding: var(--s4); background: var(--brand-soft); border-bottom: 1px solid var(--line); color: var(--brand-dark); font-weight: 700; font-size: .78rem; letter-spacing: .07em; text-transform: uppercase; position: relative; overflow: hidden; }
+.course-card .cover { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; gap: var(--s2); aspect-ratio: 16 / 7; padding: var(--s4); background: var(--brand-soft); border-bottom: 1px solid var(--line); color: var(--brand-dark); font-weight: 700; font-size: .78rem; letter-spacing: .07em; text-transform: uppercase; position: relative; overflow: hidden; }
 .course-card .cover::after { content: ""; position: absolute; right: -28px; top: -28px; width: 110px; height: 110px; border-radius: 50%; border: 18px solid color-mix(in srgb, var(--brand) 10%, transparent); }
 .course-card .cover-icon .i { width: 26px; height: 26px; }
 .course-card .cover-text { position: relative; }
@@ -544,3 +544,12 @@ body.has-tabbar.has-mobile-cta { padding-bottom: 140px; }
 .pricing legend { font-weight: 700; padding: 0 var(--s2); }
 .pricing .price-field { margin-top: var(--s2); max-width: 260px; }
 @supports selector(:has(*)) { .pricing:not(:has(input[value=paid]:checked)) .price-field { display: none; } }
+
+/* Course cover images. Every card cover has the same shape, with or without a picture, so grids stay even. */
+.course-card .cover.has-image { padding: 0; }
+.course-card .cover.has-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.course-card .cover.has-image::after { display: none; }
+.course-cover { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line); margin-bottom: var(--s4); }
+.cover-field { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--s3) var(--s4); margin: var(--s3) 0; }
+.cover-field legend { font-weight: 700; padding: 0 var(--s2); }
+.cover-thumb { border-radius: var(--radius-sm); border: 1px solid var(--line); object-fit: cover; }

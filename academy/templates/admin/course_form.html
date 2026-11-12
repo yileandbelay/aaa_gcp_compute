@@ -26,7 +26,7 @@
 
 <div class="card" id="details">
 <h2>Course details</h2>
-<form method="post" class="stack" action="{{ url_for('admin.course_edit', course_id=course.id) if course else url_for('admin.course_new') }}">{{ csrf() }}
+<form method="post" enctype="multipart/form-data" class="stack" action="{{ url_for('admin.course_edit', course_id=course.id) if course else url_for('admin.course_new') }}">{{ csrf() }}
   <label for="title">Title</label><input type="text" id="title" name="title" value="{{ course.title if course }}" required>
   <label for="summary">Short summary (one line, shown on course cards)</label><input type="text" id="summary" name="summary" maxlength="300" value="{{ course.summary if course and course.summary }}">
   <label for="description">Description (Markdown)</label><textarea id="description" name="description" rows="6">{{ course.description if course and course.description }}</textarea>
@@ -43,6 +43,14 @@
     <div style="flex:1;min-width:120px"><label for="hours">Training hours</label><input type="number" id="hours" name="hours" step="0.5" min="0" value="{{ '%g'|format(course.hours|float) if course and course.hours }}"></div>
   </div>
   {% set is_paid = course and course.price and course.price > 0 %}
+  <fieldset class="cover-field">
+    <legend>Cover image <span class="small muted">(optional)</span></legend>
+    {% if course and course.cover_image %}<p><img class="cover-thumb" src="{{ url_for('main.cover', name=course.cover_image) }}" alt="Current cover image" width="160" height="70"></p>
+    <label class="check"><input type="checkbox" name="remove_cover" value="1"> Remove the current cover image</label>{% endif %}
+    <label for="cover">{{ 'Replace it with' if course and course.cover_image else 'Choose' }} a JPG, PNG or WebP picture, up to 1 MB</label>
+    <input type="file" id="cover" name="cover" accept="image/jpeg,image/png,image/webp">
+    <p class="small muted">Shown on the course card and the course page. A wide picture works best. Without one, a topic icon is shown.</p>
+  </fieldset>
   <fieldset class="pricing">
     <legend>Pricing</legend>
     {% if current_user.is_admin %}

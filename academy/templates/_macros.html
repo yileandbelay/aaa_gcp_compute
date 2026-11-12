@@ -22,7 +22,8 @@
 {% macro course_card(c, ratings=none, mine=none) %}
 {% set r = ratings.get(c.id) if ratings else none %}
 <article class="card course-card">
-  <div class="cover" aria-hidden="true"><span class="cover-icon">{{ icon(topic_icon(c.category)) }}</span><span class="cover-text">{{ c.category or _(c.level) }}</span></div>
+  {% if c.cover_image %}<div class="cover has-image" aria-hidden="true"><img src="{{ url_for('main.cover', name=c.cover_image) }}" alt="" width="640" height="280" loading="lazy" decoding="async"></div>
+  {% else %}<div class="cover" aria-hidden="true"><span class="cover-icon">{{ icon(topic_icon(c.category)) }}</span><span class="cover-text">{{ c.category or _(c.level) }}</span></div>{% endif %}
   <div class="body">
     <div class="meta"><span class="badge">{{ _(c.level) }}</span>{% if c.length_hours %}<span>{{ hours(c) }}</span>{% endif %}</div>
     <h3><a href="{{ url_for('main.course_detail', slug=c.slug) }}">{{ c.title }}</a></h3>

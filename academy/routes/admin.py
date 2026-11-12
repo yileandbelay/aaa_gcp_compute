@@ -27,7 +27,8 @@ from ..reports import monthly_report, report_years
 from ..reviews import rating_summary
 from ..models import (Announcement, Assessment, Attachment, Attempt, Certificate, ContactMessage, Course,
                       Enrollment, Invitation, Lesson, LessonProgress, Payment, Question, Review, User, db, utcnow)
-from ..utils import admin_required, course_progress, save_upload, slugify, staff_required
+from ..utils import (admin_required, course_progress, delete_cover, save_cover, save_upload, slugify,
+                     staff_required)
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -166,6 +167,18 @@ def categories():
                            uncategorised=Course.query.filter(Course.category.is_(None)).count())
 
 
+def _apply_cover(course):
+    """Replace or remove the course's optional cover image from the submitted form."""
+    upload = request.files.get("cover")
+    if upload and upload.filename:
+        new_name = save_cover(upload)            # aborts with a clear message if it is not a good image
+        delete_cover(course.cover_image)
+        course.cover_image = new_name
+    elif request.form.get("remove_cover") and course.cover_image:
+        delete_cover(course.cover_image)
+        course.cover_image = None
+
+
 def _fill_course(course, form):
     course.title = form.get("title", "").strip()
     course.summary = form.get("summary", "").strip()
@@ -221,6 +234,7 @@ def course_new():
     if request.method == "POST":
         course = Course(instructor_id=current_user.id)
         _fill_course(course, request.form)
+        _apply_cover(course)
         db.session.add(course)
         db.session.commit()
         flash("Course created. Next, add its lessons below.", "success")
@@ -235,6 +249,7 @@ def course_edit(course_id):
     course = _course(course_id)
     if request.method == "POST":
         _fill_course(course, request.form)
+        _apply_cover(course)
         db.session.commit()
         flash("Course saved.", "success")
         return redirect(url_for("admin.course_edit", course_id=course.id))
@@ -259,6 +274,7 @@ def course_delete(course_id):
     Certificate.query.filter_by(course_id=course.id).delete()
     Invitation.query.filter_by(course_id=course.id).delete()
     Review.query.filter_by(course_id=course.id).delete()
+    delete_cover(course.cover_image)
     db.session.delete(course)
     db.session.commit()
     flash("Course deleted.", "info")

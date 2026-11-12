@@ -764,3 +764,165 @@ def test_new_admin_actions_need_a_csrf_token_when_csrf_is_on(tmp_path):
         assert c.post(path, data=data).status_code == 400, path
     with app.app_context():
         assert db.session.get(Lesson, lid).is_preview is before
+
+
+# --- NX-15: course cover images ---------------------------------------------------------------
+
+import io  # noqa: E402
+import os  # noqa: E402
+
+PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+JPG_BYTES = b"\xff\xd8\xff\xe0" + b"\x00" * 64
+WEBP_BYTES = b"RIFF\x24\x00\x00\x00WEBPVP8 " + b"\x00" * 32
+
+
+def edit_with_cover(client, cid, data, name, **extra):
+    fields = {"title": "Cover Course", "level": "Beginner", "pricing": "free", "is_published": "1", **extra}
+    if data is not None:
+        fields["cover"] = (io.BytesIO(data), name)
+    return client.post(f"/admin/courses/{cid}", data=fields, content_type="multipart/form-data")
+
+
+def cover_of_course(app, cid):
+    with app.app_context():
+        return db.session.get(Course, cid).cover_image
+
+
+def cover_files(app):
+    folder = os.path.join(app.config["UPLOAD_DIR"], "covers")
+    return sorted(os.listdir(folder)) if os.path.isdir(folder) else []
+
+
+@pytest.mark.parametrize("data,name", [(PNG_BYTES, "pic.png"), (JPG_BYTES, "pic.jpg"), (JPG_BYTES, "pic.JPEG"), (WEBP_BYTES, "pic.webp")])
+def test_valid_cover_images_are_stored_and_served(app, data, name):
+    cid = add_course(app, "Cover Course")
+    assert edit_with_cover(admin_client(app), cid, data, name).status_code == 302
+    stored = cover_of_course(app, cid)
+    assert stored and stored.rsplit(".", 1)[1] in ("png", "jpg", "webp") and cover_files(app) == [stored]
+    r = app.test_client().get(f"/media/covers/{stored}")
+    assert r.status_code == 200 and r.data == data and "max-age" in r.headers["Cache-Control"]
+
+
+@pytest.mark.parametrize("data,name,message", [
+    (b"GIF89a" + b"0" * 30, "pic.gif", b"JPG, PNG or WebP"),
+    (b"<svg xmlns='http://www.w3.org/2000/svg'></svg>", "pic.svg", b"JPG, PNG or WebP"),
+    (b"just text pretending", "pic.png", b"not a real"),
+    (PNG_BYTES, "pic.jpg", b"not a real"),                      # content does not match the name
+    (JPG_BYTES, "pic.webp", b"not a real"),
+    (b"", "empty.png", b"not a real"),
+    (PNG_BYTES + b"0" * (1024 * 1024), "big.png", b"larger than 1 MB"),
+])
+def test_wrong_type_content_or_size_is_rejected_with_a_clear_message(app, data, name, message):
+    cid = add_course(app, "Cover Course")
+    r = edit_with_cover(admin_client(app), cid, data, name)
+    assert r.status_code == 400 and message in r.data
+    assert cover_of_course(app, cid) is None and cover_files(app) == []
+
+
+def test_exactly_one_megabyte_is_accepted(app):
+    cid = add_course(app, "Cover Course")
+    data = PNG_BYTES + b"0" * (1024 * 1024 - len(PNG_BYTES))
+    assert len(data) == 1024 * 1024 and edit_with_cover(admin_client(app), cid, data, "edge.png").status_code == 302
+
+
+def test_cards_and_course_page_show_the_image_with_size_and_lazy_loading(app):
+    cid = add_course(app, "Cover Course")
+    edit_with_cover(admin_client(app), cid, PNG_BYTES, "pic.png")
+    stored = cover_of_course(app, cid)
+    c = app.test_client()
+    for path in ("/", "/courses"):
+        card = [m.group(0) for m in re.finditer(r'<article class="card course-card">.*?</article>', c.get(path).data.decode(), re.S) if "/courses/cover-course" in m.group(0)][0]
+        assert f'src="/media/covers/{stored}"' in card and 'width="640" height="280"' in card and 'loading="lazy"' in card
+        assert 'class="cover has-image"' in card and "#i-" not in card.split("</div>")[0]
+    page = c.get("/courses/cover-course").data.decode()
+    assert f'src="/media/covers/{stored}"' in page and 'width="800" height="450"' in page and 'loading="lazy"' in page
+
+
+def test_cards_without_an_image_keep_the_topic_icon_and_the_same_cover_shape(app):
+    cid = add_course(app, "Cover Course", category="Business")
+    add_course(app, "Plain Course", category="Business")
+    edit_with_cover(admin_client(app), cid, PNG_BYTES, "pic.png")
+    html = app.test_client().get("/courses").data.decode()
+    plain = [m.group(0) for m in re.finditer(r'<article class="card course-card">.*?</article>', html, re.S) if "/courses/plain-course" in m.group(0)][0]
+    assert "#i-briefcase" in plain and "<img" not in plain and 'class="cover"' in plain
+    css = open("academy/static/style.css").read()
+    assert re.search(r"\.course-card \.cover \{[^}]*aspect-ratio: 16 / 7", css)       # one shape for every cover
+
+
+def test_replacing_and_removing_the_cover_deletes_the_old_file(app):
+    cid = add_course(app, "Cover Course")
+    admin = admin_client(app)
+    edit_with_cover(admin, cid, PNG_BYTES, "a.png")
+    first = cover_of_course(app, cid)
+    edit_with_cover(admin, cid, JPG_BYTES, "b.jpg")
+    second = cover_of_course(app, cid)
+    assert second != first and cover_files(app) == [second]
+    edit_with_cover(admin, cid, None, "", remove_cover="1")
+    assert cover_of_course(app, cid) is None and cover_files(app) == []
+
+
+def test_saving_the_course_without_a_new_file_keeps_the_cover(app):
+    cid = add_course(app, "Cover Course")
+    admin = admin_client(app)
+    edit_with_cover(admin, cid, PNG_BYTES, "a.png")
+    kept = cover_of_course(app, cid)
+    edit_with_cover(admin, cid, None, "")
+    assert cover_of_course(app, cid) == kept
+
+
+def test_deleting_a_course_deletes_its_cover(app):
+    cid = add_course(app, "Cover Course")
+    admin = admin_client(app)
+    edit_with_cover(admin, cid, PNG_BYTES, "a.png")
+    admin.post(f"/admin/courses/{cid}/delete")
+    assert cover_files(app) == []
+
+
+def test_covers_of_unpublished_courses_are_staff_only_and_unknown_names_404(app):
+    cid = add_course(app, "Cover Course")
+    admin = admin_client(app)
+    edit_with_cover(admin, cid, PNG_BYTES, "a.png")
+    stored = cover_of_course(app, cid)
+    admin.post(f"/admin/courses/{cid}", data={"title": "Cover Course", "level": "Beginner", "pricing": "free"})   # unpublish
+    assert app.test_client().get(f"/media/covers/{stored}").status_code == 404
+    assert admin.get(f"/media/covers/{stored}").status_code == 200
+    assert app.test_client().get("/media/covers/../../etc/passwd").status_code == 404
+    assert app.test_client().get("/media/covers/nothing.png").status_code == 404
+
+
+def test_a_teacher_can_set_the_cover_of_their_own_course_but_not_others(app):
+    mine = add_course(app, "Cover Course")
+    theirs = add_course(app, "Other Course")
+    with app.app_context():
+        db.session.get(Course, mine).instructor_id = User.query.filter_by(email="instructor@example.com").one().id
+        db.session.commit()
+    t = teacher_client(app)
+    assert edit_with_cover(t, mine, PNG_BYTES, "a.png").status_code == 302 and cover_of_course(app, mine)
+    assert edit_with_cover(t, theirs, PNG_BYTES, "a.png").status_code == 403 and cover_of_course(app, theirs) is None
+
+
+def test_editor_form_offers_the_upload_and_a_remove_option(app):
+    cid = add_course(app, "Cover Course")
+    admin = admin_client(app)
+    page = admin.get(f"/admin/courses/{cid}").data.decode()
+    assert 'enctype="multipart/form-data"' in page and 'name="cover"' in page and "up to 1 MB" in page
+    assert "remove_cover" not in page
+    edit_with_cover(admin, cid, PNG_BYTES, "a.png")
+    assert "remove_cover" in admin.get(f"/admin/courses/{cid}").data.decode()
+
+
+def test_cover_migration_keeps_existing_courses_up_and_down(tmp_path):
+    import sqlite3
+    import subprocess
+    db_file = tmp_path / "m.db"
+    env = {**os.environ, "FLASK_APP": "wsgi.py", "SECRET_KEY": "x", "DATABASE_URL": f"sqlite:///{db_file}"}
+    run = lambda *a: subprocess.run([__import__("sys").executable, "-m", "flask", *a], env=env, capture_output=True, text=True, cwd=os.getcwd())
+    assert run("db", "upgrade", "d9e3f5a7b2c4").returncode == 0
+    con = sqlite3.connect(db_file)
+    con.execute("insert into course (slug, title, level, price, is_published, created_at) values ('c', 'C', 'Beginner', 0, 1, '2026-01-01')")
+    con.commit(); con.close()
+    assert run("db", "upgrade").returncode == 0
+    assert sqlite3.connect(db_file).execute("select title, cover_image from course").fetchall() == [("C", None)]
+    assert run("db", "downgrade").returncode == 0
+    cols = [r[1] for r in sqlite3.connect(db_file).execute("pragma table_info(course)")]
+    assert "cover_image" not in cols and sqlite3.connect(db_file).execute("select title from course").fetchall() == [("C",)]

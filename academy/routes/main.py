@@ -1,7 +1,9 @@
 """Public pages, course catalog and student dashboard."""
+import os
 from datetime import timedelta
 
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
+from flask import (Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory,
+                   url_for)
 from flask_login import current_user, login_required
 
 from ..enrollment import EMAIL_RE
@@ -119,6 +121,17 @@ def set_language(code):
     resp = redirect(target)
     resp.set_cookie("lang", code, max_age=365 * 24 * 3600, samesite="Lax",
                     secure=current_app.config["SESSION_COOKIE_SECURE"])
+    return resp
+
+
+@bp.route("/media/covers/<name>")
+def cover(name):
+    """A course's cover image. Covers of unpublished courses are only for staff."""
+    course = Course.query.filter_by(cover_image=name).first_or_404()
+    if not course.is_published and not (current_user.is_authenticated and current_user.is_staff):
+        abort(404)
+    resp = send_from_directory(os.path.join(current_app.config["UPLOAD_DIR"], "covers"), name)
+    resp.headers["Cache-Control"] = "public, max-age=86400" if course.is_published else "private, no-store"
     return resp
 
 

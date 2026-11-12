@@ -104,6 +104,7 @@ class Course(db.Model):
     audience = db.Column(db.Text)  # "Who this course is for"
     prerequisites = db.Column(db.Text)
     is_published = db.Column(db.Boolean, default=False, nullable=False)
+    cover_image = db.Column(db.String(255))  # file name under UPLOAD_DIR/covers, optional
     instructor_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     created_at = db.Column(db.DateTime, default=utcnow)
 

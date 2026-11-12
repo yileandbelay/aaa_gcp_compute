@@ -196,3 +196,48 @@ def real_contact(value):
 def tel_href(phone):
     """A tel: link target: digits and a leading plus only."""
     return "".join(ch for ch in (phone or "") if ch.isdigit() or ch == "+")
+
+
+# --- Course cover images ------------------------------------------------------
+
+COVER_MAX_BYTES = 1024 * 1024
+COVER_EXTENSIONS = {"jpg": "jpg", "jpeg": "jpg", "png": "png", "webp": "webp"}
+
+
+def image_kind(data):
+    """"jpg", "png" or "webp" judged from the first bytes of the file (the name can lie), else None."""
+    if data[:3] == b"\xff\xd8\xff":
+        return "jpg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp"
+    return None
+
+
+def save_cover(file_storage):
+    """Store an uploaded cover image and return its file name. Aborts with a clear message when the
+    file is not a JPG, PNG or WebP image of at most 1 MB."""
+    name = file_storage.filename or ""
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    if ext not in COVER_EXTENSIONS:
+        abort(400, "The cover image must be a JPG, PNG or WebP file.")
+    data = file_storage.read(COVER_MAX_BYTES + 1)
+    if len(data) > COVER_MAX_BYTES:
+        abort(400, "The cover image is larger than 1 MB. Please choose a smaller picture.")
+    if not data or image_kind(data) != COVER_EXTENSIONS[ext]:
+        abort(400, "That file is not a real JPG, PNG or WebP image (its content does not match its name).")
+    stored = f"{uuid.uuid4().hex}.{COVER_EXTENSIONS[ext]}"
+    folder = os.path.join(current_app.config["UPLOAD_DIR"], "covers")
+    os.makedirs(folder, exist_ok=True)
+    with open(os.path.join(folder, stored), "wb") as fh:
+        fh.write(data)
+    return stored
+
+
+def delete_cover(stored_name):
+    if stored_name:
+        try:
+            os.remove(os.path.join(current_app.config["UPLOAD_DIR"], "covers", os.path.basename(stored_name)))
+        except OSError:
+            pass

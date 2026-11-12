@@ -19,6 +19,7 @@
 
 <div class="course-layout">
   <aside class="course-side">
+    {% if course.cover_image %}<img class="course-cover" src="{{ url_for('main.cover', name=course.cover_image) }}" alt="" width="800" height="450" loading="lazy" decoding="async">{% endif %}
     <div class="card enroll-card">
       {% if progress is not none %}
         <p><b>{{ _('Your progress: %(n)s%%', n=progress.percent) }}</b></p>{{ progress_bar(progress.percent) }}
