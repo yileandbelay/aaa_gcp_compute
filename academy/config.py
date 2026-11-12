@@ -77,10 +77,14 @@ class Config:
     CHAPA_API_BASE = os.environ.get("CHAPA_API_BASE", "https://api.chapa.co/v1")
     # Manual bank transfer / mobile money: student uploads a receipt, admin approves.
     MANUAL_PAYMENT_ENABLED = _bool("MANUAL_PAYMENT_ENABLED", True)
+    # Sample details shown until an admin enters the real ones (Admin > Payments > Payment details).
+    # The settings file may override them; a value that still contains "XXXX" counts as sample too.
     MANUAL_PAYMENT_INSTRUCTIONS = os.environ.get(
         "MANUAL_PAYMENT_INSTRUCTIONS",
-        "Transfer the course fee to our bank account or via mobile money, then upload your "
-        "receipt below. (Set MANUAL_PAYMENT_INSTRUCTIONS to show your real account details.)",
+        "Pay the course fee by bank transfer, Telebirr or cash deposit, then upload your receipt below.\n\n"
+        "Commercial Bank of Ethiopia (CBE): account 1000 1234 5678\n"
+        "Telebirr: 0911 00 00 00\n"
+        "Account name: Mek Academy",
     )
     # Demo mode marks payments as paid instantly. NEVER enable in production.
     PAYMENT_DEMO_MODE = _bool("PAYMENT_DEMO_MODE", False)

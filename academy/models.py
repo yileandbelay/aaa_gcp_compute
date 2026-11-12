@@ -462,3 +462,12 @@ class Review(db.Model):
         """First name and last initial, e.g. "Hana T." - full names are not shown publicly."""
         parts = (self.user.full_name or "Student").split()
         return parts[0] if len(parts) == 1 else f"{parts[0]} {parts[-1][0]}."
+
+
+class SiteSetting(db.Model):
+    """Small editable settings an admin changes from the back-office (for example the bank and
+    Telebirr details shown to students). Anything not set here falls back to the settings file."""
+
+    key = db.Column(db.String(64), primary_key=True)
+    value = db.Column(db.Text, nullable=False, default="")
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)

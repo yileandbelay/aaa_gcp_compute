@@ -3,25 +3,27 @@
 {% block content %}
 <h1>{{ _('Enroll in %(course)s', course=course.title) }}</h1>
 <p style="font-size:1.4rem">{{ _('Course fee:') }} <b>{{ price(course) }}</b></p>
+{% if preview %}<div class="flash info">{{ _('You are signed in as staff, so you already have access to every course. This is the page students see, so the buttons are switched off.') }}</div>{% endif %}
+{% if chapa or manual or demo %}<h2>{{ _('Choose how to pay') }}</h2>{% endif %}
 <div class="grid">
   {% if chapa %}
   <div class="card"><h3>{{ _('Pay online') }}</h3>
     <p class="muted">{{ _('telebirr, CBE Birr, M-Pesa, Amole, Visa/Mastercard via Chapa. Instant access.') }}</p>
-    <form method="post" action="{{ url_for('pay.chapa_start', course_id=course.id) }}">{{ csrf() }}<button class="btn">{{ _('Pay %(amount)s', amount=price(course)) }}</button></form>
+    <form method="post" action="{{ url_for('pay.chapa_start', course_id=course.id) }}">{{ csrf() }}<button class="btn" {{ 'disabled' if preview }}>{{ _('Pay %(amount)s', amount=price(course)) }}</button></form>
   </div>{% endif %}
   {% if manual %}
   <div class="card"><h3>{{ _('Bank transfer / mobile money') }}</h3>
-    <p>{{ _(instructions) }}</p>
+    <p class="pay-instructions">{{ instructions }}</p>
     <form method="post" enctype="multipart/form-data" action="{{ url_for('pay.manual_submit', course_id=course.id) }}" class="stack">{{ csrf() }}
       <label for="reference">{{ _('Transaction reference') }}</label><input type="text" id="reference" name="reference" placeholder="e.g. FT23…">
-      <label for="receipt">{{ _('Receipt (photo or PDF)') }}</label><input type="file" id="receipt" name="receipt" accept=".png,.jpg,.jpeg,.pdf" required>
-      <p><button class="btn secondary">{{ _('Submit receipt') }}</button></p>
+      <label for="receipt">{{ _('Receipt (photo or PDF)') }}</label><input type="file" id="receipt" name="receipt" accept=".png,.jpg,.jpeg,.pdf" required {{ 'disabled' if preview }}>
+      <p><button class="btn secondary" {{ 'disabled' if preview }}>{{ _('Submit receipt') }}</button></p>
     </form>
     <p class="small muted">{{ _('Access is granted after an administrator verifies your receipt (usually within 24 hours).') }}</p>
   </div>{% endif %}
   {% if demo %}
   <div class="card"><h3>{{ _('Demo payment') }}</h3><p class="muted">{{ _('Test mode only - unlocks the course without real money.') }}</p>
-    <form method="post" action="{{ url_for('pay.demo_pay', course_id=course.id) }}">{{ csrf() }}<button class="btn ok">{{ _('Simulate payment') }}</button></form>
+    <form method="post" action="{{ url_for('pay.demo_pay', course_id=course.id) }}">{{ csrf() }}<button class="btn ok" {{ 'disabled' if preview }}>{{ _('Simulate payment') }}</button></form>
   </div>{% endif %}
   {% if not (chapa or manual or demo) %}<div class="card">{{ _('Online enrollment is not available right now - please contact us.') }}</div>{% endif %}
 </div>

@@ -522,3 +522,5 @@ body.has-tabbar.has-mobile-cta { padding-bottom: 140px; }
 .preview-note p { margin: 0; }
 .locked { white-space: nowrap; }
 .locked .i, .locked-lesson .i { width: 1em; height: 1em; vertical-align: -.12em; }
+
+.pay-instructions { white-space: pre-line; padding: var(--s3) var(--s4); background: var(--brand-soft); border-radius: var(--radius-sm); }

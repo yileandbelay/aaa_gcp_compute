@@ -20,6 +20,8 @@ from werkzeug.utils import secure_filename
 from .. import videohosts
 from ..enrollment import (create_invitation, enroll_student, notify_enrolled, parse_emails)
 from ..ledger import paid_total, paid_totals, record_payment
+from ..settings import (PAYMENT_INSTRUCTIONS, PAYMENT_INSTRUCTIONS_AM, get_setting, payment_instructions,
+                        set_setting)
 from ..mail import send_email
 from ..reviews import rating_summary
 from ..models import (Announcement, Assessment, Attachment, Attempt, Certificate, ContactMessage, Course,
@@ -803,7 +805,23 @@ def payments():
     if status:
         query = query.filter_by(status=status)
     return render_template("admin/payments.html", payments=query.order_by(Payment.created_at.desc()).all(),
-                           status=status, **_record_form_data())
+                           status=status, sample_details=payment_instructions()[1], **_record_form_data())
+
+
+@bp.route("/payments/details", methods=["GET", "POST"])
+@admin_required
+def payment_details():
+    """The bank, Telebirr and cash details students see when they enroll in a paid course."""
+    if request.method == "POST":
+        set_setting(PAYMENT_INSTRUCTIONS, request.form.get("instructions", "")[:2000])
+        set_setting(PAYMENT_INSTRUCTIONS_AM, request.form.get("instructions_am", "")[:2000])
+        db.session.commit()
+        flash("Payment details saved. Students see them on the enroll page.", "success")
+        return redirect(url_for("admin.payment_details"))
+    text, sample = payment_instructions()
+    return render_template("admin/payment_details.html", sample=sample, shown=text,
+                           instructions=get_setting(PAYMENT_INSTRUCTIONS),
+                           instructions_am=get_setting(PAYMENT_INSTRUCTIONS_AM))
 
 
 @bp.route("/payments.csv")
