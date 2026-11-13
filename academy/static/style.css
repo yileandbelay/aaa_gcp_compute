@@ -585,3 +585,12 @@ body.has-tabbar.has-mobile-cta { padding-bottom: 140px; }
 .lesson-body { overflow-wrap: anywhere; min-width: 0; }
 .lesson-body table { display: block; max-width: 100%; overflow-x: auto; }
 .layout-lesson > article { min-width: 0; }
+
+/* Course pages: a step bar (Details, Lessons, Quizzes, Students, Announcements, Reviews) instead of one long page */
+.course-steps { flex-wrap: wrap; overflow-x: visible; margin-bottom: var(--s4); }
+.course-steps .step-off { flex: none; display: inline-flex; align-items: center; padding: 12px 14px; color: var(--muted); font-weight: 600; font-size: .95rem; opacity: .55; cursor: not-allowed; }
+.course-steps a .done { color: var(--ok); }
+.course-steps a .todo { color: var(--muted); }
+.course-title { font-size: 1.3rem; font-weight: 700; margin: 0 0 var(--s2); color: var(--ink); }
+.course-status { margin-bottom: var(--s3); }
+.step-next { margin-top: var(--s4); }

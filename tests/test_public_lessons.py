@@ -176,13 +176,13 @@ def test_admin_switches_a_lesson_between_public_and_locked(app):
     set_public(app, ids_[0], False)
     admin = app.test_client()
     login(admin, "admin@example.com", "admin12345", area="staff")
-    page = admin.get(f"/admin/courses/{cid}").data.decode()
+    page = admin.get(f"/admin/courses/{cid}/lessons").data.decode()
     lesson_table = page.split('id="lessons"')[1].split("Quick add")[0]
     assert "Make public" in lesson_table and "Lock it" not in lesson_table
     admin.post(f"/admin/lessons/{ids_[0]}/public")
     with app.app_context():
         assert db.session.get(Lesson, ids_[0]).is_preview is True
-    assert "Lock it" in admin.get(f"/admin/courses/{cid}").data.decode()
+    assert "Lock it" in admin.get(f"/admin/courses/{cid}/lessons").data.decode()
     admin.post(f"/admin/lessons/{ids_[0]}/public")
     with app.app_context():
         assert db.session.get(Lesson, ids_[0]).is_preview is False

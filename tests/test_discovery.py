@@ -303,11 +303,11 @@ def test_admin_can_hide_show_and_delete_reviews(app):
     with app.app_context():
         rid = Review.query.one().id
     admin = admin_client(app)
-    assert "Rude words here" in admin.get("/admin/courses/1").data.decode()
+    assert "Rude words here" in admin.get("/admin/courses/1/reviews").data.decode()
     admin.post(f"/admin/reviews/{rid}", data={"action": "hide"})
     public = app.test_client().get("/courses/project-management-fundamentals").data.decode()
     assert "Rude words here" not in public and "No ratings yet" in public
-    assert "hidden" in admin.get("/admin/courses/1").data.decode()
+    assert "hidden" in admin.get("/admin/courses/1/reviews").data.decode()
     admin.post(f"/admin/reviews/{rid}", data={"action": "show"})
     assert "Rude words here" in app.test_client().get("/courses/project-management-fundamentals").data.decode()
     admin.post(f"/admin/reviews/{rid}", data={"action": "delete"})

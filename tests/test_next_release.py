@@ -557,7 +557,7 @@ def test_teachers_see_a_read_only_label_and_no_toggle(app):
     with app.app_context():
         db.session.get(Lesson, ids_[0]).is_preview = True
         db.session.commit()
-    page = teacher_client(app).get(f"/admin/courses/{cid}").data.decode()
+    page = teacher_client(app).get(f"/admin/courses/{cid}/lessons").data.decode()
     table = page.split('id="lessons"')[1].split("Quick add")[0]
     assert "Make public" not in table and "Lock it" not in table and "/public" not in table
     assert 'class="badge active">public' in table and 'class="badge">locked' in table
@@ -569,7 +569,7 @@ def test_admin_still_sees_the_toggle_and_can_use_it(app):
     cid, ids_ = own_course_with_lessons(app)
     before = flag(app, ids_[1])
     admin = admin_client(app)
-    table = admin.get(f"/admin/courses/{cid}").data.decode().split('id="lessons"')[1].split("Quick add")[0]
+    table = admin.get(f"/admin/courses/{cid}/lessons").data.decode().split('id="lessons"')[1].split("Quick add")[0]
     assert "Make public" in table or "Lock it" in table
     assert admin.post(f"/admin/lessons/{ids_[1]}/public").status_code == 302 and flag(app, ids_[1]) is (not before)
     assert 'name="is_preview"' in admin.get(f"/admin/lessons/{ids_[1]}").data.decode()
@@ -726,9 +726,9 @@ def test_bulk_tools_are_admin_only_even_for_the_courses_teacher(app):
     assert app.test_client().post(f"/admin/courses/{cid}/lessons/bulk", data={"action": "delete", "confirmed": "1", "lesson_ids": ids_}).status_code in (302, 400, 401, 403)
     with app.app_context():
         assert Lesson.query.filter_by(course_id=cid).count() == 4 and not any(flag(app, i) for i in ids_)
-    page = t.get(f"/admin/courses/{cid}").data.decode()
+    page = t.get(f"/admin/courses/{cid}/lessons").data.decode()
     assert 'name="lesson_ids"' not in page and "With the ticked lessons" not in page
-    admin_page = admin_client(app).get(f"/admin/courses/{cid}").data.decode()
+    admin_page = admin_client(app).get(f"/admin/courses/{cid}/lessons").data.decode()
     assert admin_page.count('name="lesson_ids"') == 4 and 'id="bulk-lessons"' in admin_page
 
 
@@ -1374,10 +1374,10 @@ def test_lesson_form_and_quick_add_offer_sections_only_when_they_exist(app):
     lid = add_lesson(app, cid, "A", 5)
     admin = admin_client(app)
     assert 'name="section_id"' not in admin.get(f"/admin/lessons/{lid}").data.decode()
-    assert 'name="section_id"' not in admin.get(f"/admin/courses/{cid}").data.decode()
+    assert 'name="section_id"' not in admin.get(f"/admin/courses/{cid}/lessons").data.decode()
     admin.post(f"/admin/courses/{cid}/sections", data={"title": "Only Section"})
     assert 'name="section_id"' in admin.get(f"/admin/lessons/{lid}").data.decode()
-    quick = admin.get(f"/admin/courses/{cid}").data.decode().split("Quick add")[1]
+    quick = admin.get(f"/admin/courses/{cid}/lessons").data.decode().split("Quick add")[1]
     assert 'name="section_id"' in quick and "Only Section" in quick
     put_in(admin, lid, None)
     with app.app_context():

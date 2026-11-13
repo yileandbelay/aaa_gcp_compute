@@ -230,6 +230,33 @@ def _fill_course(course, form):
             course.instructor_id = teacher.id
 
 
+STEPS = ("details", "lessons", "quizzes", "students", "announcements", "reviews")
+
+
+def _next_step(active):
+    """The step after ``active`` that is switched on, or None after the last one."""
+    on = [name for name in STEPS if not (name == "announcements" and not current_app.config["FEATURE_ANNOUNCEMENTS"])
+          and not (name == "reviews" and not current_app.config["FEATURE_REVIEWS"])]
+    i = on.index(active)
+    return on[i + 1] if i + 1 < len(on) else None
+
+
+def _step_url(name, course_id):
+    endpoint = {"details": "admin.course_edit", "lessons": "admin.course_lessons", "quizzes": "admin.course_quizzes",
+                "students": "admin.course_students", "announcements": "admin.course_announcements",
+                "reviews": "admin.course_reviews"}[name]
+    return url_for(endpoint, course_id=course_id)
+
+
+def _steps(course, active):
+    """What the step bar at the top of every course page needs: counts and the current step."""
+    counts = {"lessons": len(course.lessons) if course else 0, "quizzes": len(course.assessments) if course else 0,
+              "students": Enrollment.query.filter_by(course_id=course.id, status="active").count() if course else 0,
+              "announcements": len(course.announcements) if course else 0,
+              "reviews": len(course.reviews) if course else 0}
+    return {"active": active, "counts": counts, "next": _next_step(active) if active else None}
+
+
 @bp.route("/courses/new", methods=["GET", "POST"])
 @staff_required
 def course_new():
@@ -239,25 +266,61 @@ def course_new():
         _apply_cover(course)
         db.session.add(course)
         db.session.commit()
-        flash("Course created. Next, add its lessons below.", "success")
-        return redirect(url_for("admin.course_edit", course_id=course.id) + "#lessons")
+        flash("Course created. Next, add its lessons.", "success")
+        return redirect(url_for("admin.course_lessons", course_id=course.id))
     return render_template("admin/course_form.html", course=None, categories=_categories(),
-                           staff=_staff_users())
+                           staff=_staff_users(), steps=_steps(None, "details"))
 
 
 @bp.route("/courses/<int:course_id>", methods=["GET", "POST"])
 @staff_required
 def course_edit(course_id):
+    """Step 1, Details. "Save and continue" goes on to Lessons; "Save" stays here."""
     course = _course(course_id)
     if request.method == "POST":
         _fill_course(course, request.form)
         _apply_cover(course)
         db.session.commit()
+        if request.form.get("then") == "next":
+            flash("Details saved. Next, the lessons.", "success")
+            return redirect(url_for("admin.course_lessons", course_id=course.id))
         flash("Course saved.", "success")
         return redirect(url_for("admin.course_edit", course_id=course.id))
-    enrolled = Enrollment.query.filter_by(course_id=course.id, status="active").count()
     return render_template("admin/course_form.html", course=course, categories=_categories(),
-                           staff=_staff_users(), enrolled=enrolled, rating=rating_summary([course.id]).get(course.id))
+                           staff=_staff_users(), steps=_steps(course, "details"))
+
+
+@bp.route("/courses/<int:course_id>/lessons")
+@staff_required
+def course_lessons(course_id):
+    course = _course(course_id)
+    return render_template("admin/course_lessons.html", course=course, steps=_steps(course, "lessons"))
+
+
+@bp.route("/courses/<int:course_id>/quizzes")
+@staff_required
+def course_quizzes(course_id):
+    course = _course(course_id)
+    return render_template("admin/course_quizzes.html", course=course, steps=_steps(course, "quizzes"))
+
+
+@bp.route("/courses/<int:course_id>/announcements")
+@staff_required
+def course_announcements(course_id):
+    course = _course(course_id)
+    if not current_app.config["FEATURE_ANNOUNCEMENTS"]:
+        abort(404)
+    return render_template("admin/course_announcements.html", course=course, steps=_steps(course, "announcements"))
+
+
+@bp.route("/courses/<int:course_id>/reviews")
+@staff_required
+def course_reviews(course_id):
+    course = _course(course_id)
+    if not current_app.config["FEATURE_REVIEWS"]:
+        abort(404)
+    return render_template("admin/course_reviews.html", course=course, steps=_steps(course, "reviews"),
+                           rating=rating_summary([course.id]).get(course.id))
 
 
 @bp.route("/courses/<int:course_id>/visibility", methods=["POST"])
@@ -319,7 +382,7 @@ def announce(course_id):
         db.session.add(Announcement(course_id=course.id, title=title, body=request.form.get("body", "")))
         db.session.commit()
         flash("Announcement posted.", "success")
-    return redirect(url_for("admin.course_edit", course_id=course.id) + "#announcements")
+    return redirect(url_for("admin.course_announcements", course_id=course.id))
 
 
 @bp.route("/reviews/<int:review_id>", methods=["POST"])
@@ -336,7 +399,7 @@ def review_moderate(review_id):
     elif action == "show":
         review.is_hidden = False
     db.session.commit()
-    return redirect(url_for("admin.course_edit", course_id=review.course_id) + "#reviews")
+    return redirect(url_for("admin.course_reviews", course_id=review.course_id))
 
 
 @bp.route("/announcements/<int:ann_id>/delete", methods=["POST"])
@@ -347,7 +410,7 @@ def announcement_delete(ann_id):
     cid = ann.course_id
     db.session.delete(ann)
     db.session.commit()
-    return redirect(url_for("admin.course_edit", course_id=cid) + "#announcements")
+    return redirect(url_for("admin.course_announcements", course_id=cid))
 
 
 # --- Who is enrolled in a course (assigning courses to students) ------------------
@@ -376,7 +439,7 @@ def course_students(course_id):
         extra = {"paid": paid, "collected": sum(paid.values(), Decimal("0")),
                  "pay_for": pay_for if pay_for and pay_for.can_study else None, **_record_form_data()}
     return render_template("admin/course_students.html", course=course, rows=rows, candidates=candidates,
-                           invitations=invitations, **extra)
+                           invitations=invitations, steps=_steps(course, "students"), **extra)
 
 
 def _course_students_action(course):
@@ -548,7 +611,7 @@ def lesson_form(course_id=None, lesson_id=None):
             return redirect(url_for("admin.lesson_form", course_id=course.id))
         if action == "edit":  # quick-add from the course page: open the new lesson for editing
             return redirect(url_for("admin.lesson_form", lesson_id=lesson.id))
-        return redirect(url_for("admin.course_edit", course_id=course.id) + "#lessons")
+        return redirect(url_for("admin.course_lessons", course_id=course.id))
 
     current_host = videohosts.get(lesson.video_provider) if lesson else None
     host_status = None
@@ -562,7 +625,7 @@ def lesson_form(course_id=None, lesson_id=None):
     if current_host and lesson.video_ref:
         ref_value = current_host.display_ref(lesson.video_ref)
     return render_template(
-        "admin/lesson_form.html", course=course, lesson=lesson, hosts=hosts,
+        "admin/lesson_form.html", course=course, lesson=lesson, hosts=hosts, steps=_steps(course, "lessons"),
         enabled_keys=[h.key for h in videohosts.enabled_providers()],
         upload_keys=[h.key for h in videohosts.uploading_providers()],
         host_status=host_status, ref_value=ref_value, dict_help={h.key: h.help for h in hosts})
@@ -643,7 +706,7 @@ def lesson_delete(lesson_id):
     _delete_lesson(lesson)
     db.session.commit()
     flash("Lesson deleted.", "info")
-    return redirect(url_for("admin.course_edit", course_id=cid) + "#lessons")
+    return redirect(url_for("admin.course_lessons", course_id=cid))
 
 
 @bp.route("/courses/<int:course_id>/lessons/bulk", methods=["POST"])
@@ -655,12 +718,13 @@ def lessons_bulk(course_id):
     action = request.form.get("action")
     ids = {_int(v) for v in request.form.getlist("lesson_ids")}
     chosen = [l for l in course.lessons if l.id in ids]        # lessons of other courses are ignored
-    back = url_for("admin.course_edit", course_id=course.id) + "#lessons"
+    back = url_for("admin.course_lessons", course_id=course.id)
     if action not in ("public", "lock", "delete") or not chosen:
         flash("Tick at least one lesson and choose what to do with it.", "error")
         return redirect(back)
     if action == "delete" and not request.form.get("confirmed"):
-        return render_template("admin/lessons_bulk_confirm.html", course=course, lessons=chosen)
+        return render_template("admin/lessons_bulk_confirm.html", course=course, lessons=chosen,
+                               steps=_steps(course, "lessons"))
     names = ", ".join(f"\"{l.title}\"" for l in chosen[:3]) + (f" and {len(chosen) - 3} more" if len(chosen) > 3 else "")
     if action == "delete":
         for lesson in chosen:
@@ -687,7 +751,7 @@ def lesson_public(lesson_id):
     db.session.commit()
     flash(f"\"{lesson.title}\" is now {'public: anyone can watch it' if lesson.is_preview else 'locked: enrolled students only'}.",
           "success")
-    return redirect(url_for("admin.course_edit", course_id=lesson.course_id) + "#lessons")
+    return redirect(url_for("admin.course_lessons", course_id=lesson.course_id))
 
 
 @bp.route("/lessons/<int:lesson_id>/move/<direction>", methods=["POST"])
@@ -703,7 +767,7 @@ def lesson_move(lesson_id, direction):
         for pos, l in enumerate(lessons, start=1):
             l.position = pos
         db.session.commit()
-    return redirect(url_for("admin.course_edit", course_id=lesson.course_id) + "#lessons")
+    return redirect(url_for("admin.course_lessons", course_id=lesson.course_id))
 
 
 # --- Sections (optional groups of lessons) -----------------------------------------
@@ -719,7 +783,7 @@ def section_new(course_id):
         db.session.add(Section(course_id=course.id, title=title, position=len(course.sections) + 1))
         db.session.commit()
         flash(f"Section \"{title}\" added. Choose it in a lesson's form to put lessons in it.", "success")
-    return redirect(url_for("admin.course_edit", course_id=course.id) + "#lessons")
+    return redirect(url_for("admin.course_lessons", course_id=course.id))
 
 
 @bp.route("/sections/<int:section_id>", methods=["POST"])
@@ -754,7 +818,7 @@ def section_update(section_id):
     db.session.flush()
     normalize_sections(course.id)
     db.session.commit()
-    return redirect(url_for("admin.course_edit", course_id=course.id) + "#lessons")
+    return redirect(url_for("admin.course_lessons", course_id=course.id))
 
 
 # --- Assessments ------------------------------------------------------------------
@@ -779,7 +843,7 @@ def assessment_form(course_id=None, aid=None):
         db.session.commit()
         flash("Assessment saved.", "success")
         return redirect(url_for("admin.assessment_form", aid=a.id))
-    return render_template("admin/assessment_form.html", course=course, a=a)
+    return render_template("admin/assessment_form.html", course=course, a=a, steps=_steps(course, "quizzes"))
 
 
 @bp.route("/assessments/<int:aid>/delete", methods=["POST"])
@@ -790,7 +854,7 @@ def assessment_delete(aid):
     db.session.delete(a)
     db.session.commit()
     flash("Assessment deleted.", "info")
-    return redirect(url_for("admin.course_edit", course_id=cid) + "#assessments")
+    return redirect(url_for("admin.course_quizzes", course_id=cid))
 
 
 @bp.route("/assessments/<int:aid>/questions", methods=["POST"])

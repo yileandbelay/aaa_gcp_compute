@@ -1,6 +1,7 @@
 {% extends "base.html" %}{% from "_macros.html" import csrf %}
 {% block content %}
-<p class="small"><a href="{{ url_for('admin.course_edit', course_id=course.id) }}#assessments">← {{ course.title }}</a></p>
+{% set title_tag = 'p' %}{% include "admin/_course_head.html" %}
+<p class="small"><a href="{{ url_for('admin.course_quizzes', course_id=course.id) }}">← Quizzes</a></p>
 <h1>{{ a.title if a else 'New assessment' }}</h1>
 <div class="card">
 <form method="post" class="stack" action="{{ url_for('admin.assessment_form', aid=a.id) if a else url_for('admin.assessment_form', course_id=course.id) }}">{{ csrf() }}
