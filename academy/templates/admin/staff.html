@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% from "_macros.html" import csrf %}
-{% block title %}Staff · Admin{% endblock %}
+{% block title %}Manage staff · Admin{% endblock %}
 {% block content %}
-<h1>Staff</h1>{% include "admin/_nav.html" %}
+<h1>Manage staff</h1>{% include "admin/_nav.html" %}
 <p class="muted"><b>Admins</b> (the owner) can manage everything, including payments and people. <b>Teachers</b> manage only the courses assigned to them and the students enrolled in those courses. Open a person to change their roles: one email address can be a teacher and a student at once, and you can remove staff access at any time.</p>
 <div class="table-wrap"><table><tr><th>Name</th><th>Email</th><th>Role</th><th>Courses taught</th><th></th></tr>
 {% for u in users %}<tr><td><a href="{{ url_for('admin.user_detail', user_id=u.id) }}">{{ u.full_name }}</a>{% if u.id == current_user.id %} <span class="small muted">(you)</span>{% endif %}{% if not u.is_active_account %} <span class="badge failed">suspended</span>{% endif %}</td>

@@ -1,6 +1,7 @@
 {% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}Manage courses · Admin{% endblock %}
 {% block content %}
-<h1>Courses</h1>{% include "admin/_nav.html" %}
+<h1>Manage courses</h1>{% include "admin/_nav.html" %}
 <p class="row"><a class="btn" href="{{ url_for('admin.course_new') }}">+ New course</a>{% if current_user.is_admin %} <a class="btn secondary" href="{{ url_for('admin.categories') }}">Manage categories</a>{% endif %}
 {% if current_user.is_admin and courses|rejectattr('is_published')|list %}<form method="post" action="{{ url_for('admin.courses_show_all') }}" style="margin:0">{{ csrf() }}<button class="btn secondary" onclick="return confirm('Show every hidden course to the public? Their lessons stay locked.')">Show all hidden courses</button></form>{% endif %}</p>
 <p class="small muted">Every visible course shows its name, summary and the list of its lessons to everyone. Lessons are locked by default; an admin makes a lesson public from the course page.</p>
