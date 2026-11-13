@@ -210,4 +210,10 @@ tests/               pytest suite (run by GitHub Actions on every push)
 
 **Off-server backups.** Run `rclone config` once on the server, then set `RCLONE_REMOTE="remote:bucket/folder"` in `/etc/academy.env` (and optionally `OFFSITE_RETENTION_DAYS`, default 30). The nightly backup copies itself there and removes copies older than the retention. To restore on a new server: install the app, then `sudo bash deploy/restore.sh --env /etc/academy.env --from remote:bucket/folder --force`, and start the app. Test a restore once per quarter.
 
+**Main address and redirects.** Use `--domain` for the address people see and share (for example `www.example.com`) and `--redirect-from` for other names that should send visitors there:
+```
+sudo bash deploy/install.sh --domain www.example.com --redirect-from "example.com learn.example.com" --email you@example.com
+```
+The installer remembers these, so later updates are a plain `bash deploy/install.sh`. All the names share one certificate. A name with no DNS record yet is skipped with a warning (add the record, then re-run). If the certificate cannot be issued, the previous HTTPS setup stays in place. After changing the main address, add the new address to Bunny's *Allowed domains* (Stream library, Security) so videos keep playing; students sign in again on the new address.
+
 When you change `academy/models.py`, create a migration with `flask db migrate -m "what changed"` and review the generated file in `academy/migrations/versions/`. Commit it with your change. `install.sh` applies it on the next update.
