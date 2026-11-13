@@ -585,3 +585,13 @@ body.has-tabbar.has-mobile-cta { padding-bottom: 140px; }
 .lesson-body { overflow-wrap: anywhere; min-width: 0; }
 .lesson-body table { display: block; max-width: 100%; overflow-x: auto; }
 .layout-lesson > article { min-width: 0; }
+
+/* Admin navigation: the tab strip is for wide screens; on phones the same links live in the menu, in two groups. */
+.admin-bar { background: var(--brand-soft); border-bottom: 1px solid var(--line); font-size: .85rem; padding: 6px 0; color: var(--muted); }
+.admin-bar a { color: var(--brand-dark); font-weight: 600; }
+.nav-heading { margin: var(--s3) 0 0; padding: 0 var(--s2); font-size: .8rem; font-weight: 700; color: var(--muted); }
+.nav-group { display: flex; flex-direction: column; gap: 2px; }
+.nav-group .nav-badge { margin-left: var(--s2); }
+.tabbar a { justify-content: flex-start; padding-top: 8px; }   /* icons stay level when a label wraps to two lines */
+@media (max-width: 899px) { .admin-tabs { display: none; } .in-admin .nav-single-admin { display: none; } }
+@media (min-width: 900px) { .phone-only { display: none !important; } .admin-tabs { flex-wrap: wrap; overflow-x: visible; } }

@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% from "_macros.html" import course_card, empty_panel, icon with context %}
-{% block title %}{{ _('Courses') }} · {{ site_name }}{% endblock %}
+{% block title %}{{ _('Browse courses') }} · {{ site_name }}{% endblock %}
 {% block content %}
-<div class="page-head"><h1>{{ _('Courses') }}</h1></div>
+<div class="page-head"><h1>{{ _('Browse courses') }}</h1></div>
 <form method="get" id="finder" class="finder-bar" role="search">
   <div class="finder-search">
     <input type="search" id="q" name="q" value="{{ q }}" placeholder="{{ _('Search courses, topics or skills') }}" aria-label="{{ _('Search courses') }}">

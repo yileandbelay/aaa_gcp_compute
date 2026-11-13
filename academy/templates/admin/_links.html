@@ -1,0 +1,13 @@
+{# The admin links, used by the tab strip (desktop) and the phone menu. Admin labels are English only.
+   `ep` is the current endpoint; `detail_user` is the person being viewed on a user page, if any. #}
+{% macro admin_links(ep, detail_user=none) %}
+  <a href="{{ url_for('admin.dashboard') }}" {% if ep == 'admin.dashboard' %}aria-current="page"{% endif %}>Overview</a>
+  <a href="{{ url_for('admin.courses') }}" {% if ep.startswith(('admin.course', 'admin.lesson', 'admin.assessment', 'admin.question', 'admin.review', 'admin.announce', 'admin.categor', 'admin.section')) %}aria-current="page"{% endif %}>Manage courses</a>
+  {% if current_user.is_admin %}
+  <a href="{{ url_for('admin.students') }}" {% if ep == 'admin.students' or (ep == 'admin.user_detail' and detail_user and not detail_user.is_staff) %}aria-current="page"{% endif %}>Manage students</a>
+  <a href="{{ url_for('admin.staff') }}" {% if ep == 'admin.staff' or (ep == 'admin.user_detail' and detail_user and detail_user.is_staff) %}aria-current="page"{% endif %}>Manage staff</a>
+  <a href="{{ url_for('admin.payments') }}" {% if ep.startswith('admin.payment') %}aria-current="page"{% endif %}>Payments</a>
+  <a href="{{ url_for('admin.reports') }}" {% if ep.startswith('admin.report') %}aria-current="page"{% endif %}>Reports</a>
+  <a href="{{ url_for('admin.messages') }}" {% if ep.startswith('admin.message') %}aria-current="page"{% endif %}>Messages{% if unread_messages %}<span class="nav-badge">{{ unread_messages }}</span>{% endif %}</a>
+  {% endif %}
+{% endmacro %}
