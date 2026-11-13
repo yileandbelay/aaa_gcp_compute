@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}Reviews · {{ course.title }} · Admin{% endblock %}
+{% block content %}
+{% include "admin/_course_head.html" %}
+
+<div class="card" id="reviews">
+  <div class="row spread"><h2>Ratings and feedback</h2>{% if rating %}<span class="muted">Average {{ '%.1f'|format(rating[0]) }} from {{ rating[1] }} rating{{ 's' if rating[1] != 1 }}</span>{% endif %}</div>
+  {% for r in course.reviews %}
+  <div class="review">
+    <div class="row spread"><div><b>{{ r.user.full_name }}</b> <span class="small muted">{{ r.user.email }}</span> · {{ r.rating }} ★ {% if r.is_hidden %}<span class="badge failed">hidden</span>{% endif %}</div>
+      <form method="post" action="{{ url_for('admin.review_moderate', review_id=r.id) }}" class="row">{{ csrf() }}
+        {% if r.is_hidden %}<button class="linkbtn" name="action" value="show">show again</button>{% else %}<button class="linkbtn" name="action" value="hide">hide</button>{% endif %}
+        <button class="linkbtn" name="action" value="delete" style="color:var(--err)" onclick="return confirm('Delete this review permanently?')">delete</button></form></div>
+    {% if r.comment %}<p style="white-space:pre-wrap;margin:6px 0 0">{{ r.comment }}</p>{% endif %}
+  </div>
+  {% else %}<p class="muted">No ratings yet. Enrolled students can rate the course after completing a lesson.</p>{% endfor %}
+</div>
+
+{% endblock %}

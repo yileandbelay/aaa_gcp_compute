@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}{% from "admin/_course_head.html" import next_step_link with context %}
+{% block title %}Quizzes · {{ course.title }} · Admin{% endblock %}
+{% block content %}
+{% include "admin/_course_head.html" %}
+
+<div class="card" id="assessments">
+  <div class="row spread"><h2>Quizzes and exams</h2><a class="btn small" href="{{ url_for('admin.assessment_form', course_id=course.id) }}">+ Add assessment</a></div>
+  <ul>{% for a in course.assessments %}<li><a href="{{ url_for('admin.assessment_form', aid=a.id) }}">{{ a.title }}</a> · {{ a.questions|length }} questions · <a href="{{ url_for('admin.assessment_results', aid=a.id) }}">results</a></li>{% else %}<li class="muted">No assessments yet.</li>{% endfor %}</ul>
+</div>
+
+{{ next_step_link() }}
+{% endblock %}

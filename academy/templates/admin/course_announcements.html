@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}{% from "admin/_course_head.html" import next_step_link with context %}
+{% block title %}Announcements · {{ course.title }} · Admin{% endblock %}
+{% block content %}
+{% include "admin/_course_head.html" %}
+
+{% if config.FEATURE_ANNOUNCEMENTS %}<div class="card" id="announcements">
+  <h2>Announcements</h2>
+  {% for a in course.announcements %}<div class="row spread"><div><b>{{ a.title }}</b> <span class="small muted">{{ a.created_at.strftime('%d %b %Y') }}</span></div>
+    <form method="post" action="{{ url_for('admin.announcement_delete', ann_id=a.id) }}">{{ csrf() }}<button class="linkbtn small">delete</button></form></div>{% endfor %}
+  <form method="post" class="stack" action="{{ url_for('admin.announce', course_id=course.id) }}">{{ csrf() }}
+    <label for="ann_title">Title</label><input type="text" id="ann_title" name="title" required><label for="ann_body">Message (Markdown)</label><textarea id="ann_body" name="body"></textarea>
+    <p><button class="btn small">Post announcement</button></p></form>
+</div>{% endif %}
+
+{{ next_step_link() }}
+{% endblock %}

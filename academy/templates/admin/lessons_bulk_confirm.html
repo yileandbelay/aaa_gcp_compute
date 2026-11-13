@@ -1,7 +1,8 @@
 {% extends "base.html" %}{% from "_macros.html" import csrf %}
 {% block title %}Delete lessons · Admin{% endblock %}
 {% block content %}
-<p class="small"><a href="{{ url_for('admin.course_edit', course_id=course.id) }}#lessons">← {{ course.title }}</a></p>
+{% set title_tag = 'p' %}{% include "admin/_course_head.html" %}
+<p class="small"><a href="{{ url_for('admin.course_lessons', course_id=course.id) }}">← Lessons</a></p>
 <h1>Delete {{ lessons|length }} lesson{{ 's' if lessons|length != 1 }}?</h1>
 <div class="card">
   <p>This removes these lessons from <b>{{ course.title }}</b>, with their videos, files, links and every student's progress on them. It cannot be undone.</p>
@@ -10,7 +11,7 @@
     <input type="hidden" name="action" value="delete"><input type="hidden" name="confirmed" value="1">
     {% for l in lessons %}<input type="hidden" name="lesson_ids" value="{{ l.id }}">{% endfor %}
     <button class="btn danger">Yes, delete {{ lessons|length }} lesson{{ 's' if lessons|length != 1 }}</button>
-    <a class="btn secondary" href="{{ url_for('admin.course_edit', course_id=course.id) }}#lessons">Cancel</a>
+    <a class="btn secondary" href="{{ url_for('admin.course_lessons', course_id=course.id) }}">Cancel</a>
   </form>
 </div>
 {% endblock %}

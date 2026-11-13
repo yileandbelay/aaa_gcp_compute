@@ -182,4 +182,4 @@ def test_the_course_editor_checklist_and_status_use_the_same_words(app):
     admin = admin_client(app)
     cid = new_course(admin, "Words Course")
     page = admin.get(f"/admin/courses/{cid}").data.decode()
-    assert "Visible to everyone" in page and "Show it in the public course list" in page and "Published" not in page
+    assert "Visible to everyone" in page and "Show this course in the public list" in page and "Published" not in page

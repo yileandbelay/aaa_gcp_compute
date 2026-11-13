@@ -1,0 +1,36 @@
+{# Title, status line and the step bar shown on every page of a course.
+   Needs `course` (None while creating), `steps` (from the route) and optionally `title_tag` ("h1" by default,
+   "p" on pages that have their own h1, such as the lesson editor). Admin labels are English only. #}
+{% from "_macros.html" import csrf %}
+{% set title_tag = title_tag|default('h1') %}
+{% set active = steps.active %}
+{% set counts = steps.counts %}
+<{{ title_tag }}{% if title_tag != 'h1' %} class="course-title"{% endif %}>{{ course.title if course else 'New course' }}</{{ title_tag }}>
+{% if course %}
+<div class="row spread course-status">
+  <div class="row">
+    <span class="badge {{ 'active' if course.is_published else '' }}">{{ 'Visible to everyone' if course.is_published else 'Hidden' }}</span>
+    <form method="post" action="{{ url_for('admin.course_visibility', course_id=course.id) }}" style="margin:0">{{ csrf() }}<input type="hidden" name="next" value="{{ request.path }}"><button class="linkbtn small">{{ 'Hide it' if course.is_published else 'Show it' }}</button></form>
+    <a href="{{ url_for('main.course_detail', slug=course.slug) }}">View as a student sees it</a>
+  </div>
+</div>
+{% endif %}
+<nav class="tabs course-steps" aria-label="Course steps">
+  {% for key, label in (('details', 'Details'), ('lessons', 'Lessons'), ('quizzes', 'Quizzes'), ('students', 'Students'), ('announcements', 'Announcements'), ('reviews', 'Reviews')) if not (key == 'announcements' and not config.FEATURE_ANNOUNCEMENTS) and not (key == 'reviews' and not config.FEATURE_REVIEWS) %}
+    {% set n = counts.get(key, 0) %}
+    {% if not course and key != 'details' %}
+      <span class="step-off is-disabled" aria-disabled="true" title="Save the details first">{{ label }}</span>
+    {% else %}
+      <a href="{{ {'details': url_for('admin.course_edit', course_id=course.id) if course else url_for('admin.course_new'),
+                    'lessons': url_for('admin.course_lessons', course_id=course.id) if course else '',
+                    'quizzes': url_for('admin.course_quizzes', course_id=course.id) if course else '',
+                    'students': url_for('admin.course_students', course_id=course.id) if course else '',
+                    'announcements': url_for('admin.course_announcements', course_id=course.id) if course else '',
+                    'reviews': url_for('admin.course_reviews', course_id=course.id) if course else ''}[key] }}" {% if key == active %}aria-current="page"{% endif %}>
+        {% if key == 'details' and course %}<span class="done" aria-label="done">✓</span>{% elif key in ('lessons', 'quizzes') %}{% if n %}<span class="done" aria-label="done">✓</span>{% else %}<span class="todo" aria-label="not done yet">○</span>{% endif %}{% endif %}
+        {{ label }}{% if n and key != 'details' %} <span class="small muted">({{ n }})</span>{% elif key == 'students' %} <span class="small muted">({{ n }})</span>{% endif %}
+      </a>
+    {% endif %}
+  {% endfor %}
+</nav>
+{% macro next_step_link() %}{% if steps.next %}<p class="step-next"><a class="btn" href="{{ {'lessons': url_for('admin.course_lessons', course_id=course.id), 'quizzes': url_for('admin.course_quizzes', course_id=course.id), 'students': url_for('admin.course_students', course_id=course.id), 'announcements': url_for('admin.course_announcements', course_id=course.id), 'reviews': url_for('admin.course_reviews', course_id=course.id)}[steps.next] }}">Next: {{ {'lessons': 'Lessons', 'quizzes': 'Quizzes', 'students': 'Students', 'announcements': 'Announcements', 'reviews': 'Reviews'}[steps.next] }} →</a></p>{% endif %}{% endmacro %}
