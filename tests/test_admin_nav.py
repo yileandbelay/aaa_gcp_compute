@@ -84,7 +84,7 @@ def test_amharic_public_labels(app):
     c = student_client(app)
     c.set_cookie("lang", "am")
     page = c.get("/").data.decode()
-    assert "ኮርሶችን ይመልከቱ" in part(page, 'id="site-nav"', "</nav>")
+    assert "ኮርሶችን ይምረጡ" in part(page, 'id="site-nav"', "</nav>")
     assert "ያስሱ" in part(page, '<nav class="tabbar"', "</nav>") and "Browse" not in part(page, '<nav class="tabbar"', "</nav>")
 
 
@@ -205,7 +205,7 @@ def test_the_bottom_bar_inside_admin_is_the_admin_bar(app):
 def test_admin_labels_stay_english_while_public_items_follow_the_language(app):
     page = admin_client(app, "am").get("/admin/courses").data.decode()
     menu = part(page, 'id="site-nav"', "</nav>")
-    assert "ኮርሶችን ይመልከቱ" in menu and "Manage courses" in menu and "Administration" in menu
+    assert "ኮርሶችን ይምረጡ" in menu and "Manage courses" in menu and "Administration" in menu
     assert "Manage students" in part(page, 'class="tabs admin-tabs"', "</nav>")
 
 
