@@ -4,7 +4,11 @@
 #   sudo bash deploy/install.sh --domain learn.example.com --email you@example.com
 #
 # Options:
-#   --domain D   Public domain name pointing at this server (enables HTTPS with --email)
+#   --domain D   Public domain name pointing at this server (enables HTTPS with --email). This is the
+#                main address people see and share, for example www.example.com
+#   --redirect-from "A B"  Other names that should redirect to --domain (spaces or commas), for example
+#                "example.com learn.example.com". They get the same certificate. A name with no DNS
+#                record yet is skipped with a warning; add the record and re-run the installer.
 #   --email E    Email for Let's Encrypt certificate notices (needed for HTTPS)
 #   --name N     Instance name: user, folders, service (default: academy).
 #                Use different names to run several academies on one server.
@@ -17,16 +21,17 @@
 # database migrations and restarts the app. Settings in /etc/<name>.env are kept.
 set -euo pipefail
 
-NAME=academy; PORT=""; DOMAIN=""; EMAIL=""; REPO=""; BRANCH=main
+NAME=academy; PORT=""; DOMAIN=""; EMAIL=""; REPO=""; BRANCH=main; REDIRECTS=""; REDIRECTS_GIVEN=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --domain) DOMAIN="$2"; shift 2 ;;
     --email) EMAIL="$2"; shift 2 ;;
+    --redirect-from) REDIRECTS="$2"; REDIRECTS_GIVEN=1; shift 2 ;;
     --name) NAME="$2"; shift 2 ;;
     --port) PORT="$2"; shift 2 ;;
     --repo) REPO="$2"; shift 2 ;;
     --branch) BRANCH="$2"; shift 2 ;;
-    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
@@ -38,6 +43,7 @@ STATE=/etc/$NAME.install
 if [ -f "$STATE" ]; then . "$STATE"; fi
 DOMAIN="${DOMAIN:-${SAVED_DOMAIN:-}}"; EMAIL="${EMAIL:-${SAVED_EMAIL:-}}"
 PORT="${PORT:-${SAVED_PORT:-8000}}"; REPO="${REPO:-${SAVED_REPO:-}}"
+[ "$REDIRECTS_GIVEN" = 1 ] || REDIRECTS="${SAVED_REDIRECTS:-}"
 if [ -z "$REPO" ]; then
   REPO="$(git -C "$(dirname "$0")/.." remote get-url origin 2>/dev/null || true)"
   [ -n "$REPO" ] || { echo "Pass --repo <git url>." >&2; exit 1; }
@@ -46,7 +52,11 @@ fi
 APP_DIR=/opt/$NAME; DATA_DIR=/var/lib/$NAME; ENV_FILE=/etc/$NAME.env
 # shellcheck source=deploy/https.sh
 . "$(dirname "${BASH_SOURCE[0]}")/https.sh"
-printf 'SAVED_DOMAIN=%q\nSAVED_EMAIL=%q\nSAVED_PORT=%q\nSAVED_REPO=%q\n' "$DOMAIN" "$EMAIL" "$PORT" "$REPO" > "$STATE"
+ALIASES=""
+if [ -n "$DOMAIN" ] && [ -n "$REDIRECTS" ]; then
+  ALIASES="$(normalize_names "$DOMAIN" "$REDIRECTS")" || exit 1
+fi
+printf 'SAVED_DOMAIN=%q\nSAVED_EMAIL=%q\nSAVED_PORT=%q\nSAVED_REPO=%q\nSAVED_REDIRECTS=%q\n' "$DOMAIN" "$EMAIL" "$PORT" "$REPO" "$(echo $ALIASES)" > "$STATE"
 echo "==> Installing '$NAME' from $REPO ($BRANCH) on port $PORT"
 
 export DEBIAN_FRONTEND=noninteractive
@@ -106,6 +116,14 @@ NGINX_CONF="/etc/nginx/sites-available/$NAME"
 https_snapshot "$NGINX_CONF"   # remember the HTTPS version in case certbot cannot put it back below
 sed -e "s|__NAME__|$NAME|g" -e "s|__PORT__|$PORT|g" -e "s|__DOMAIN__|${DOMAIN:-_}|g" \
   "$APP_DIR/deploy/nginx.conf" > "$NGINX_CONF"
+LIVE_ALIASES=""
+if [ -n "$DOMAIN" ] && [ -n "$EMAIL" ] && [ -n "$ALIASES" ]; then
+  LIVE_ALIASES="$(resolvable_names $ALIASES)"
+  if [ -n "$LIVE_ALIASES" ]; then
+    redirect_block "$DOMAIN" $LIVE_ALIASES >> "$NGINX_CONF"
+    echo "==> Redirecting to https://$DOMAIN from:" $LIVE_ALIASES
+  fi
+fi
 ln -sf "/etc/nginx/sites-available/$NAME" "/etc/nginx/sites-enabled/$NAME"
 rm -f /etc/nginx/sites-enabled/default
 
@@ -118,9 +136,17 @@ systemctl restart "$NAME"
 nginx -t -q && systemctl restart nginx
 
 if [ -n "$DOMAIN" ] && [ -n "$EMAIL" ]; then
-  echo "==> Requesting an HTTPS certificate for $DOMAIN"
+  echo "==> Requesting an HTTPS certificate for $DOMAIN" $LIVE_ALIASES
   # Waits for a running certbot (the automatic renewal), retries, and reuses the existing certificate.
-  if install_certificate "$DOMAIN" "$EMAIL"; then
+  if ! getent hosts "$DOMAIN" >/dev/null 2>&1; then
+    echo "!! $DOMAIN has no DNS record yet, so no certificate can be issued." >&2
+    CERT_OK=0
+  elif install_certificate "$DOMAIN" "$EMAIL" $LIVE_ALIASES; then
+    CERT_OK=1
+  else
+    CERT_OK=0
+  fi
+  if [ "$CERT_OK" = 1 ]; then
     https_clear "$NGINX_CONF"
     sed -i 's|^SESSION_COOKIE_SECURE=.*|SESSION_COOKIE_SECURE=true|' "$ENV_FILE"
     systemctl restart "$NAME"

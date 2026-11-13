@@ -1,6 +1,7 @@
 """The shell scripts that run on the server: nightly backup (with an off-server copy via rclone),
 restore, and safe HTTPS renewal. rclone and certbot are replaced by small stand-ins."""
 import os
+import re
 import sqlite3
 import stat
 import subprocess
@@ -340,3 +341,99 @@ def test_the_installer_uses_these_helpers_and_stays_valid_bash():
     assert subprocess.run(["bash", "-n", str(INSTALL)]).returncode == 0
     assert subprocess.run(["bash", "-n", str(HTTPS)]).returncode == 0
     assert "certbot --nginx" not in text                               # only the retrying helper calls certbot
+
+
+# --- Main address with redirects from other names (www as the main site) ----------------------
+
+GETENT_STUB = textwrap.dedent('''\
+    #!/bin/sh
+    # Stand-in for getent: a name containing "nodns" has no DNS record.
+    case "$2" in *nodns*) exit 2 ;; *) echo "203.0.113.5 $2"; exit 0 ;; esac
+''')
+
+
+@pytest.fixture
+def names_box(https_box):
+    stub = https_box.bin / "getent"
+    stub.write_text(GETENT_STUB)
+    stub.chmod(stub.stat().st_mode | stat.S_IEXEC)
+    return https_box
+
+
+def test_one_certificate_covers_the_main_domain_and_every_alias(https_box):
+    r = bash_run(https_box, "install_certificate www.example.org me@example.org example.org learn.example.org")
+    assert r.returncode == 0, r.stderr
+    args = (https_box.state / "certbot-args").read_text()
+    assert "-d www.example.org -d example.org -d learn.example.org" in args
+    assert "--cert-name www.example.org" in args and "--expand" in args and "--redirect" in args
+
+
+def test_the_certificate_request_without_aliases_still_names_the_certificate(https_box):
+    bash_run(https_box, "install_certificate learn.example.org me@example.org")
+    args = (https_box.state / "certbot-args").read_text()
+    assert "-d learn.example.org" in args and "--cert-name learn.example.org" in args and args.count("-d ") == 1
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("example.org learn.example.org", ["example.org", "learn.example.org"]),
+    ("Example.ORG,learn.example.org", ["example.org", "learn.example.org"]),
+    ("example.org, example.org  www.example.org", ["example.org"]),            # duplicates and the main domain dropped
+    ("", []),
+])
+def test_alias_list_is_cleaned_up(https_box, raw, expected):
+    r = bash_run(https_box, f'normalize_names www.example.org "{raw}"')
+    assert r.returncode == 0 and r.stdout.split() == expected
+
+
+@pytest.mark.parametrize("bad", ["not a domain", "-bad.example.org", "example", "exa_mple.org", "http://example.org", "a..b.org"])
+def test_invalid_alias_names_are_rejected(https_box, bad):
+    r = bash_run(https_box, f'normalize_names www.example.org "good.example.org {bad.split()[0]}"')
+    assert r.returncode != 0 and "Not a valid domain name" in r.stderr
+
+
+def test_names_without_dns_are_skipped_with_a_clear_message(names_box):
+    r = bash_run(names_box, "resolvable_names example.org nodns.example.org learn.example.org")
+    assert r.stdout.split() == ["example.org", "learn.example.org"]
+    assert "nodns.example.org has no DNS record yet" in r.stderr and "re-run the installer" in r.stderr
+
+
+def test_redirect_block_sends_the_aliases_to_the_main_domain_and_leaves_room_for_certbot(https_box):
+    r = bash_run(https_box, "redirect_block www.example.org example.org learn.example.org")
+    block = r.stdout
+    assert "server_name example.org learn.example.org;" in block and "listen 80;" in block
+    assert "return 301 https://www.example.org$request_uri;" in block
+    # the redirect is inside "location /", so certbot's challenge location can still answer first
+    assert re.search(r"location / \{\s*return 301", block) and not re.search(r"server_name[^\n]*\n\s*return", block)
+    assert block.count("{") == block.count("}") == 2
+
+
+def test_installer_offers_the_option_remembers_it_and_uses_the_helpers():
+    text = INSTALL.read_text()
+    for needle in ("--redirect-from", "SAVED_REDIRECTS", "normalize_names", "resolvable_names", "redirect_block",
+                   "install_certificate \"$DOMAIN\" \"$EMAIL\" $LIVE_ALIASES"):
+        assert needle in text, needle
+    assert text.index("redirect_block \"$DOMAIN\"") < text.index("install_certificate \"$DOMAIN\"")   # redirect exists before certbot runs
+    assert subprocess.run(["bash", "-n", str(INSTALL)]).returncode == 0
+
+
+def test_installer_help_documents_the_main_address_and_redirects():
+    r = subprocess.run(["bash", str(INSTALL), "--help"], capture_output=True, text=True)
+    assert r.returncode == 0 and "--redirect-from" in r.stdout and "main address" in r.stdout
+
+
+def test_two_installer_runs_with_aliases_keep_https_on_every_block(names_box):
+    """Simulates install.sh: plain config plus redirect block, certbot adds HTTPS to each block, twice."""
+    snippet = textwrap.dedent(f'''\
+        for run in 1 2; do
+          https_snapshot "$NGINX_CONF"
+          printf '%s' '{PLAIN_CONF}' > "$NGINX_CONF"
+          redirect_block www.example.org $(resolvable_names example.org learn.example.org) >> "$NGINX_CONF"
+          if install_certificate www.example.org me@example.org example.org learn.example.org; then https_clear "$NGINX_CONF"
+          else https_restore "$NGINX_CONF" || true; fi
+        done
+        ''')
+    r = bash_run(names_box, snippet)
+    assert r.returncode == 0, r.stderr
+    text = names_box.conf.read_text()
+    assert "listen 443 ssl" in text and "server_name example.org learn.example.org;" in text
+    assert not Path(str(names_box.conf) + ".https-keep").exists()
