@@ -171,7 +171,7 @@ def test_theme_folder_can_override_and_extend_a_language(tmp_path):
 def test_a_new_language_needs_only_a_catalog_file(tmp_path):
     theme = tmp_path / "theme" / "translations"
     theme.mkdir(parents=True)
-    (theme / "om.json").write_text(json.dumps({"Courses": "Koorsiiwwan"}), encoding="utf-8")
+    (theme / "om.json").write_text(json.dumps({"Contact": "Koorsiiwwan"}), encoding="utf-8")
     app = make_app(tmp_path, THEME_DIR=str(tmp_path / "theme"), LANGUAGES=["en", "om"])
     c = app.test_client()
     c.get("/lang/om")
@@ -228,7 +228,7 @@ def english_ui_left(page, phrases):
 def test_public_pages_in_amharic(app):
     c = am_client(app)
     expectations = {
-        "/": ["ኮርሶችን ይመልከቱ", "እንዴት እንደሚሠራ", "ምን መማር ይፈልጋሉ?"],
+        "/": ["ኮርሶችን ይምረጡ", "እንዴት እንደሚሠራ", "ምን መማር ይፈልጋሉ?"],
         "/courses": ["ኮርሶች", "ርዝመት"],
         "/courses/project-management-fundamentals": ["የሚማሩት", "የትምህርት ዝርዝር", "ይህ ኮርስ ለማን ነው", "ግምገማዎችና አስተያየቶች"],
         "/login": ["የይለፍ ቃል", "ይግቡ"],
@@ -328,7 +328,7 @@ def test_staff_area_stays_in_english(app):
     c = am_client(app)
     c.post("/login", data={"email": "admin@example.com", "password": "admin12345"})
     page = c.get("/admin/students").data.decode()
-    assert "Students" in page and "Search name, email or phone" in page
+    assert "Manage students" in page and "Search name, email or phone" in page
     assert "ኮርሶች" in page  # the shared header is translated
 
 

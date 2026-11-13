@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Students · Admin{% endblock %}
+{% block title %}Manage students · Admin{% endblock %}
 {% block content %}
-<h1>Students</h1>{% include "admin/_nav.html" %}
+<h1>Manage students</h1>{% include "admin/_nav.html" %}
 <p class="muted">People who registered to learn. Admins and instructors are listed under <a href="{{ url_for('admin.staff') }}">Staff</a>.</p>
 <form class="row" method="get"><input type="text" name="q" value="{{ q }}" placeholder="Search name, email or phone" aria-label="Search students" style="max-width:340px"><button class="btn small">Search</button>
 <a href="{{ url_for('admin.students_csv') }}">Export CSV</a></form><br>
