@@ -2,6 +2,9 @@ FROM python:3.13-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
     DATABASE_URL=sqlite:////data/academy.db UPLOAD_DIR=/data/uploads
 WORKDIR /app
+# Certificate PDFs need the Pango text library and a font with Amharic (Ethiopic) letters.
+RUN apt-get update && apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 fonts-noto-core \
+    && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY academy ./academy

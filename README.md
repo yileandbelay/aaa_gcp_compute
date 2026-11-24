@@ -163,6 +163,18 @@ When you change wording in a template, write it as `{{ _('English text') }}`; in
 
 **Messages.** What visitors send from the Contact page appears under *Admin → Messages*. **Email.** *Admin → Email* shows whether the site can send email and what happened to each message.
 
+## Certificates
+
+When a student finishes every lesson and passes every quiz, the certificate is issued and the student is told in four places: a
+**"Course complete! Your certificate is ready."** notice on the lesson page and on the course page, on the quiz result page, an email
+with the link, and a **My certificates** section at the top of the dashboard. Each certificate has two buttons: **Download PDF**
+(one A4 landscape page, with the QR code and the verification ID) and **View certificate**. The certificate page also has Print.
+
+The PDF is made on the server with WeasyPrint, which needs the Pango library and a font that has Amharic (Ethiopic) letters; the
+installer adds both (`libpango-1.0-0`, `libpangoft2-1.0-0`, `fonts-noto-core`), and so does the Docker image. If they are missing, the
+site keeps working: the **Download PDF** button is simply hidden and the certificate page offers *Print / Save as PDF*. Anyone with a
+certificate's ID can open and download it (that is how verification works); an erased account's certificate shows no name.
+
 ## Email
 
 The site sends: password resets, a welcome email after registering, the certificate link when a student completes a course,

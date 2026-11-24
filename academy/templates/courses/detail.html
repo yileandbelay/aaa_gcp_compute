@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% from "_macros.html" import csrf, icon, progress_bar, price, hours, stars %}
+{% extends "base.html" %}{% from "_macros.html" import csrf, icon, progress_bar, price, hours, stars, certificate_buttons %}
 {% block title %}{{ course.title }} · {{ site_name }}{% endblock %}
 {% block description %}{{ (course.summary or _(config.SITE_INTRO))|striptags|trim }}{% endblock %}
 {% block body_class %}{% if progress is none and not pending_payment and course.is_published %}has-mobile-cta{% endif %}{% endblock %}
@@ -23,6 +23,8 @@
     <div class="card enroll-card">
       {% if progress is not none %}
         <p><b>{{ _('Your progress: %(n)s%%', n=progress.percent) }}</b></p>{{ progress_bar(progress.percent) }}
+        {% set my_cert = certificate_for(course) %}
+        {% if my_cert %}<p style="margin-top:var(--s4)"><b>✓ {{ _('Course complete! Your certificate is ready.') }}</b></p><div class="row">{{ certificate_buttons(my_cert) }}</div>{% endif %}
         {% if course.lessons %}<p style="margin-top:var(--s4)"><a class="btn block" href="{{ url_for('learn.lesson', lesson_id=course.lessons[0].id) }}">{% if progress.percent %}{{ _('Continue learning') }}{% else %}{{ _('Start course') }}{% endif %}</a></p>{% endif %}
       {% elif pending_payment %}
         <div class="flash info" style="margin:0">{{ _('Your payment receipt (ref %(ref)s) is being reviewed. You will get access once it is approved.', ref=pending_payment.tx_ref) }}</div>

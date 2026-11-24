@@ -19,5 +19,10 @@
     <p class="small muted cert-verify">{{ _('Certificate ID %(code)s · verify at %(url)s', code=cert.code, url=verify_url) }}</p>
   </div>
 </div>
-<p class="noprint" style="text-align:center;margin-top:16px"><button class="btn" onclick="window.print()">{{ _('Print / Save as PDF') }}</button></p>
+<div class="noprint cert-actions">
+  {% if pdf_available() %}<a class="btn" href="{{ url_for('main.certificate_pdf', code=cert.code) }}">{{ _('Download PDF') }}</a>
+  <button class="btn secondary" onclick="window.print()">{{ _('Print') }}</button>
+  {% else %}<button class="btn" onclick="window.print()">{{ _('Print / Save as PDF') }}</button>{% endif %}
+  {% if current_user.is_authenticated and current_user.id == cert.user_id %}<a class="btn secondary" href="{{ url_for('main.dashboard') }}#certificates">{{ _('My certificates') }}</a>{% endif %}
+</div>
 {% endblock %}

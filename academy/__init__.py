@@ -70,6 +70,10 @@ def create_app(config_object=Config):
 
     i18n.init_app(app)
     app.jinja_env.globals["topic_icon"] = topic_icon
+    from .certificates import certificate_for, pdf_available
+
+    app.jinja_env.globals["pdf_available"] = pdf_available
+    app.jinja_env.globals["certificate_for"] = certificate_for
     app.jinja_env.globals["real_contact"] = real_contact
     app.jinja_env.globals["qr_svg"] = qr_svg
     app.jinja_env.filters["tel_href"] = tel_href
