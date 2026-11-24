@@ -23,8 +23,8 @@ def app(tmp_path):
 def outbox(monkeypatch):
     sent = []
 
-    def fake(to, subject, body, reply_to=None):
-        sent.append({"to": to, "subject": subject, "body": body, "reply_to": reply_to})
+    def fake(to, subject, body, reply_to=None, kind="other", wait=False):
+        sent.append({"to": to, "subject": subject, "body": body, "reply_to": reply_to, "kind": kind})
         return True
 
     for mod in ("academy.routes.admin", "academy.routes.auth", "academy.routes.main", "academy.enrollment"):

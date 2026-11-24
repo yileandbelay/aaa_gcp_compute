@@ -364,7 +364,7 @@ def second_admin(app):
 
 def test_each_admin_gets_one_email_with_student_course_amount_and_link(app, monkeypatch):
     sent = []
-    monkeypatch.setattr("academy.routes.pay.send_email", lambda to, subject, body, reply_to=None: sent.append((to, subject, body)) or True)
+    monkeypatch.setattr("academy.routes.pay.send_email", lambda to, subject, body, reply_to=None, **kw: sent.append((to, subject, body)) or True)
     second_admin(app)
     r, cid = upload_receipt(app, student_client(app))
     assert b"Receipt submitted" in r.data
@@ -376,7 +376,7 @@ def test_each_admin_gets_one_email_with_student_course_amount_and_link(app, monk
 
 def test_teachers_students_and_suspended_admins_are_not_emailed(app, monkeypatch):
     sent = []
-    monkeypatch.setattr("academy.routes.pay.send_email", lambda to, subject, body, reply_to=None: sent.append(to) or True)
+    monkeypatch.setattr("academy.routes.pay.send_email", lambda to, subject, body, reply_to=None, **kw: sent.append(to) or True)
     with app.app_context():
         u = User(email="gone@example.com", full_name="Gone Admin", role="admin", is_active_account=False)
         u.set_password("secret123")
@@ -402,7 +402,7 @@ def test_upload_still_succeeds_when_mail_fails(app, monkeypatch):
 def test_one_failing_address_does_not_skip_the_other_admin(app, monkeypatch):
     sent = []
 
-    def flaky(to, subject, body, reply_to=None):
+    def flaky(to, subject, body, reply_to=None, **kw):
         if to == "admin@example.com":
             raise OSError("mailbox full")
         sent.append(to)

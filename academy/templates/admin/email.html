@@ -1,0 +1,53 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}
+{% block title %}Email · Admin{% endblock %}
+{% block content %}
+<h1>Email</h1>{% include "admin/_nav.html" %}
+<p class="muted">What the site sends: password resets, welcome and certificate emails, enrolment and payment notices, staff invitations and the Contact form. Every attempt is listed below.</p>
+
+<div class="card">
+  <h2>Settings</h2>
+  {% if configured %}<p><span class="badge active">Email is set up</span></p>{% else %}<p><span class="badge pending">Email is not set up</span> Nothing is being sent.</p>{% endif %}
+  <table>
+    <tr><th>Server</th><td>{{ config.MAIL_SERVER or '(empty)' }} · port {{ config.MAIL_PORT }}</td></tr>
+    <tr><th>Security</th><td>{{ security }}</td></tr>
+    <tr><th>Login</th><td>{{ config.MAIL_USERNAME or '(none)' }} · password {{ 'set' if password_set else 'not set' }}</td></tr>
+    <tr><th>From address</th><td>{{ config.MAIL_FROM }}</td></tr>
+    <tr><th>Sending</th><td>{{ 'in the background, retried if the mail server is busy' if config.MAIL_ASYNC else 'while the page loads' }}</td></tr>
+  </table>
+  {% if problems %}<ul class="notes">{% for p in problems %}<li style="color:var(--err)">{{ p }}</li>{% endfor %}</ul>{% endif %}
+  <p class="small muted">The settings live in <code>/etc/academy.env</code> (<code>MAIL_SERVER</code>, <code>MAIL_PORT</code>, <code>MAIL_USERNAME</code>, <code>MAIL_PASSWORD</code>, <code>MAIL_USE_TLS</code>, <code>MAIL_USE_SSL</code>, <code>MAIL_FROM</code>). Restart with <code>sudo systemctl restart academy</code> after changing them.</p>
+</div>
+
+<div class="card">
+  <h2>Send a test email</h2>
+  <form method="post" class="row">{{ csrf() }}
+    <input type="email" name="to" value="{{ current_user.email }}" required aria-label="Send the test to" style="min-width:260px">
+    <button class="btn">Send test</button>
+  </form>
+  {% if result %}
+    {% if result.ok %}
+      <p><span class="badge active">Sent</span> The mail server accepted the message for {{ result.to }}. Now check that inbox, and the spam folder. If it is in spam or missing, see "Delivered, but not received" below.</p>
+    {% else %}
+      <p><span class="badge pending">Failed</span> {{ result.error or 'Email is not set up.' }}</p>
+    {% endif %}
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Delivered, but not received?</h2>
+  <p class="small">"Sent" means the mail server accepted the message. Whether it reaches an inbox depends on your domain. Gmail, Yahoo and Outlook put mail in spam, or reject it, when the sending domain lacks <b>SPF</b>, <b>DKIM</b> and <b>DMARC</b> records, or when the From address is not at a domain your mail service sends for. Your mail provider's settings page shows the exact records to add in your domain's DNS. Send the test to a Gmail address as well as your own.</p>
+</div>
+
+<h2>Recent emails</h2>
+{% if log %}
+<table>
+  <tr><th>When (UTC)</th><th>To</th><th>Kind</th><th>Result</th><th>Why</th></tr>
+  {% for e in log %}
+  <tr><td class="small">{{ e.created_at.strftime('%d %b %H:%M') }}</td><td>{{ e.to_email }}</td><td>{{ e.kind }}</td>
+    <td><span class="badge {{ 'active' if e.status == 'sent' else 'pending' }}">{{ e.status.replace('_', ' ') }}</span>{% if e.attempts > 1 %} <span class="small muted">{{ e.attempts }} tries</span>{% endif %}</td>
+    <td class="small">{{ e.error or '' }}</td></tr>
+  {% endfor %}
+</table>
+<p class="small muted">Message texts are never stored here, only who it went to and what happened. Entries older than 90 days are removed.</p>
+{% else %}<p class="muted">Nothing has been sent yet.</p>{% endif %}
+{% endblock %}

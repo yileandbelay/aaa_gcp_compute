@@ -9,7 +9,7 @@ import secrets
 
 from flask import current_app, url_for
 
-from .models import Certificate, Invitation, LoginAttempt, Payment, db, utcnow
+from .models import Certificate, EmailLog, Invitation, LoginAttempt, Payment, db, utcnow
 
 
 def export_user_data(user):
@@ -45,6 +45,7 @@ def erase_account(user):
             payment.receipt_file = None
     Invitation.query.filter_by(email=old_email).delete()
     LoginAttempt.query.filter_by(email=old_email).delete()
+    EmailLog.query.filter(EmailLog.to_email == old_email).update({"to_email": "erased"})  # keep the history, drop the address
     user.full_name = "Deleted user"
     user.email = f"deleted-{user.id}@deleted.invalid"
     user.phone = user.city = user.headline = user.bio = None

@@ -9,6 +9,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from ..enrollment import apply_invitations
 from ..mail import send_email
+from ..notices import safely, welcome
 from ..i18n import gettext as _
 from ..models import LoginAttempt, User, db, utcnow
 from ..privacy import erase_account, export_user_data
@@ -55,6 +56,7 @@ def register():
         db.session.add(user)
         db.session.commit()
         login_user(user)
+        safely(welcome, user)
         flash(_("Welcome to %(site)s, %(name)s!", site=_(current_app.config["SITE_NAME"]), name=name), "success")
         for course in apply_invitations(user):
             flash(_("You have been enrolled in %(course)s.", course=course.title), "success")
@@ -168,6 +170,7 @@ def forgot_password():
                 user.email, f"Reset your {current_app.config['SITE_NAME']} password",
                 f"Hello {user.full_name},\n\nTo choose a new password, open this link within {minutes} minutes:\n"
                 f"{link}\n\nIf you did not ask for this, you can ignore this email.\n",
+                kind="reset",
             )
         # Same message either way so the form cannot be used to discover accounts.
         flash(_("If an account exists for that email, we have sent a reset link."), "info")

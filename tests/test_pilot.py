@@ -26,7 +26,7 @@ def app(tmp_path):
 def outbox(monkeypatch):
     sent = []
 
-    def fake_send(to, subject, body):
+    def fake_send(to, subject, body, reply_to=None, **kw):
         sent.append({"to": to, "subject": subject, "body": body})
         return True
 

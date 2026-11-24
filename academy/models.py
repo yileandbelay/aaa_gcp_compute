@@ -464,6 +464,21 @@ class ContactMessage(db.Model):
     created_at = db.Column(db.DateTime, default=utcnow, index=True)
 
 
+class EmailLog(db.Model):
+    """One row per email the site tried to send, so a missing email can be diagnosed from Admin > Email.
+
+    The message body is never stored (it can hold a password-reset link); only who, what kind and what happened."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)
+    to_email = db.Column(db.String(255), nullable=False, index=True)
+    subject = db.Column(db.String(300))
+    kind = db.Column(db.String(30), nullable=False, default="other")   # welcome, reset, certificate, payment, test, ...
+    status = db.Column(db.String(20), nullable=False)                  # sent | failed | not_configured
+    error = db.Column(db.String(500))
+    attempts = db.Column(db.Integer, nullable=False, default=1)
+
+
 class Review(db.Model):
     """A student's rating (1-5 stars) and optional feedback for a course they take."""
 

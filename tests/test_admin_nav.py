@@ -52,7 +52,7 @@ def link_texts(fragment):
     return [re.sub(r"<[^>]+>", "", t).strip() for t in re.findall(r"<a [^>]*>(.*?)</a>", fragment, re.S)]
 
 
-ADMIN_TABS = ["Overview", "Manage courses", "Manage students", "Manage staff", "Payments", "Reports", "Messages"]
+ADMIN_TABS = ["Overview", "Manage courses", "Manage students", "Manage staff", "Payments", "Reports", "Messages", "Email"]
 
 
 # --- Names ------------------------------------------------------------------------------------

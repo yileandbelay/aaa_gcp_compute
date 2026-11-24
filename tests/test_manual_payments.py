@@ -26,7 +26,7 @@ def app(tmp_path):
 def outbox(monkeypatch):
     sent = []
     monkeypatch.setattr("academy.routes.admin.send_email",
-                        lambda to, subject, body, reply_to=None: sent.append((to, subject, body)) or True)
+                        lambda to, subject, body, reply_to=None, **kw: sent.append((to, subject, body)) or True)
     return sent
 
 
