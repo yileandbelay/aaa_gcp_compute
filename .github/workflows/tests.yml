@@ -50,8 +50,12 @@ jobs:
           cache: pip
       - name: PostgreSQL 16 client tools (the backup and restore tests use pg_dump and psql)
         # The client must match the server (postgres:16 above): a newer pg_dump writes settings an older server rejects.
+        # The runner's own apt sources do not carry the 16 client, so add the official PostgreSQL repository first.
         run: |
-          sudo apt-get update -q && sudo apt-get install -y -q postgresql-client-16
+          sudo apt-get update -q
+          sudo apt-get install -y -q postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -q postgresql-client-16
           echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
       - run: pg_dump --version
       - run: pip install -r requirements-dev.txt
