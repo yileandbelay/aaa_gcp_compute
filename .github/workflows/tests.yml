@@ -48,7 +48,11 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-      - name: PostgreSQL client tools (the backup and restore tests use pg_dump and psql)
-        run: sudo apt-get update -q && sudo apt-get install -y -q postgresql-client
+      - name: PostgreSQL 16 client tools (the backup and restore tests use pg_dump and psql)
+        # The client must match the server (postgres:16 above): a newer pg_dump writes settings an older server rejects.
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q postgresql-client-16
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
+      - run: pg_dump --version
       - run: pip install -r requirements-dev.txt
       - run: pytest -q
