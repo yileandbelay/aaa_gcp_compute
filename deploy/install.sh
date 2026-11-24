@@ -16,12 +16,14 @@
 #                Several instances on one server each need their own --domain.
 #   --repo URL   Git repository to install from (default: this checkout's origin)
 #   --branch B   Branch to install (default: main)
+#   --db D       Database for a NEW install: postgres (default, on this server) or sqlite. An existing server keeps
+#                the database it has; to move it from SQLite to PostgreSQL run deploy/migrate-to-postgres.sh.
 #
 # To update, re-run it (options are remembered): it pulls the code, applies
 # database migrations and restarts the app. Settings in /etc/<name>.env are kept.
 set -euo pipefail
 
-NAME=academy; PORT=""; DOMAIN=""; EMAIL=""; REPO=""; BRANCH=main; REDIRECTS=""; REDIRECTS_GIVEN=0
+NAME=academy; PORT=""; DOMAIN=""; EMAIL=""; REPO=""; BRANCH=main; REDIRECTS=""; REDIRECTS_GIVEN=0; DB_CHOICE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --domain) DOMAIN="$2"; shift 2 ;;
@@ -31,11 +33,13 @@ while [ $# -gt 0 ]; do
     --port) PORT="$2"; shift 2 ;;
     --repo) REPO="$2"; shift 2 ;;
     --branch) BRANCH="$2"; shift 2 ;;
+    --db) DB_CHOICE="$2"; shift 2 ;;
     -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
 [ "$(id -u)" -eq 0 ] || { echo "Run as root (sudo)." >&2; exit 1; }
+case "${DB_CHOICE:-postgres}" in postgres|sqlite) ;; *) echo "--db must be postgres or sqlite." >&2; exit 1 ;; esac
 [[ "$NAME" =~ ^[a-z][a-z0-9-]{1,30}$ ]] || { echo "--name must be lowercase letters, digits or dashes." >&2; exit 1; }
 
 # Remember domain/email/port/repo so a plain re-run (to update) keeps them.
@@ -52,6 +56,8 @@ fi
 APP_DIR=/opt/$NAME; DATA_DIR=/var/lib/$NAME; ENV_FILE=/etc/$NAME.env
 # shellcheck source=deploy/https.sh
 . "$(dirname "${BASH_SOURCE[0]}")/https.sh"
+# shellcheck source=deploy/postgres.sh
+. "$(dirname "${BASH_SOURCE[0]}")/postgres.sh"
 ALIASES=""
 if [ -n "$DOMAIN" ] && [ -n "$REDIRECTS" ]; then
   ALIASES="$(normalize_names "$DOMAIN" "$REDIRECTS")" || exit 1
@@ -85,10 +91,18 @@ if [ ! -f "$ENV_FILE" ]; then
       -e "s|^SESSION_COOKIE_SECURE=.*|SESSION_COOKIE_SECURE=false|" \
       -e "s|^PAYMENT_DEMO_MODE=.*|PAYMENT_DEMO_MODE=false|" \
       "$APP_DIR/.env.example" > "$ENV_FILE"
+  if [ "${DB_CHOICE:-postgres}" = postgres ]; then
+    echo "==> Setting up PostgreSQL on this server"
+    pg_install
+    pg_provision "$NAME"
+    DATABASE_URL_VALUE="$PG_URL"
+  else
+    DATABASE_URL_VALUE="sqlite:///$DATA_DIR/instance/academy.db"
+  fi
   {
     echo ""
     echo "# Set by install.sh"
-    echo "DATABASE_URL=sqlite:///$DATA_DIR/instance/academy.db"
+    echo "DATABASE_URL=$DATABASE_URL_VALUE"
     echo "BACKUP_DIR=$DATA_DIR/backups"
   } >> "$ENV_FILE"
   echo "==> Created $ENV_FILE - edit it to set your academy name, payment and email details."
@@ -97,6 +111,10 @@ fi
 # that user; systemd reads the file as root). Readable by root and the app's group only.
 chown "root:$NAME" "$ENV_FILE"
 chmod 640 "$ENV_FILE"
+case "$(grep -m1 '^DATABASE_URL=' "$ENV_FILE" || true)" in
+  *postgres*) apt-get install -y -q postgresql-client ;;   # the nightly backup needs pg_dump
+  *sqlite*) echo "==> This server uses SQLite. PostgreSQL is recommended; to move it, run: sudo bash $APP_DIR/deploy/migrate-to-postgres.sh --name $NAME --dry-run" ;;
+esac
 grep -q '^USE_X_ACCEL_REDIRECT=' "$ENV_FILE" || echo 'USE_X_ACCEL_REDIRECT=true' >> "$ENV_FILE"
 grep -q '^BEHIND_PROXY=' "$ENV_FILE" || echo 'BEHIND_PROXY=true' >> "$ENV_FILE"
 

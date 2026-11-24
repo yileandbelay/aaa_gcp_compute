@@ -2,7 +2,7 @@
 
 An online learning platform for professional training. Students register, pay for courses, follow video and text lessons, download course materials, take auto-graded assessments and earn verifiable certificates.
 
-It's built with Python / Flask and runs on SQLite by default (PostgreSQL is supported). It's also designed as a **reusable template**: a new academy is a settings file plus, optionally, a theme folder and a JSON file of starter courses. You don't need to change the core code.
+It's built with Python / Flask and runs on **PostgreSQL** on a server (new installs set it up for you) and on SQLite for trying it out. It's also designed as a **reusable template**: a new academy is a settings file plus, optionally, a theme folder and a JSON file of starter courses. You don't need to change the core code.
 
 ## Features
 
@@ -59,9 +59,9 @@ sudo bash deploy/install.sh --domain learn.example.com --email you@example.com
 If the repository is private, the server needs permission to clone it. The simplest way is a GitHub [deploy key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys) with read-only access; clone with the `git@github.com:...` address. The installer reuses that address for updates.
 
 The installer sets everything up:
-- It installs Python, nginx and certbot.
+- It installs Python, nginx, certbot and PostgreSQL (on this machine only; `--db sqlite` skips it).
 - It creates a system user and the app in `/opt/academy`, with data in `/var/lib/academy`.
-- It writes `/etc/academy.env` with a random secret key.
+- It writes `/etc/academy.env` with a random secret key and a random database password.
 - It runs the database migrations.
 - It starts the app as a systemd service behind nginx.
 - It gets a free HTTPS certificate from Let's Encrypt. Re-running the installer waits for a running certbot, retries, reuses the existing certificate, and keeps the previous HTTPS configuration if certbot cannot be reached, so an update never leaves the site on plain HTTP.
@@ -102,6 +102,34 @@ sudo bash deploy/install.sh --name acme --port 8001 --domain academy.acme.exampl
 ```
 
 Each gets its own user, database, uploads, settings file (`/etc/<name>.env`), service and backups.
+
+### The database (PostgreSQL)
+
+New servers use **PostgreSQL** on the same machine: it handles several visitors writing at once (enrolments, payments and
+progress arrive together), makes consistent backups while the site runs, and grows without trouble. The installer creates the
+database and a random password, and PostgreSQL listens on the server itself only. SQLite remains for trying things out
+(`install.sh --db sqlite`, the local quick start, Docker).
+
+**Moving a server that already runs on SQLite** (about a minute for a small academy; the site is down only while the data is copied):
+
+```bash
+cd ~/aaa_gcp_compute && git pull && sudo bash deploy/install.sh          # 1. update first
+sudo bash deploy/migrate-to-postgres.sh --dry-run                        # 2. checks and row counts; changes nothing live
+sudo bash deploy/migrate-to-postgres.sh                                  # 3. the move
+```
+
+The move backs everything up first (the site is still running), stops the site, copies every table in one transaction and
+compares each table's row count and content, switches the settings, starts the site and checks it answers from PostgreSQL. If
+anything fails before the switch, the site is started again on SQLite exactly as it was; if the check fails after, it rolls back by
+itself. The old SQLite file is kept (renamed `*.migrated-<date>`): look around the site, and delete it after a few days.
+
+- **Go back:** `sudo bash deploy/migrate-to-postgres.sh --rollback`. Anything done on the site since the move exists only in
+  PostgreSQL; the rollback saves it first as `postgres-before-rollback-*.sql.gz` in the backup folder.
+- **Try again after a rollback:** add `--reset-postgres`, which empties the out-of-date PostgreSQL copy first.
+- **Backups and restore** work the same way for both databases (`deploy/backup.sh` uses `pg_dump`; `deploy/restore.sh --force`
+  keeps the replaced database as `db-before-restore-*.sql.gz`). Rehearse a restore once.
+- **Developing:** the test suite runs on SQLite by default and on PostgreSQL with
+  `TEST_DATABASE_URL=postgresql+psycopg2://user:password@127.0.0.1/academy_test pytest` (CI runs both).
 
 ## Making it your own (reusing the template)
 
