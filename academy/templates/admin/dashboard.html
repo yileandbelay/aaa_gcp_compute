@@ -2,6 +2,13 @@
 {% block title %}Admin · {{ site_name }}{% endblock %}
 {% block content %}
 <h1>{{ 'Admin' if current_user.is_admin else 'My courses' }}</h1>{% include "admin/_nav.html" %}
+{% if mail and (not mail.configured or mail.failed) %}
+<div class="card" style="border-color:var(--err)"><b>Email problem.</b>
+  {% if not mail.configured %}The site is not set up to send email, so password resets and other emails are not going out.
+  {% else %}{{ mail.failed }} of the last {{ mail.recent }} emails could not be sent{% if mail.last_error %}: {{ mail.last_error }}{% endif %}{% endif %}
+  <a href="{{ url_for('admin.email_status') }}">Open Email</a>
+</div>
+{% endif %}
 <div class="stats">
   {% if current_user.is_admin %}
   <div class="stat"><b>{{ stats.students }}</b>Students</div>

@@ -303,7 +303,7 @@ def contact():
         inbox = cfg["CONTACT_EMAIL"]
         if inbox not in PLACEHOLDER_EMAILS:
             send_email(inbox, f"[{cfg['SITE_NAME']}] {subject or 'New message'} - from {name}",
-                       f"From: {name} <{email}>\n\n{message}\n", reply_to=email)
+                       f"From: {name} <{email}>\n\n{message}\n", reply_to=email, kind="contact")
         flash(_("Thank you - your message has been sent. We will reply by email."), "success")
         return redirect(url_for("main.contact"))
     return render_template("contact.html", form=form)

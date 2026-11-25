@@ -147,7 +147,7 @@ def _tell_admins_about_receipt(payment):
                 f"Review it here:\n{link}\n")
         for admin in User.query.filter_by(role="admin", is_active_account=True).all():
             try:
-                send_email(admin.email, f"Receipt to review: {payment.course.title}", body)
+                send_email(admin.email, f"Receipt to review: {payment.course.title}", body, kind="receipt-review")
             except Exception:  # noqa: BLE001 - one bad address must not skip the others
                 current_app.logger.exception("Could not email receipt notice to %s", admin.email)
     except Exception:  # noqa: BLE001

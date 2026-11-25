@@ -9,5 +9,6 @@
   <a href="{{ url_for('admin.payments') }}" {% if ep.startswith('admin.payment') %}aria-current="page"{% endif %}>Payments</a>
   <a href="{{ url_for('admin.reports') }}" {% if ep.startswith('admin.report') %}aria-current="page"{% endif %}>Reports</a>
   <a href="{{ url_for('admin.messages') }}" {% if ep.startswith('admin.message') %}aria-current="page"{% endif %}>Messages{% if unread_messages %}<span class="nav-badge">{{ unread_messages }}</span>{% endif %}</a>
+  <a href="{{ url_for('admin.email_status') }}" {% if ep == 'admin.email_status' %}aria-current="page"{% endif %}>Email</a>
   {% endif %}
 {% endmacro %}

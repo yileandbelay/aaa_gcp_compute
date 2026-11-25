@@ -43,7 +43,7 @@ def notify_enrolled(user, course):
     site = current_app.config["SITE_NAME"]
     send_email(user.email, f"You have been enrolled: {course.title}",
                f"Hello {user.full_name},\n\nYou now have access to {course.title} on {site}:\n{link}\n\n"
-               f"Log in to start learning.\n{site}\n")
+               f"Log in to start learning.\n{site}\n", kind="enrolled")
 
 
 def create_invitation(email, course, by=None, notify=True):
@@ -57,7 +57,7 @@ def create_invitation(email, course, by=None, notify=True):
         send_email(email, f"You have been invited to {course.title}",
                    f"Hello,\n\nYou have been given access to {course.title} on {site}.\n\n"
                    f"Create your account with this email address ({email}) and the course will be "
-                   f"waiting for you:\n{link}\n\n{site}\n")
+                   f"waiting for you:\n{link}\n\n{site}\n", kind="invited")
     return True
 
 

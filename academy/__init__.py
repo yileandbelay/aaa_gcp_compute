@@ -149,6 +149,27 @@ def register_cli(app):
         db.session.commit()
         click.echo(f"Admin {email} ready.")
 
+    @app.cli.command("email-test")
+    @click.option("--to", required=True, help="Address to send the test message to.")
+    def email_test(to):
+        """Send a test email and print the settings, the result and, if it failed, the reason."""
+        from .mail import configuration_problems, security_label, send_email
+        from .models import EmailLog
+
+        cfg = app.config
+        click.echo(f"Server:   {cfg.get('MAIL_SERVER') or '(empty)'}:{cfg['MAIL_PORT']}  security: {security_label(cfg)}")
+        click.echo(f"Login:    {cfg.get('MAIL_USERNAME') or '(none)'}  password {'set' if cfg.get('MAIL_PASSWORD') else 'NOT set'}")
+        click.echo(f"From:     {cfg['MAIL_FROM']}")
+        for problem in configuration_problems(cfg):
+            click.echo(f"Problem:  {problem}")
+        ok = send_email(to, f"Test email from {cfg['SITE_NAME']}", "If you can read this, sending works.\n", kind="test", wait=True)
+        row = EmailLog.query.filter_by(to_email=to.lower(), kind="test").order_by(EmailLog.id.desc()).first()
+        if ok:
+            click.echo(f"Result:   the mail server accepted the message for {to}. Check that inbox and the spam folder.")
+        else:
+            click.echo(f"Result:   FAILED. {(row.error if row else None) or 'Email is not set up.'}")
+            raise SystemExit(1)
+
     @app.cli.command("migrate-to-postgres")
     @click.option("--source", default=None, help="SQLite URL to copy from (default: DATABASE_URL).")
     @click.option("--target", required=True, help="PostgreSQL URL to copy into (schema created, tables empty).")

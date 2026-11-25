@@ -143,6 +143,9 @@ def maybe_issue_certificate(user, course):
     cert = Certificate(user_id=user.id, course_id=course.id)
     db.session.add(cert)
     db.session.commit()
+    from .notices import certificate_issued, safely  # local import: notices needs the mail module, which needs the models
+
+    safely(certificate_issued, cert)
     return cert
 
 

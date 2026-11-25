@@ -189,7 +189,27 @@ When you change wording in a template, write it as `{{ _('English text') }}`; in
 
 **Assigning a course to students.** Open the course, click **Enroll and manage students**, tick the students and/or paste email addresses, and press Enroll. Students you enroll see the course under "My learning". If an address has no account yet, the course is added when that person registers. Students can also pay for themselves, and the list shows how each one got access.
 
-**Messages.** What visitors send from the Contact page appears under *Admin → Messages*.
+**Messages.** What visitors send from the Contact page appears under *Admin → Messages*. **Email.** *Admin → Email* shows whether the site can send email and what happened to each message.
+
+## Email
+
+The site sends: password resets, a welcome email after registering, the certificate link when a student completes a course,
+enrolment and payment notices, staff invitations, and the messages from the Contact page. **No email is sent until the `MAIL_*`
+settings in `/etc/academy.env` are filled in** (see `.env.example`): use port 587 with `MAIL_USE_TLS=true`, or port 465 (SSL is
+switched on by itself). Restart with `sudo systemctl restart academy` after changing them.
+
+**Check it:** *Admin → Email* shows the settings (the password is never shown), warns about common mistakes, lists every email the
+site tried to send with its result and, when one failed, the reason in plain words. Its **Send test** button sends a real message and
+shows the outcome. From the server: `sudo -u academy bash -c "set -a; . /etc/academy.env; cd /opt/academy && .venv/bin/flask --app wsgi email-test --to you@gmail.com"`.
+The admin Overview shows a red notice when email is not set up or the latest emails failed.
+
+**"Sent" but not received?** The mail server accepted it, but Gmail, Yahoo and Outlook put mail in spam, or drop it, when the
+domain in the From address lacks **SPF**, **DKIM** and **DMARC** DNS records, or when the From address is not at a domain your mail
+service sends for. Your mail provider's settings page lists the exact records to add in your domain's DNS; set `MAIL_FROM` to an
+address at that domain (for example `Mek Academy <no-reply@mek-academy.com>`). Test with a Gmail address as well as your own.
+
+Emails are sent in the background (a slow mail server never slows a sign-up) and temporary failures are retried twice. The log
+keeps who, what kind and the result for 90 days, never the message text, and removes a person's address when they erase their account.
 
 ## Video hosting
 

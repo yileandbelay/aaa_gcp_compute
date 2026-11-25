@@ -370,5 +370,16 @@
   "passed": "አልፏል",
   "remove my review": "አስተያየቴን አስወግድ",
   "telebirr, CBE Birr, M-Pesa, Amole, Visa/Mastercard via Chapa. Instant access.": "በChapa በኩል telebirr፣ CBE Birr፣ M-Pesa፣ Amole፣ Visa/Mastercard። ወዲያውኑ መዳረሻ።",
-  "terms of use": "የአጠቃቀም ደንቦችን"
+  "terms of use": "የአጠቃቀም ደንቦችን",
+  "Hello %(name)s,": "ሰላም %(name)s፣",
+  "Your account is ready. You can now browse courses and enroll.": "መለያዎ ተዘጋጅቷል። አሁን ኮርሶችን መመልከት እና መመዝገብ ይችላሉ።",
+  "Browse courses: %(url)s": "ኮርሶችን ይምረጡ፦ %(url)s",
+  "Sign in: %(url)s": "ለመግባት፦ %(url)s",
+  "If you did not create this account, please ignore this email.": "ይህን መለያ እርስዎ ካልፈጠሩ፣ እባክዎ ይህን ኢሜይል ችላ ይበሉ።",
+  "Welcome to %(site)s": "ወደ %(site)s እንኳን በደህና መጡ",
+  "Congratulations, %(name)s!": "እንኳን ደስ አለዎት፣ %(name)s!",
+  "You have completed %(course)s. Your certificate of completion is ready.": "%(course)s ኮርሱን አጠናቅቀዋል። የማጠናቀቂያ የምስክር ወረቀትዎ ተዘጋጅቷል።",
+  "View and download it here: %(url)s": "እዚህ ይመልከቱ እና ያውርዱ፦ %(url)s",
+  "Anyone can check it with the certificate ID %(code)s at the same address.": "ማንኛውም ሰው በዚሁ አድራሻ በመለያ ቁጥር %(code)s ማረጋገጥ ይችላል።",
+  "Your certificate: %(course)s": "የምስክር ወረቀትዎ፦ %(course)s"
 }

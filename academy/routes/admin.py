@@ -18,16 +18,16 @@ from sqlalchemy import func
 from werkzeug.utils import secure_filename
 
 from .. import videohosts
-from ..enrollment import (create_invitation, enroll_student, notify_enrolled, parse_emails)
+from ..enrollment import (EMAIL_RE, create_invitation, enroll_student, notify_enrolled, parse_emails)
 from ..ledger import paid_total, paid_totals, record_payment
 from ..settings import (PAYMENT_INSTRUCTIONS, PAYMENT_INSTRUCTIONS_AM, get_setting, payment_instructions,
                         set_setting)
-from ..mail import send_email
+from ..mail import configuration_problems, mail_configured, mail_health, security_label, send_email
 from ..reports import monthly_report, report_years
 from ..sections import normalize as normalize_sections
 from ..reviews import rating_summary
 from ..models import (Announcement, Assessment, Attachment, Attempt, Certificate, ContactMessage, Course,
-                      Enrollment, Invitation, Lesson, LessonProgress, Payment, Question, Review, Section, User, db,
+                      EmailLog, Enrollment, Invitation, Lesson, LessonProgress, Payment, Question, Review, Section, User, db,
                       utcnow)
 from ..utils import (admin_required, course_progress, delete_cover, save_cover, save_upload, slugify,
                      staff_required)
@@ -120,7 +120,7 @@ def dashboard():
         }
         recent_students, recent_payments = [], []
     return render_template("admin/dashboard.html", stats=stats, recent_students=recent_students,
-                           recent_payments=recent_payments)
+                           recent_payments=recent_payments, mail=mail_health() if current_user.is_admin else None)
 
 
 # --- Courses -----------------------------------------------------------------
@@ -974,12 +974,16 @@ def staff_new():
     days = max(1, current_app.config["INVITE_TTL"] // 86400)
     sent = send_email(email, f"Your {site} staff account",
                       f"Hello {name},\n\nAn account with the role '{User.ROLE_LABELS[role]}' was created for you on {site}.\n"
-                      f"Choose your password within {days} days using this link:\n{link}\n\n{site}\n")
+                      f"Choose your password within {days} days using this link:\n{link}\n\n{site}\n",
+                      kind="staff-invite", wait=True)
     if sent:
         flash(f"Account created for {name}. A link to set their password was emailed to {email}.", "success")
-    else:  # email is not set up: show the link so the admin can pass it on
+    elif not mail_configured():  # email is not set up: show the link so the admin can pass it on
         flash(f"Account created for {name}, but email is not set up. Send them this link to set a password "
               f"(valid {days} days): {link}", "success")
+    else:  # set up but this send failed: say so, and where to find out why
+        flash(f"Account created for {name}, but the email could not be sent (see Admin > Email for why). Send them this link "
+              f"to set a password (valid {days} days): {link}", "success")
     return redirect(url_for("admin.staff"))
 
 
@@ -1130,7 +1134,8 @@ def payment_record():
             send_email(user.email, f"Payment received: {course.title}",
                        f"Hello {user.full_name},\n\nWe received your payment of {payment.amount:,.2f} "
                        f"{payment.currency} ({payment.channel_label.lower()}) for {course.title} "
-                       f"(ref {payment.tx_ref}). The course is now unlocked:\n{link}\n\nEnjoy the course!\n{site}\n")
+                       f"(ref {payment.tx_ref}). The course is now unlocked:\n{link}\n\nEnjoy the course!\n{site}\n",
+                       kind="payment")
     else:
         flash(f"Payment saved but not confirmed yet: {summary} It waits in Payments until you approve it.", "info")
     return redirect(back)
@@ -1155,12 +1160,12 @@ def payment_review(payment_id):
     if decision == "approve":
         send_email(p.user.email, f"You're enrolled: {p.course.title}",
                    f"Hello {p.user.full_name},\n\nYour payment (ref {p.tx_ref}) was confirmed and "
-                   f"{p.course.title} is now unlocked:\n{course_link}\n\nEnjoy the course!\n{site}\n")
+                   f"{p.course.title} is now unlocked:\n{course_link}\n\nEnjoy the course!\n{site}\n", kind="payment")
     elif decision == "reject":
         send_email(p.user.email, f"Payment not confirmed: {p.course.title}",
                    f"Hello {p.user.full_name},\n\nWe could not confirm your payment (ref {p.tx_ref})."
                    f"{' Reason: ' + p.note if p.note else ''}\n\nYou can submit a new receipt here:\n{course_link}\n"
-                   f"\n{site}\n")
+                   f"\n{site}\n", kind="payment")
     return redirect(url_for("admin.payments", status=request.form.get("back_status", "")))
 
 
@@ -1197,6 +1202,30 @@ def reports_csv():
 
 
 # --- Contact messages (admin) -------------------------------------------------
+
+@bp.route("/email", methods=["GET", "POST"])
+@admin_required
+def email_status():
+    """Is email set up, did the recent emails go out, and a button that sends a test and shows the real result."""
+    cfg = current_app.config
+    result = None
+    if request.method == "POST":
+        to = (request.form.get("to") or current_user.email).strip().lower()
+        if not EMAIL_RE.match(to):
+            flash("Enter a valid email address for the test.", "error")
+        else:
+            site = cfg["SITE_NAME"]
+            ok = send_email(to, f"Test email from {site}",
+                            f"Hello,\n\nThis is a test message from {site}. If you can read it, sending works.\n",
+                            kind="test", wait=True)
+            logged = EmailLog.query.filter_by(to_email=to, kind="test").order_by(EmailLog.id.desc()).first()
+            result = {"ok": ok, "to": to, "status": logged.status if logged else "unknown",
+                      "error": logged.error if logged else None}
+    log = EmailLog.query.order_by(EmailLog.id.desc()).limit(50).all()
+    return render_template("admin/email.html", result=result, log=log, configured=mail_configured(),
+                           security=security_label(cfg), problems=configuration_problems(cfg),
+                           password_set=bool(cfg.get("MAIL_PASSWORD")))
+
 
 @bp.route("/messages")
 @admin_required

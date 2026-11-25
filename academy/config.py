@@ -123,7 +123,13 @@ class Config:
     MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
     MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "")
     MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
-    MAIL_USE_TLS = _bool("MAIL_USE_TLS", True)
+    MAIL_USE_TLS = _bool("MAIL_USE_TLS", True)   # STARTTLS, normally with port 587
+    # Implicit TLS, normally with port 465. Left empty it follows the port: 465 means SSL, anything else does not.
+    MAIL_USE_SSL = os.environ.get("MAIL_USE_SSL", "")
+    MAIL_VERIFY_TLS = _bool("MAIL_VERIFY_TLS", True)  # check the mail server's certificate
+    MAIL_TIMEOUT = int(os.environ.get("MAIL_TIMEOUT", "15"))  # seconds to wait for the mail server
+    # Send in the background so a slow mail server never slows a sign-up or a payment page. Failures are retried.
+    MAIL_ASYNC = _bool("MAIL_ASYNC", True)
     MAIL_FROM = os.environ.get("MAIL_FROM", "Mek Academy <no-reply@localhost>")
     PASSWORD_RESET_TTL = int(os.environ.get("PASSWORD_RESET_TTL", "3600"))
 
@@ -151,5 +157,6 @@ class TestConfig(Config):
     SECRET_KEY = "test"
     SQLALCHEMY_DATABASE_URI = "sqlite://"
     PAYMENT_DEMO_MODE = True
+    MAIL_ASYNC = False   # tests send in the same thread and read the log straight away
     WTF_CSRF_ENABLED = False
     CSRF_ENABLED = False
