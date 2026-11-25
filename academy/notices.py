@@ -5,6 +5,7 @@ must not stop a sign-up or the last lesson of a course. What happened to each on
 """
 from flask import current_app, url_for
 
+from .certificates import pdf_available
 from .i18n import gettext as _
 from .mail import send_email
 
@@ -28,6 +29,7 @@ def certificate_issued(cert):
         _("Congratulations, %(name)s!", name=user.full_name), "",
         _("You have completed %(course)s. Your certificate of completion is ready.", course=course.title), "",
         _("View and download it here: %(url)s", url=url_for("main.certificate", code=cert.code, _external=True)),
+        *([_("Download the PDF: %(url)s", url=url_for("main.certificate_pdf", code=cert.code, _external=True))] if pdf_available() else []),
         _("Anyone can check it with the certificate ID %(code)s at the same address.", code=cert.code), "", site,
     ]
     send_email(user.email, _("Your certificate: %(course)s", course=course.title), "\n".join(lines), kind="certificate")

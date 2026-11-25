@@ -1,7 +1,9 @@
-{% extends "base.html" %}{% from "_macros.html" import csrf, icon, progress_bar %}
+{% extends "base.html" %}{% from "_macros.html" import csrf, icon, progress_bar, certificate_buttons %}
 {% block title %}{{ lesson.title }} · {{ course.title }}{% endblock %}
 {% block content %}
 <p class="small"><a href="{{ url_for('main.course_detail', slug=course.slug) }}">← {{ course.title }}</a></p>
+{% set my_cert = certificate_for(course) %}
+{% if my_cert %}<div class="card cert-banner"><b>✓ {{ _('Course complete! Your certificate is ready.') }}</b><div class="row">{{ certificate_buttons(my_cert) }}</div></div>{% endif %}
 <div class="layout-lesson">
   <details class="sidebar card" open data-collapse-narrow>
     <summary>{{ _('Course content') }}</summary><div class="sidebar-body">

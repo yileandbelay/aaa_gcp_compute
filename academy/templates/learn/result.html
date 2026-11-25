@@ -1,10 +1,12 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% from "_macros.html" import certificate_buttons %}
 {% block title %}{{ a.title }} · {{ a.course.title }}{% endblock %}
 {% block content %}
 <p class="small"><a href="{{ url_for('assess.overview', aid=a.id) }}">← {{ a.title }}</a></p>
 <div class="card">
   <h1>{% if attempt.passed %}{{ _('You passed!') }}{% else %}{{ _('Not quite there yet') }}{% endif %}</h1>
   <p style="font-size:1.5rem"><b>{{ attempt.score }}%</b> <span class="muted">({{ _('pass mark %(n)s%%', n=a.pass_mark) }})</span></p>
+  {% set my_cert = certificate_for(a.course) if attempt.passed else none %}
+  {% if my_cert %}<div class="cert-banner"><b>✓ {{ _('Course complete! Your certificate is ready.') }}</b><div class="row">{{ certificate_buttons(my_cert) }}</div></div>{% endif %}
   {% if not reveal %}<p class="muted small">{{ _('Correct answers are shown after you pass or use all attempts. Review the lessons and try again!') }}</p>{% endif %}
 </div>
 {% set answers = attempt.answers %}

@@ -68,6 +68,8 @@ echo "==> Installing '$NAME' from $REPO ($BRANCH) on port $PORT"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y -q
 apt-get install -y -q python3 python3-venv python3-pip git nginx certbot python3-certbot-nginx
+# Certificate PDFs: the Pango text library and a font that covers Amharic (Ethiopic). Without them the site still works; only the PDF button is hidden.
+apt-get install -y -q libpango-1.0-0 libpangoft2-1.0-0 fonts-noto-core || echo "(PDF libraries are not available here; certificate PDF download stays off, Print still works)"
 # Optional: lets the nightly backup also copy itself off the server (see RCLONE_REMOTE in the settings).
 apt-get install -y -q rclone || echo "(rclone is not available here; off-server backups stay off until it is installed)"
 

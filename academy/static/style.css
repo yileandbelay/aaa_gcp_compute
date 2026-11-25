@@ -479,6 +479,9 @@ body.has-tabbar.has-mobile-cta { padding-bottom: 140px; }
 .cert-qr { display: grid; justify-items: center; gap: 2px; }
 .cert-qr-svg { width: 104px; height: 104px; display: block; }
 .cert-verify { margin: 0; max-width: 46ch; overflow-wrap: anywhere; }
+.cert-actions { display: flex; flex-wrap: wrap; gap: var(--s3); justify-content: center; margin-top: var(--s4); }
+.cert-banner { display: grid; gap: var(--s3); background: var(--sage); border: 1px solid var(--line-strong); border-left: 4px solid var(--brand); border-radius: var(--radius); padding: var(--s4); margin-bottom: var(--s5); }
+.cert-card .row { margin-top: var(--s2); }
 
 /* Admin: same system, denser */
 .choices { display: grid; gap: var(--s3); grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }

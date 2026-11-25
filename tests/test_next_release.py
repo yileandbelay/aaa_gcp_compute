@@ -968,7 +968,9 @@ def test_the_verify_page_the_qr_points_to_opens_logged_out(app):
 def test_print_button_stays_and_print_gives_one_a4_landscape_page(app):
     code = make_certificate(app)
     page = app.test_client().get(f"/certificates/{code}").data.decode()
-    assert "Print / Save as PDF" in page and "window.print()" in page
+    # The print button stays: labelled "Print / Save as PDF" alone, or "Print" beside Download PDF when the server can make PDFs.
+    assert "window.print()" in page
+    assert "Print / Save as PDF" in page or ("Download PDF" in page and ">Print<" in page)
     assert 'rel="stylesheet" media="print" href="/static/certificate-print.css"' in page
     css = open("academy/static/certificate-print.css").read()
     assert "@page" in css and "size: A4 landscape" in css

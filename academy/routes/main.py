@@ -2,7 +2,7 @@
 import os
 from datetime import timedelta
 
-from flask import (Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory,
+from flask import (Blueprint, Response, abort, current_app, flash, redirect, render_template, request, send_from_directory,
                    url_for)
 from flask_login import current_user, login_required
 from sqlalchemy.orm import joinedload, selectinload
@@ -237,7 +237,8 @@ def dashboard():
     payments = Payment.query.filter_by(user_id=current_user.id).order_by(Payment.created_at.desc()).all()
     stats = {"in_progress": len(rows) - finished, "finished": finished, "lessons": lessons_done,
              "certificates": len(certificates)}
-    return render_template("dashboard.html", rows=rows, certificates=certificates, payments=payments, stats=stats)
+    return render_template("dashboard.html", rows=rows, certificates=certificates, payments=payments, stats=stats,
+                           cert_by_course={c.course_id: c for c in certificates})
 
 
 @bp.route("/certificates/<code>")
@@ -247,6 +248,20 @@ def certificate(code):
         abort(404)
     cert = Certificate.query.filter_by(code=code.upper()).first_or_404()
     return render_template("certificate.html", cert=cert)
+
+
+@bp.route("/certificates/<code>/download")
+def certificate_pdf(code):
+    """The certificate as a PDF file. Public like the page itself: whoever has the certificate ID can verify and download it."""
+    from ..certificates import pdf_available, pdf_filename, render_pdf
+
+    if not current_app.config["FEATURE_CERTIFICATES"] or not pdf_available():
+        abort(404)
+    cert = Certificate.query.filter_by(code=code.upper()).first_or_404()
+    response = Response(render_pdf(cert), mimetype="application/pdf")
+    response.headers["Content-Disposition"] = f'attachment; filename="{pdf_filename(cert)}"'
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    return response
 
 
 POLICY_PAGES = {"terms": "Terms of use", "privacy": "Privacy policy", "refunds": "Refund policy"}

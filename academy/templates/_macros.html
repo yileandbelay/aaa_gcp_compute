@@ -2,6 +2,11 @@
 {% macro progress_bar(pct) %}<div class="progress" role="progressbar" aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100" title="{{ pct }}%"><div style="width:{{ pct }}%"></div></div>{% endmacro %}
 {% macro price(course) %}{% if course.is_free %}{{ _('Free') }}{% else %}{{ course.price|money }} {{ currency }}{% endif %}{% endmacro %}
 {% macro hours(course) %}{% if course.length_hours %}{{ (course.length_hours * 60)|duration }}{% endif %}{% endmacro %}
+{# The two certificate buttons, used wherever a learner might look for their certificate. #}
+{% macro certificate_buttons(cert, small=true) %}
+  {% if pdf_available() %}<a class="btn{{ ' small' if small }}" href="{{ url_for('main.certificate_pdf', code=cert.code) }}">{{ _('Download PDF') }}</a>{% endif %}
+  <a class="btn{{ ' small' if small }} secondary" href="{{ url_for('main.certificate', code=cert.code) }}">{{ _('View certificate') }}</a>
+{% endmacro %}
 {% macro icon(name) %}<svg class="i" aria-hidden="true"><use href="#i-{{ name }}"/></svg>{% endmacro %}
 {# Shown instead of a course list while no course is published. #}
 {% macro empty_panel() %}

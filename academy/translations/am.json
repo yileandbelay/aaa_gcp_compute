@@ -67,7 +67,6 @@
   "Certificate ID %(code)s · verify at %(url)s": "የምስክር ወረቀት መለያ ቁጥር %(code)s · ለማረጋገጥ፦ %(url)s",
   "Certificate of Completion": "የማጠናቀቂያ የምስክር ወረቀት",
   "Certificate of completion": "የማጠናቀቂያ የምስክር ወረቀት",
-  "Certificates": "የምስክር ወረቀቶች",
   "Certificates earned": "የተገኙ የምስክር ወረቀቶች",
   "Change password": "የይለፍ ቃል ይቀይሩ",
   "Chapa": "Chapa",
@@ -381,5 +380,10 @@
   "You have completed %(course)s. Your certificate of completion is ready.": "%(course)s ኮርሱን አጠናቅቀዋል። የማጠናቀቂያ የምስክር ወረቀትዎ ተዘጋጅቷል።",
   "View and download it here: %(url)s": "እዚህ ይመልከቱ እና ያውርዱ፦ %(url)s",
   "Anyone can check it with the certificate ID %(code)s at the same address.": "ማንኛውም ሰው በዚሁ አድራሻ በመለያ ቁጥር %(code)s ማረጋገጥ ይችላል።",
-  "Your certificate: %(course)s": "የምስክር ወረቀትዎ፦ %(course)s"
+  "Your certificate: %(course)s": "የምስክር ወረቀትዎ፦ %(course)s",
+  "Download PDF": "PDF ያውርዱ",
+  "View certificate": "የምስክር ወረቀቱን ይመልከቱ",
+  "My certificates": "የእኔ የምስክር ወረቀቶች",
+  "Course complete! Your certificate is ready.": "ኮርሱን አጠናቅቀዋል! የምስክር ወረቀትዎ ተዘጋጅቷል።",
+  "Download the PDF: %(url)s": "PDF ለማውረድ፦ %(url)s"
 }
