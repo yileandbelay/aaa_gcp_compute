@@ -27,3 +27,38 @@ jobs:
       - run: pytest -q
       - name: Check shell scripts parse
         run: for f in deploy/*.sh; do bash -n "$f"; done
+
+  # The whole suite again on PostgreSQL, the database a production server uses: SQLite hides differences
+  # (case-sensitive search, strict GROUP BY, real sequences, DECIMAL) that PostgreSQL does not.
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: academy
+          POSTGRES_PASSWORD: academy
+          POSTGRES_DB: academy_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U academy" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg2://academy:academy@127.0.0.1:5432/academy_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: PostgreSQL 16 client tools (the backup and restore tests use pg_dump and psql)
+        # The client must match the server (postgres:16 above): a newer pg_dump writes settings an older server rejects.
+        # The runner's own apt sources do not carry the 16 client, so add the official PostgreSQL repository first.
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -q postgresql-client-16
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
+      - run: pg_dump --version
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q

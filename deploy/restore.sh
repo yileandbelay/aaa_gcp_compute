@@ -6,8 +6,8 @@
 #   bash deploy/restore.sh --env /etc/academy.env --from b2:my-bucket/academy --stamp 20261113-0300 --force
 #
 # Stop the app first (systemctl stop academy) and start it again afterwards. Without --force the
-# script refuses to overwrite an existing database; with --force the old one is kept next to it as
-# *.before-restore.
+# script refuses to overwrite an existing database; with --force the old one is kept first (SQLite: next to it
+# as *.before-restore; PostgreSQL: a db-before-restore-*.sql.gz dump in the backup folder).
 set -euo pipefail
 
 ENV_FILE=""; FROM=""; STAMP=""; FORCE=0
@@ -50,7 +50,16 @@ case "${DATABASE_URL:-}" in
     gunzip -c "$SRC/db-$STAMP.sqlite.gz" > "$DB_FILE.restoring" && mv "$DB_FILE.restoring" "$DB_FILE" ;;
   postgres*)
     [ -f "$SRC/db-$STAMP.sql.gz" ] || { echo "Missing $SRC/db-$STAMP.sql.gz" >&2; exit 1; }
-    gunzip -c "$SRC/db-$STAMP.sql.gz" | psql "$(echo "$DATABASE_URL" | sed 's/+psycopg2//')" ;;
+    PGURL="$(echo "$DATABASE_URL" | sed 's/+psycopg2//')"
+    EXISTING="$(psql "$PGURL" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")"
+    if [ "${EXISTING:-0}" -gt 0 ]; then
+      [ "$FORCE" = 1 ] || { echo "The database already has tables; run again with --force to replace it" >&2; exit 1; }
+      BEFORE="${BACKUP_DIR:-$WORK}/db-before-restore-$(date -u +%Y%m%d-%H%M%S).sql.gz"
+      pg_dump --no-owner --no-privileges "$PGURL" | gzip > "$BEFORE"
+      echo "Kept the previous database as $BEFORE"
+      psql "$PGURL" -v ON_ERROR_STOP=1 -q -c "DROP SCHEMA public CASCADE" -c "CREATE SCHEMA public"
+    fi
+    gunzip -c "$SRC/db-$STAMP.sql.gz" | psql "$PGURL" -v ON_ERROR_STOP=1 --single-transaction -q ;;
   *) echo "DATABASE_URL is not set in $ENV_FILE" >&2; exit 1 ;;
 esac
 

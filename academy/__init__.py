@@ -174,6 +174,33 @@ def register_cli(app):
             click.echo(f"Result:   FAILED. {(row.error if row else None) or 'Email is not set up.'}")
             raise SystemExit(1)
 
+    @app.cli.command("migrate-to-postgres")
+    @click.option("--source", default=None, help="SQLite URL to copy from (default: DATABASE_URL).")
+    @click.option("--target", required=True, help="PostgreSQL URL to copy into (schema created, tables empty).")
+    @click.option("--dry-run", is_flag=True, help="Check both databases and count rows; copy nothing.")
+    def migrate_to_postgres(source, target, dry_run):
+        """Copy the whole database from SQLite to PostgreSQL in one transaction and verify it row by row."""
+        from .dbcopy import CopyError, copy_database
+
+        source = source or app.config["SQLALCHEMY_DATABASE_URI"]
+        if not source.startswith("sqlite"):
+            raise click.ClickException("The source is not SQLite. Nothing to migrate.")
+        if not target.startswith("postgres"):
+            raise click.ClickException("The target must be a PostgreSQL URL (postgresql+psycopg2://...).")
+        try:
+            report = copy_database(source, target, dry_run=dry_run,
+                                   progress=lambda name, n: click.echo(f"  copied {name}: {n} rows"))
+        except CopyError as exc:
+            raise click.ClickException(str(exc))
+        click.echo("")
+        click.echo(f"{'table':28} {'source':>8} {'target':>8}  content")
+        for t in report.tables:
+            if dry_run:
+                click.echo(f"{t.name:28} {t.source_rows:>8}")
+            else:
+                click.echo(f"{t.name:28} {t.source_rows:>8} {t.target_rows:>8}  {'identical' if t.ok else 'DIFFERENT'}")
+        click.echo(f"{report.total_rows} rows " + ("would be copied (dry run)." if dry_run else "copied and verified."))
+
     @app.cli.command("seed-demo")
     @click.option("--file", "path", type=click.Path(exists=True, dir_okay=False),
                   help="JSON file of courses (default: sample_data/demo_courses.json).")

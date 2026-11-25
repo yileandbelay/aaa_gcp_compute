@@ -1451,9 +1451,26 @@ def fill_site(app, courses, lessons):
         return Lesson.query.filter_by(title="L0").first().id
 
 
+def site_database(name):
+    """Each site needs a database of its own. In-memory SQLite is separate by nature; on PostgreSQL
+    (TEST_DATABASE_URL) every site gets its own schema."""
+    import os
+    url = os.environ.get("TEST_DATABASE_URL", "")
+    if not url.startswith("postgres"):
+        return TestConfig.SQLALCHEMY_DATABASE_URI
+    from sqlalchemy import create_engine, text
+    engine = create_engine(url)
+    with engine.begin() as conn:
+        conn.execute(text(f'DROP SCHEMA IF EXISTS "site_{name}" CASCADE'))
+        conn.execute(text(f'CREATE SCHEMA "site_{name}"'))
+    engine.dispose()
+    return url + ("&" if "?" in url else "?") + f"options=-csearch_path%3Dsite_{name}"
+
+
 def build_site(tmp_path, name, courses, lessons):
     """A fresh app with the demo data plus ``courses`` courses of ``lessons`` lessons each."""
-    app = create_app(type("Cfg", (TestConfig,), {"UPLOAD_DIR": str(tmp_path / name)}))
+    app = create_app(type("Cfg", (TestConfig,), {"UPLOAD_DIR": str(tmp_path / name),
+                                                  "SQLALCHEMY_DATABASE_URI": site_database(name)}))
     with app.app_context():
         seed()
     return app, fill_site(app, courses, lessons)

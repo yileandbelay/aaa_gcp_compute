@@ -96,6 +96,15 @@ def test_backup_without_a_remote_keeps_only_local_copies(box):
     assert not box.log.exists()
 
 
+def test_two_backups_in_the_same_minute_do_not_fail(box):
+    """Running the backup by hand right after the nightly one (or twice before a migration) must work."""
+    box.env_file.write_text(box.env_file.read_text().replace("RCLONE_REMOTE=fake:bucket/academy\n", ""))
+    first = run(BACKUP, box, str(box.env_file))
+    second = run(BACKUP, box, str(box.env_file))
+    assert first.returncode == 0 and second.returncode == 0, second.stderr
+    assert not list(box.backups.glob("*.sqlite"))  # no half-finished uncompressed copy is left behind
+
+
 def test_backup_copies_todays_files_off_server(box):
     r = run(BACKUP, box, str(box.env_file))
     assert r.returncode == 0, r.stderr
@@ -437,3 +446,81 @@ def test_two_installer_runs_with_aliases_keep_https_on_every_block(names_box):
     text = names_box.conf.read_text()
     assert "listen 443 ssl" in text and "server_name example.org learn.example.org;" in text
     assert not Path(str(names_box.conf) + ".https-keep").exists()
+
+
+# --- PostgreSQL: backup and restore against a real server (set TEST_DATABASE_URL) ----------------------------------
+
+POSTGRES_URL = os.environ.get("TEST_DATABASE_URL", "")
+needs_postgres = pytest.mark.skipif(
+    not POSTGRES_URL.startswith("postgres") or not __import__("shutil").which("pg_dump"),
+    reason="needs TEST_DATABASE_URL pointing at PostgreSQL and the pg_dump command",
+)
+
+
+@needs_postgres
+def test_postgres_backup_then_restore_brings_the_data_back_and_keeps_the_replaced_copy(tmp_path):
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine(POSTGRES_URL)
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE note (id serial PRIMARY KEY, body text)"))
+        conn.execute(text("INSERT INTO note (body) VALUES ('first'), ('ሰላም')"))
+    uploads = tmp_path / "data" / "uploads"
+    uploads.mkdir(parents=True)
+    (uploads / "a.txt").write_text("kept")
+    backups = tmp_path / "backups"
+    env = tmp_path / "academy.env"
+    env.write_text(f"DATABASE_URL={POSTGRES_URL}\nUPLOAD_DIR={uploads}\nBACKUP_DIR={backups}\n")
+
+    subprocess.run(["bash", str(BACKUP), str(env)], check=True, capture_output=True)
+    assert list(backups.glob("db-*.sql.gz")) and list(backups.glob("uploads-*.tar.gz"))
+
+    with engine.begin() as conn:  # the site is damaged after the backup
+        conn.execute(text("DELETE FROM note"))
+        conn.execute(text("INSERT INTO note (body) VALUES ('wrong')"))
+
+    refused = subprocess.run(["bash", str(RESTORE), "--env", str(env), "--from", str(backups)], capture_output=True, text=True)
+    assert refused.returncode != 0 and "--force" in refused.stderr
+    with engine.connect() as conn:
+        assert [r[0] for r in conn.execute(text("SELECT body FROM note"))] == ["wrong"]  # nothing was touched
+
+    done = subprocess.run(["bash", str(RESTORE), "--env", str(env), "--from", str(backups), "--force"],
+                          capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
+    with engine.connect() as conn:
+        assert [r[0] for r in conn.execute(text("SELECT body FROM note ORDER BY id"))] == ["first", "ሰላም"]
+    assert list(backups.glob("db-before-restore-*.sql.gz")), "the replaced database should be kept"
+    engine.dispose()
+
+
+# --- PostgreSQL installer and migration scripts: guards that need no server -----------------------------------------
+
+MIGRATE = ROOT / "deploy" / "migrate-to-postgres.sh"
+POSTGRES_HELPERS = ROOT / "deploy" / "postgres.sh"
+
+
+def test_the_postgres_scripts_are_valid_bash():
+    for script in (MIGRATE, POSTGRES_HELPERS, INSTALL, BACKUP, RESTORE):
+        assert subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True).returncode == 0, script.name
+
+
+def test_installer_offers_the_database_choice_and_points_existing_servers_to_the_migration():
+    text = INSTALL.read_text()
+    help_text = subprocess.run(["bash", str(INSTALL), "--help"], capture_output=True, text=True).stdout
+    assert "--db D" in help_text and "migrate-to-postgres.sh" in help_text
+    assert 'DB_CHOICE:-postgres' in text and "pg_provision" in text
+    # An existing server's settings file is never rewritten: the database is only chosen when the file is created.
+    assert text.index("pg_provision") > text.index('if [ ! -f "$ENV_FILE" ]')
+
+
+def test_the_migration_cleans_up_through_an_exit_trap_so_a_failure_never_leaves_the_site_down():
+    """Found by rehearsal: an ERR trap does not run inside functions, so a failed copy left the site stopped."""
+    text = MIGRATE.read_text()
+    assert "trap on_exit EXIT" in text and "trap on_error ERR" not in text
+    assert "systemctl start" in text.split("on_exit()")[1].split("trap on_exit EXIT")[0]
+
+
+def test_the_migration_refuses_to_wipe_data_unless_asked():
+    text = MIGRATE.read_text()
+    assert "--reset-postgres" in text and "already holds data" in text
+    assert '"$RESET" != 1' in text  # data is only cleared when the flag was given
