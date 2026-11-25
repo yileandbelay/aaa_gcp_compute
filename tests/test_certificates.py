@@ -234,7 +234,8 @@ def test_certificates_switched_off_means_no_page_and_no_download(tmp_path):
 
 # --- the email -------------------------------------------------------------------------------------------------------
 
-def test_the_certificate_email_links_the_pdf_only_when_one_can_be_made(tmp_path, monkeypatch):
+@pytest.mark.parametrize("available", [True, False])
+def test_the_certificate_email_links_the_pdf_only_when_one_can_be_made(tmp_path, monkeypatch, available):
     import smtplib
 
     sent = []
@@ -260,26 +261,23 @@ def test_the_certificate_email_links_the_pdf_only_when_one_can_be_made(tmp_path,
 
     monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
 
-    for available in (True, False):
-        sent.clear()
+    class Cfg(TestConfig):
+        UPLOAD_DIR = str(tmp_path / "up")
+        MAIL_SERVER = "smtp.test"
+        MAIL_FROM = "Mek <no-reply@mek.test>"
 
-        class Cfg(TestConfig):
-            UPLOAD_DIR = str(tmp_path / f"up{available}")
-            MAIL_SERVER = "smtp.test"
-            MAIL_FROM = "Mek <no-reply@mek.test>"
-
-        app = create_app(Cfg)
-        with app.app_context():
-            seed()
-        monkeypatch.setattr(certificates, "_available", available)
-        client = app.test_client()
-        register(client)
-        sent.clear()
-        cid, lids = make_course(app)
-        with app.app_context():
-            enroll_student(User.query.filter_by(email="learner@example.com").one(), db.session.get(Course, cid))
-            db.session.commit()
-        client.post(f"/learn/lesson/{lids[0]}/complete")
-        body = [m for m in sent if m["Subject"].startswith("Your certificate")][0].get_content()
-        assert "/certificates/" in body
-        assert ("/download" in body) is available
+    app = create_app(Cfg)
+    with app.app_context():
+        seed()
+    monkeypatch.setattr(certificates, "_available", available)
+    client = app.test_client()
+    register(client)
+    sent.clear()
+    cid, lids = make_course(app)
+    with app.app_context():
+        enroll_student(User.query.filter_by(email="learner@example.com").one(), db.session.get(Course, cid))
+        db.session.commit()
+    client.post(f"/learn/lesson/{lids[0]}/complete")
+    body = [m for m in sent if m["Subject"].startswith("Your certificate")][0].get_content()
+    assert "/certificates/" in body
+    assert ("/download" in body) is available
