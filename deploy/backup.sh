@@ -20,9 +20,10 @@ case "${DATABASE_URL:-}" in
     # Online-safe copy using SQLite's backup API.
     python3 -c "import sqlite3,sys; s=sqlite3.connect(sys.argv[1]); d=sqlite3.connect(sys.argv[2]); s.backup(d); d.close()" \
       "$DB_FILE" "$DEST/db-$STAMP.sqlite"
-    gzip "$DEST/db-$STAMP.sqlite" ;;
+    gzip -f "$DEST/db-$STAMP.sqlite" ;;   # -f: a second backup in the same minute replaces the first instead of failing
   postgres*)
-    pg_dump "$(echo "$DATABASE_URL" | sed 's/+psycopg2//')" | gzip > "$DEST/db-$STAMP.sql.gz" ;;
+    # --no-owner --no-privileges: the dump restores under any role or server. pipefail makes a failed pg_dump fail the backup.
+    pg_dump --no-owner --no-privileges "$(echo "$DATABASE_URL" | sed 's/+psycopg2//')" | gzip > "$DEST/db-$STAMP.sql.gz" ;;
 esac
 
 tar -czf "$DEST/uploads-$STAMP.tar.gz" -C "$(dirname "$UPLOAD_DIR")" "$(basename "$UPLOAD_DIR")"
